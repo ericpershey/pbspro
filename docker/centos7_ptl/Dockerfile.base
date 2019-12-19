@@ -46,4 +46,5 @@ RUN yum install -y \
     sudo \
     tcl \
     tk \
-    libical
+    libical \
+    which
