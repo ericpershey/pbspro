@@ -3,10 +3,8 @@ export PBS_INSTALL_DIR=/opt/pbs
 cd /src/pbspro
 ./autogen.sh
 ./configure --prefix=$PBS_INSTALL_DIR --enable-ptl
-make dist
-mkdir /root/rpmbuild /root/rpmbuild/SOURCES /root/rpmbuild/SPECS
-cp pbspro-*.tar.gz /root/rpmbuild/SOURCES
-cp pbspro-rpmlintrc /root/rpmbuild/SOURCES
-cp pbspro.spec /root/rpmbuild/SPECS
-cd /root/rpmbuild/SPECS
-rpmbuild -ba pbspro.spec
+make -j 7
+make install
+/opt/pbs/libexec/pbs_postinstall
+chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
+/opt/pbs/unsupported/pbs_config --make-ug

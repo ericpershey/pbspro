@@ -1,20 +1,23 @@
 # multi-stage build
 # use pbsbase image as builder
 # build script will be triggered
-FROM pbspro/pbsbase_201912:centos7 AS builder
+FROM pbspro/pbsbase_201912:centos7 as builder
 # get latest PBS Pro source code
 RUN git clone https://github.com/ericpershey/pbspro.git /src/pbspro && \
     cd /src/pbspro && git checkout docker_builds && \
     bash /src/pbspro/docker/centos7_ptl/build.sh
 
 # base image 
-FROM centos:7
+#FROM centos:7
 LABEL maintainer="mliu@altair.com"
 LABEL description="PBS Professional Open Source"
 # copy rpm and entrypoint script from builder
-COPY --from=builder /root/rpmbuild/RPMS/x86_64/pbspro-server-*.rpm .
-COPY --from=builder /src/pbspro/docker/centos7/entrypoint.sh /
+#COPY --from=builder /root/rpmbuild/RPMS/x86_64/pbspro-server-*.rpm .
+#COPY --from=builder /root/rpmbuild/SRPMS/pbspro-server-*.rpm .
+#COPY --from=builder /src/pbspro/docker/centos7/entrypoint.sh /
 # install pbspro
-RUN yum install -y pbspro-server-*.rpm
+#RUN yum install -y pbspro-server-*.rpm
+#RUN yum install -y /root/rpmbuild/RPMS/x86_64/pbspro-server-*.rpm
 # run entrypoint script
-ENTRYPOINT ["bash", "/entrypoint.sh"]
+#ENTRYPOINT ["bash", "/entrypoint.sh"]
+ENTRYPOINT ["bash", "/src/pbspro/docker/centos7/entrypoint.sh"]
