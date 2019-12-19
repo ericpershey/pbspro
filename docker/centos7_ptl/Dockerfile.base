@@ -1,8 +1,10 @@
 # base image for building pbspro
 FROM centos:7
 # install dependencies for building
-RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-RUN yum install -y \
+RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+    yum clean all && \
+    yum repolist && \
+    yum install -y \
     expat-devel \
     gcc \
     git \
