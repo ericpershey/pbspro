@@ -5,9 +5,8 @@ FROM pbspro/pbsbase_201912:centos7 as builder
 # get latest PBS Pro source code
 RUN adduser pbsuser && \
     sudo -u pbsuser git clone https://github.com/ericpershey/pbspro.git /home/pbsuser/pbspro && \
-    sudo -u pbsuser cd /home/pbsuser/pbspro && \
-    sudo -u pbsuser git checkout docker_builds && \
-    sudo -u pbsuser /home/pbsuser/pbspro/docker/centos7_ptl/build.sh
+    sudo -u pbsuser /home/pbsuser/pbspro/docker/centos7_ptl/build.sh && \
+    /home/pbsuser/pbspro/docker/centos7_ptl/install.sh
 
 # base image 
 #FROM centos:7
