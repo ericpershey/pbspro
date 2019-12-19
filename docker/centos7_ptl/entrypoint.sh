@@ -12,6 +12,7 @@ sed -i "s/\$clienthost .*/\$clienthost $hostname/" $mom_conf_file
 
 # create default non-root user
 adduser pbsuser && su - pbsuser
+adduser postgres && su - postgres
 #su - /opt/pbs/unsupported/pbs_config --make-ug
 
 exec "$@"

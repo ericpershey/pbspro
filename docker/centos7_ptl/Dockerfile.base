@@ -1,6 +1,7 @@
 # base image for building pbspro
 FROM centos:7
 # install dependencies for building
+RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 RUN yum install -y \
     expat-devel \
     gcc \
@@ -35,5 +36,14 @@ RUN yum install -y \
     libnet \
     valgrind \
     pssh \
-    valgrind-devel
-
+    valgrind-devel \
+    expat \
+    libedit \
+    postgresql-server \
+    postgresql-contrib \ 
+    python3 \
+    sendmail \
+    sudo \
+    tcl \
+    tk \
+    libical
