@@ -1,6 +1,5 @@
 #!/bin/bash
 cd /home/pbsuser/pbspro
-git checkout docker_builds
 export PBS_INSTALL_DIR=/opt/pbs
 cd /src/pbspro
 ./autogen.sh
