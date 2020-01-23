@@ -1,9 +1,16 @@
+ARG PBSPRO_GITHUB_PATH="pbspro"
+ARG PBSPRO_REPO=https://github.com/$PBSPRO_GITHUB_PATH/pbspro.git
 FROM pbspro/pbspro_base_202001:centos7 as builder
+ARG PBSPRO_REPO
+#RUN adduser pbsuser
+#RUN sudo -u pbsuser git clone --single-branch --branch docker_builds https://github.com/ericpershey/pbspro.git /home/pbsuser/pbspro
+#RUN sudo -u pbsuser git clone --single-branch --branch docker_builds $PBSPRO_REPO /home/pbsuser/pbspro
+#RUN sudo -u pbsuser /home/pbsuser/pbspro/k8s/build_pbspro.sh
+#RUN /home/pbsuser/pbspro/k8s/install_pbspro.sh
 RUN adduser pbsuser && \
-    sudo -u pbsuser git clone --single-branch --branch docker_builds https://github.com/${pbspro_repo}/pbspro.git /home/pbsuser/pbspro && \
-    sudo -u pbsuser /home/pbsuser/pbspro/k8s/build.sh && \
+    sudo -u pbsuser git clone --single-branch --branch docker_builds "$PBSPRO_REPO" /home/pbsuser/pbspro && \
+    sudo -u pbsuser /home/pbsuser/pbspro/k8s/build_pbspro.sh && \
     /home/pbsuser/pbspro/k8s/install_pbspro.sh
-
 LABEL maintainer="eric.pershey@gmail.com"
 LABEL description="PBS Professional Open Source Server"
 ENTRYPOINT ["bash", "/home/pbsuser/pbspro/k8s/entrypoint_server.sh"]
