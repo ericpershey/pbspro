@@ -1,5 +1,11 @@
-To start the PBS Pro cluster, run the following in bash:
 
+# Notes:
+# 1.  make sure you have created new images if you updated them.
+# 2.  Don't use _ no matter what you think, kube doesn't like it in the names
+# 3.  apply creates the objects in kubernetes and runs them 
+# 4.  deployments are for scaling, pods are just used to test.  deployments create pods using a template.
+
+# To start the PBS Pro cluster, run the following in bash:
 minikube start --memory 4gb
 eval $(minikube docker-env)
 cd k8s; ./build_images.sh; cd ..
@@ -13,8 +19,7 @@ echo $KUBE_IP $MANAGEMENT_PORT
 kubectl exec -it pbspro-cluster -- /bin/bash
 
 
-To start the PBS Pro cluster, run the following in xonsh:
-
+# To start the PBS Pro cluster, run the following in xonsh:
 minikube start --memory 4gb
 minikube docker-env - > /tmp/minikube_docker-env
 source-bash /tmp/minikube_docker-env
@@ -26,10 +31,22 @@ kubectl apply -f k8s/pbspro-cluster-service.yml
 $KUBE_IP=$(minikube ip).strip()
 $MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath='{.spec.ports[?(@.name=="pbs-server")].nodePort}').strip('\'')
 echo $KUBE_IP $MANAGEMENT_PORT
-kubectl exec -it pbspro-cluster -- /bin/bash
+# kubectl exec -it pbspro-cluster -- /bin/bash
 
 
-To destroy the cluter, run the following:
-
+# To destroy the cluter, run the following:
 minikube stop
 minikube delete
+
+
+# Debugging - run the server as a pod:
+kubectl apply -f k8s/pbspro-cluster-pod-server.yml
+kubectl exec -it pbspro-pod-server -- /bin/bash
+
+
+# Debugging - log files
+kubectl -n default logs pod/pbspro-pod-server -f
+
+# Debugging - get all pods
+kubectl get pods --all-namespaces
+kubectl get pods --all-namespaces -w  # watch

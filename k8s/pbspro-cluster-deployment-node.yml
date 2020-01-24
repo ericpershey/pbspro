@@ -21,6 +21,7 @@ spec:
       - image: pbspro/pbspro_node_202001:centos7
         imagePullPolicy: IfNotPresent
         name: pbspro-node
+        #command: ["-e PBS_START_MOM=1", "-e PBS_START_SERVER=0", "-e PBS_START_SCHED=0", "-e PBS_START_COMM=0"]
         env:
           - name: HOSTNAME
             valueFrom:
