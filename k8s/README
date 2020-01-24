@@ -8,7 +8,7 @@ kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
 kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
 kubectl apply -f k8s/pbspro-cluster-service.yml
 KUBE_IP=$(minikube ip)
-MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath="{.spec.ports[?(@.name==\"management\")].nodePort}")
+MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath="{.spec.ports[?(@.name==\"pbs-server\")].nodePort}")
 echo $KUBE_IP $MANAGEMENT_PORT
 kubectl exec -it pbspro-cluster -- /bin/bash
 
