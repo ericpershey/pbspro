@@ -1,0 +1,17 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: pbspro-cluster
+spec:
+  type: NodePort
+  selector:
+    app: pbspro-cluster
+  ports:
+  - protocol: TCP
+    name: pbs-comm
+    port: 17001
+    targetPort: pbs-comm
+  - protocol: TCP
+    name: pbs-server
+    port: 15001
+    targetPort: pbs-server

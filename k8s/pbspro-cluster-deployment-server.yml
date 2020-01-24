@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pbspro-cluster-server
+spec:
+  #replicas: 5
+  selector:
+    matchLabels:
+      app: pbspro-cluster-server
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: pbspro-cluster-server
+    spec:
+      containers:
+      - image: pbspro/pbspro_server_202001:centos7
+        imagePullPolicy: IfNotPresent
+        name: pbspro-server
+        env:
+          - name: HOSTNAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+        ports:
+        - name: pbs-server
+          containerPort: 15001
+        - name: pbs-comm
+          containerPort: 17001
+        # readinessProbe:
+        #   tcpSocket:
+        #     port: 15001
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 10
+        # livenessProbe:
+        #   tcpSocket:
+        #     port: 15001
+        #   initialDelaySeconds: 15
+        #   periodSeconds: 20
+
+      

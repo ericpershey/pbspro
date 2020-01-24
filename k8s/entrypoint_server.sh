@@ -15,4 +15,5 @@ adduser pbsuser && su - pbsuser
 adduser postgres && su - postgres
 #su - /opt/pbs/unsupported/pbs_config --make-ug
 
-exec "$@"
+#exec "$@"
+exec /bin/sleep infinity
