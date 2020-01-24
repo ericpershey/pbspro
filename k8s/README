@@ -1,0 +1,35 @@
+To start the PBS Pro cluster, run the following in bash:
+
+minikube start --memory 4gb
+eval $(minikube docker-env)
+cd k8s; ./build_images.sh; cd ..
+kubectl apply -f k8s/pbspro-cluster-rbac.yml
+kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
+kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
+kubectl apply -f k8s/pbspro-cluster-service.yml
+KUBE_IP=$(minikube ip)
+MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath="{.spec.ports[?(@.name==\"management\")].nodePort}")
+echo $KUBE_IP $MANAGEMENT_PORT
+kubectl exec -it pbspro-cluster -- /bin/bash
+
+
+To start the PBS Pro cluster, run the following in xonsh:
+
+minikube start --memory 4gb
+minikube docker-env - > /tmp/minikube_docker-env
+source-bash /tmp/minikube_docker-env
+cd k8s; ./build_images.sh; cd ..
+kubectl apply -f k8s/pbspro-cluster-rbac.yml
+kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
+kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
+kubectl apply -f k8s/pbspro-cluster-service.yml
+$KUBE_IP=$(minikube ip).strip()
+$MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath='{.spec.ports[?(@.name=="pbs-server")].nodePort}').strip('\'')
+echo $KUBE_IP $MANAGEMENT_PORT
+kubectl exec -it pbspro-cluster -- /bin/bash
+
+
+To destroy the cluter, run the following:
+
+minikube stop
+minikube delete
