@@ -17,12 +17,22 @@ spec:
       labels:
         app: pbspro-cluster-node
     spec:
+      hostNetwork: true
       containers:
       - image: pbspro/pbspro_node_202001:centos7
         imagePullPolicy: IfNotPresent
         name: pbspro-node
-        #command: ["-e PBS_START_MOM=1", "-e PBS_START_SERVER=0", "-e PBS_START_SCHED=0", "-e PBS_START_COMM=0"]
+        securityContext:
+          privileged: true
         env:
+          - name: PBS_START_MOM
+            value: "1"
+          - name: PBS_START_SERVER
+            value: "0"
+          - name: PBS_START_SCHED
+            value: "0"
+          - name: PBS_START_COMM
+            value: "0"
           - name: HOSTNAME
             valueFrom:
               fieldRef:
@@ -43,4 +53,5 @@ spec:
         #     port: 15001
         #   initialDelaySeconds: 15
         #   periodSeconds: 20
+      dnsPolicy: ClusterFirst
       

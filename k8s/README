@@ -1,4 +1,3 @@
-
 # Notes:
 # 1.  make sure you have created new images if you updated them.
 # 2.  Don't use _ no matter what you think, kube doesn't like it in the names
@@ -10,8 +9,8 @@ minikube start --memory 4gb
 eval $(minikube docker-env)
 cd k8s; ./build_images.sh; cd ..
 kubectl apply -f k8s/pbspro-cluster-rbac.yml
-kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
-kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
+# kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
+# kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
 kubectl apply -f k8s/pbspro-cluster-service.yml
 KUBE_IP=$(minikube ip)
 MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath="{.spec.ports[?(@.name==\"pbs-server\")].nodePort}")
@@ -25,13 +24,24 @@ minikube docker-env - > /tmp/minikube_docker-env
 source-bash /tmp/minikube_docker-env
 cd k8s; ./build_images.sh; cd ..
 kubectl apply -f k8s/pbspro-cluster-rbac.yml
-kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
-kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
+# kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
+# kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
+kubectl apply -f k8s/pbspro-cluster-statefulset-server.yml
+kubectl apply -f k8s/pbspro-cluster-statefulset-node.yml
 kubectl apply -f k8s/pbspro-cluster-service.yml
 $KUBE_IP=$(minikube ip).strip()
 $MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath='{.spec.ports[?(@.name=="pbs-server")].nodePort}').strip('\'')
 echo $KUBE_IP $MANAGEMENT_PORT
-# kubectl exec -it pbspro-cluster -- /bin/bash
+$POD_PBS_SERVER=$(kubectl get pod -l app=pbspro-cluster-server -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
+$POD_PBS_NODE=$(kubectl get pod -l app=pbspro-cluster-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
+echo $POD_PBS_SERVER $POD_PBS_NODE
+kubectl exec -it $POD_PBS_SERVER -- cat /etc/resolv.conf
+kubectl exec -it $POD_PBS_NODE -- cat /etc/resolv.conf
+kubectl exec -it $POD_PBS_SERVER -- /bin/bash
+kubectl exec -it $POD_PBS_NODE -- /bin/bash
+
+#kubectl delete pod/$POD_PBS_SERVER
+#kubectl delete pod/$POD_PBS_NODE
 
 
 # To destroy the cluter, run the following:
@@ -50,3 +60,4 @@ kubectl -n default logs pod/pbspro-pod-server -f
 # Debugging - get all pods
 kubectl get pods --all-namespaces
 kubectl get pods --all-namespaces -w  # watch
+kubectl get pod --output=wide

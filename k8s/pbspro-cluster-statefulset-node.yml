@@ -1,38 +1,34 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: pbspro-cluster-server
+  name: pbspro-cluster-node
 spec:
-  #replicas: 5
+  serviceName: "node"
+  replicas: 2
   selector:
     matchLabels:
-      app: pbspro-cluster-server
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      app: pbspro-cluster-node
   template:
     metadata:
       labels:
-        app: pbspro-cluster-server
+        app: pbspro-cluster-node
     spec:
-      #hostNetwork: true
+      hostNetwork: true
       containers:
-      - image: pbspro/pbspro_server_202001:centos7
+      - name: pbspro-node
         imagePullPolicy: IfNotPresent
-        name: pbspro-server
+        image: pbspro/pbspro_node_202001:centos7
         securityContext:
           privileged: true
         env:
           - name: PBS_START_MOM
-            value: "0"
+            value: "1"
           - name: PBS_START_SERVER
-            value: "1"
+            value: "0"
           - name: PBS_START_SCHED
-            value: "1"
+            value: "0"
           - name: PBS_START_COMM
-            value: "1"
+            value: "0"
           - name: HOSTNAME
             valueFrom:
               fieldRef:

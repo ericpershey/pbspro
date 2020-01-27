@@ -8,4 +8,7 @@ RUN adduser pbsuser && \
     /home/pbsuser/pbspro/k8s/install_pbspro.sh
 LABEL maintainer="eric.pershey@gmail.com"
 LABEL description="PBS Professional Open Source Server"
-ENTRYPOINT ["bash", "/home/pbsuser/pbspro/k8s/entrypoint_server.sh"]
+# in minikube 1.7, this should be there.
+COPY ./docker-init /sbin/docker-init
+ENTRYPOINT ["/sbin/docker-init", "--"]
+CMD ["bash", "/home/pbsuser/pbspro/k8s/entrypoint_server.sh"]
