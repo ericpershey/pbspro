@@ -5,7 +5,7 @@ ARG PBSPRO_REPO
 RUN adduser pbsuser && \
     sudo -u pbsuser git clone --single-branch --branch docker_builds "$PBSPRO_REPO" /home/pbsuser/pbspro && \
     sudo -u pbsuser /home/pbsuser/pbspro/k8s/build_pbspro.sh && \
-    /home/pbsuser/pbspro/k8s/install_pbspro.sh
+    /home/pbsuser/pbspro/k8s/install_pbspro_node.sh
 LABEL maintainer="eric.pershey@gmail.com"
 LABEL description="PBS Professional Open Source Server"
 # in minikube 1.7, this should be there.

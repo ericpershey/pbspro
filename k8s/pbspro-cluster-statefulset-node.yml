@@ -4,7 +4,7 @@ metadata:
   name: pbspro-cluster-node
 spec:
   serviceName: "node"
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: pbspro-cluster-node
@@ -13,7 +13,7 @@ spec:
       labels:
         app: pbspro-cluster-node
     spec:
-      hostNetwork: true
+      #hostNetwork: true
       containers:
       - name: pbspro-node
         imagePullPolicy: IfNotPresent
@@ -29,6 +29,8 @@ spec:
             value: "0"
           - name: PBS_START_COMM
             value: "0"
+          - name: PBS_SERVER
+            value: "pbspro-cluster-server-0"
           - name: HOSTNAME
             valueFrom:
               fieldRef:

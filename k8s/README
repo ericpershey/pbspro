@@ -26,7 +26,8 @@ cd k8s; ./build_images.sh; cd ..
 kubectl apply -f k8s/pbspro-cluster-rbac.yml
 # kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
 # kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
-kubectl apply -f k8s/pbspro-cluster-statefulset-server.yml
+# kubectl apply -f k8s/pbspro-cluster-statefulset-server.yml
+kubectl apply -f k8s/pbspro-cluster-pod-server.yml
 kubectl apply -f k8s/pbspro-cluster-statefulset-node.yml
 kubectl apply -f k8s/pbspro-cluster-service.yml
 $KUBE_IP=$(minikube ip).strip()
@@ -42,6 +43,8 @@ kubectl exec -it $POD_PBS_NODE -- /bin/bash
 
 #kubectl delete pod/$POD_PBS_SERVER
 #kubectl delete pod/$POD_PBS_NODE
+#kubectl delete -f k8s/pbspro-cluster-statefulset-server.yml
+#kubectl delete -f k8s/pbspro-cluster-statefulset-node.yml
 
 
 # To destroy the cluter, run the following:

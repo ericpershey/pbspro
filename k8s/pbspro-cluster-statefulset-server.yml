@@ -29,6 +29,8 @@ spec:
             value: "1"
           - name: PBS_START_COMM
             value: "1"
+          # - name: PBS_SERVER
+          #   value: "pbspro-cluster-server-0"
           - name: HOSTNAME
             valueFrom:
               fieldRef:
