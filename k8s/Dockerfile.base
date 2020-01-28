@@ -50,4 +50,7 @@ RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.n
     tk \
     libical \
     which \
-    man
+    man \
+    mlocate \
+    net-tools \
+    bind-utils

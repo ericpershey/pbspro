@@ -45,7 +45,7 @@ kubectl exec -it $POD_PBS_NODE -- /bin/bash
 #kubectl delete pod/$POD_PBS_NODE
 #kubectl delete -f k8s/pbspro-cluster-statefulset-server.yml
 #kubectl delete -f k8s/pbspro-cluster-statefulset-node.yml
-
+kubectl delete -f k8s/pbspro-cluster-pod-server.yml
 
 # To destroy the cluter, run the following:
 minikube stop
@@ -64,3 +64,9 @@ kubectl -n default logs pod/pbspro-pod-server -f
 kubectl get pods --all-namespaces
 kubectl get pods --all-namespaces -w  # watch
 kubectl get pod --output=wide
+
+# Debugging - images
+docker rm pbspro-pod-server
+docker run -it --name pbspro-pod-server -h pbs -e PBS_START_MOM=0 pbspro/pbspro_server_202001:centos7
+docker exec -it pbspro-pod-server bash
+

@@ -1,11 +1,5 @@
-ARG PBSPRO_GITHUB_PATH="pbspro"
-ARG PBSPRO_REPO=https://github.com/$PBSPRO_GITHUB_PATH/pbspro.git
-FROM pbspro/pbspro_base_202001:centos7 as builder
-ARG PBSPRO_REPO
-RUN adduser pbsuser && \
-    sudo -u pbsuser git clone --single-branch --branch docker_builds "$PBSPRO_REPO" /home/pbsuser/pbspro && \
-    sudo -u pbsuser /home/pbsuser/pbspro/k8s/build_pbspro.sh && \
-    /home/pbsuser/pbspro/k8s/install_pbspro_node.sh
+FROM pbspro/pbspro_build_202001:centos7 as builder
+RUN /home/pbsuser/pbspro/k8s/install_pbspro_node.sh
 LABEL maintainer="eric.pershey@gmail.com"
 LABEL description="PBS Professional Open Source Server"
 # in minikube 1.7, this should be there.

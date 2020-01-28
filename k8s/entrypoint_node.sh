@@ -13,8 +13,8 @@ sed -i "s/\$clienthost .*/\$clienthost $hostname/" $mom_conf_file
 /etc/init.d/pbs start
 
 # create default non-root user
-adduser pbsuser && su - pbsuser
+# adduser pbsuser && su - pbsuser
 #su - /opt/pbs/unsupported/pbs_config --make-ug
 
 #exec "$@"
-#exec /bin/sleep infinity
+exec /bin/sleep infinity

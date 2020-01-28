@@ -17,7 +17,7 @@ spec:
       labels:
         app: pbspro-cluster-server
     spec:
-      #hostNetwork: true
+      # hostNetwork: true
       containers:
       - image: pbspro/pbspro_server_202001:centos7
         imagePullPolicy: IfNotPresent

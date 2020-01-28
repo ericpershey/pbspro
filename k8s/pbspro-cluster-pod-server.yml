@@ -3,9 +3,9 @@ kind: Pod
 metadata:
   name: pbspro-pod-server
 spec:
-  hostNetwork: true
+  # hostNetwork: true
   containers:
-  - name: pbspro-server
+  - name: pbspro-server # this is the pod name
     image: pbspro/pbspro_server_202001:centos7
     securityContext:
       privileged: true
