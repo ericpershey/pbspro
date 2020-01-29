@@ -3,7 +3,6 @@ kind: Pod
 metadata:
   labels:
     app: pbspro
-    tier: backend  
   name: pbspro-pod-server
 spec:
   # hostNetwork: true
@@ -33,4 +32,12 @@ spec:
       containerPort: 15001
     - name: pbs-server-ssh
       containerPort: 22      
+    volumeMounts:
+    - name: pbspro-cluster-pod-server-configmap
+      mountPath: /etc/pbs.conf
+      readOnly: false
+  volumes:
+  - name: pbspro-cluster-pod-server-configmap
+    configMap:
+      name: pbspro-cluster-pod-server-configmap
   dnsPolicy: ClusterFirst

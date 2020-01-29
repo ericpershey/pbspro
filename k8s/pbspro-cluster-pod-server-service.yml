@@ -1,24 +1,36 @@
-kind: Service
 apiVersion: v1
+kind: Service
 metadata:
+  creationTimestamp: "2020-01-29T22:16:50Z"
   labels:
     app: pbspro
-    tier: backend    
   name: pbspro-pod-server
+  namespace: default
+  resourceVersion: "96952"
+  selfLink: /api/v1/namespaces/default/services/pbspro-pod-server
+  uid: e912241b-8b0f-484e-8b47-e321f9a72fc5
 spec:
-  type: NodePort
-  # selector:
-  #   app: pbspro-pod-server
+  clusterIP: 10.96.169.147
+  externalTrafficPolicy: Cluster
   ports:
-  - protocol: TCP
-    name: pbs-comm
+  - name: port-1
+    nodePort: 32211
     port: 17001
-    targetPort: pbs-comm
-  - protocol: TCP
-    name: pbs-server
+    protocol: TCP
+    targetPort: 17001
+  - name: port-2
+    nodePort: 30275
     port: 15001
-    targetPort: pbs-server
-  - protocol: TCP
-    name: pbs-server-ssh
+    protocol: TCP
+    targetPort: 15001
+  - name: port-3
+    nodePort: 31601
     port: 22
-    targetPort: pbs-server-ssh
+    protocol: TCP
+    targetPort: 22
+  selector:
+    app: pbspro
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}

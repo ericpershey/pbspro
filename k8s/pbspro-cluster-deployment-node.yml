@@ -1,6 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  labels:
+    app: pbspro-node
   name: pbspro-cluster-node
 spec:
   #replicas: 5

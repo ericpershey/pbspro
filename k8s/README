@@ -29,7 +29,9 @@ kubectl apply -f k8s/pbspro-cluster-rbac.yml
 # kubectl apply -f k8s/pbspro-cluster-statefulset-server.yml
 kubectl apply -f k8s/pbspro-cluster-pod-server.yml
 kubectl apply -f k8s/pbspro-cluster-statefulset-node.yml
-kubectl apply -f k8s/pbspro-cluster-service.yml
+kubectl apply -f k8s/pbspro-cluster-pod-server-service.yml
+kubectl apply -f k8s/pbspro-cluster-statefulset-node-configmap.yml
+kubectl apply -f k8s/pbspro-cluster-pod-server-configmap.yml
 $KUBE_IP=$(minikube ip).strip()
 $MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath='{.spec.ports[?(@.name=="pbs-server")].nodePort}').strip('\'')
 echo $KUBE_IP $MANAGEMENT_PORT
@@ -82,20 +84,27 @@ kubectl get pod pbspro-pod-server -o json
 $POD_PBS_SERVER=$(kubectl get pod -l app=pbspro -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 $POD_PBS_NODE=$(kubectl get pod -l app=pbspro-cluster-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 
+
+#both
+yum install -y vim openssh-server
+
 #node
 kubectl exec -it $POD_PBS_NODE -- /bin/bash
-echo "172.17.0.2 pbspro-pod-server" >> /etc/hosts
-sed -i "s/PBS_SERVER=.*/PBS_SERVER=pbspro-pod-server/" /etc/pbs.conf
+# echo "172.17.0.2 pbspro-pod-server" >> /etc/hosts
+sed -i "s/PBS_SERVER=.*/PBS_SERVER=pbspro-pod-server.default.svc.cluster.local/" /etc/pbs.conf
 /etc/init.d/pbs restart
 
 #server 
 kubectl exec -it $POD_PBS_SERVER -- /bin/bash
-echo "172.17.0.5 pbspro-cluster-node-0" >> /etc/hosts
+# echo "172.17.0.5 pbspro-cluster-node-0" >> /etc/hosts
+sed -i "s/PBS_SERVER=.*/PBS_SERVER=pbspro-pod-server.default.svc.cluster.local/" /etc/pbs.conf
+/usr/bin/ssh-keygen -A
+/usr/sbin/sshd
 
 #both
-yum install -y vim
 /opt/pbs/bin/qmgr -c "create node pbspro-cluster-node-0"
 sudo /opt/pbs/bin/qmgr -c "create queue default"
 sudo /opt/pbs/bin/qmgr -c "set queue default queue_type = Execution"
 sudo /opt/pbs/bin/qmgr -c "set queue default enabled = True"
 sudo /opt/pbs/bin/qmgr -c "set queue default started = True"
+sudo netstat -tulpn | grep LISTEN
