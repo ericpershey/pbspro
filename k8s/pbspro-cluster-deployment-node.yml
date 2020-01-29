@@ -43,6 +43,8 @@ spec:
           containerPort: 15001
         - name: pbs-comm
           containerPort: 17001
+        - name: pbs-server-ssh
+          containerPort: 22              
         # readinessProbe:
         #   tcpSocket:
         #     port: 15001

@@ -1,6 +1,9 @@
 apiVersion: v1
 kind: Pod
 metadata:
+  labels:
+    app: pbspro
+    tier: backend  
   name: pbspro-pod-server
 spec:
   # hostNetwork: true
@@ -24,8 +27,10 @@ spec:
             apiVersion: v1
             fieldPath: status.podIP
     ports:
-    - name: pbs-server
-      containerPort: 15001
     - name: pbs-comm
       containerPort: 17001
+    - name: pbs-server
+      containerPort: 15001
+    - name: pbs-server-ssh
+      containerPort: 22      
   dnsPolicy: ClusterFirst

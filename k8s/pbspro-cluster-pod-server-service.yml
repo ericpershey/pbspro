@@ -1,0 +1,24 @@
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app: pbspro
+    tier: backend    
+  name: pbspro-pod-server
+spec:
+  type: NodePort
+  # selector:
+  #   app: pbspro-pod-server
+  ports:
+  - protocol: TCP
+    name: pbs-comm
+    port: 17001
+    targetPort: pbs-comm
+  - protocol: TCP
+    name: pbs-server
+    port: 15001
+    targetPort: pbs-server
+  - protocol: TCP
+    name: pbs-server-ssh
+    port: 22
+    targetPort: pbs-server-ssh
