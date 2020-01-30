@@ -39,8 +39,15 @@ spec:
     - name: config-volume-server
       mountPath: /etc/pbs.conf
       subPath: pbs.conf
+    - name: config-scripts
+      mountPath: /info_pbs.sh
+      subPath: info_pbs.sh
   volumes:
   - name: config-volume-server
     configMap:
       name: pbspro-cluster-pod-server-configmap
+  - name: config-scripts
+    configMap:
+      name: pbspro-cluster-job-scripts
+      defaultMode: 0777
   dnsPolicy: ClusterFirst
