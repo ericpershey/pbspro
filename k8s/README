@@ -39,13 +39,13 @@ kubectl apply -f k8s/pbspro-cluster-statefulset-node.yml
 # BASH: Get PBS Cluster environment
 #POD_PBS_SERVER=$(kubectl get pod -l app=pbspro-server -o jsonpath="{.items[0].metadata.name}")
 POD_PBS_SERVER=$(kubectl get pod -l app=pbspro -o jsonpath="{.items[0].metadata.name}")
-POD_PBS_NODE=$(kubectl get pod -l app=pbspro-cluster-node -o jsonpath="{.items[0].metadata.name}")
+POD_PBS_NODE=$(kubectl get pod -l app=pbspro-node -o jsonpath="{.items[0].metadata.name}")
 echo $POD_PBS_SERVER $POD_PBS_NODE
 
 # XONSH: Get PBS Cluster environment
 #$POD_PBS_SERVER=$(kubectl get pod -l app=pbspro-server -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 $POD_PBS_SERVER=$(kubectl get pod -l app=pbspro -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
-$POD_PBS_NODE=$(kubectl get pod -l app=pbspro-cluster-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
+$POD_PBS_NODE=$(kubectl get pod -l app=pbspro-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 echo $POD_PBS_SERVER $POD_PBS_NODE
 
 # GENERIC: Operate on PBS Cluster
@@ -108,6 +108,7 @@ sed -i "s/PBS_SERVER=.*/PBS_SERVER=pbspro-pod-server.default.svc.cluster.local/"
 
 #both
 /opt/pbs/bin/qmgr -c "create node pbspro-cluster-node-0"
+/opt/pbs/bin/qmgr -c "create node pbspro-node-0.pbspro-node.default.svc.cluster.local"
 sudo /opt/pbs/bin/qmgr -c "create queue default"
 sudo /opt/pbs/bin/qmgr -c "set queue default queue_type = Execution"
 sudo /opt/pbs/bin/qmgr -c "set queue default enabled = True"

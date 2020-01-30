@@ -3,17 +3,17 @@ kind: StatefulSet
 metadata:
   labels:
     app: pbspro-node  
-  name: pbspro-cluster-node
+  name: pbspro-node
 spec:
-  serviceName: "node"
+  serviceName: "pbspro-node"
   replicas: 1
   selector:
     matchLabels:
-      app: pbspro-cluster-node
+      app: pbspro-node
   template:
     metadata:
       labels:
-        app: pbspro-cluster-node
+        app: pbspro-node
     spec:
       #hostNetwork: true
       containers:
@@ -37,6 +37,10 @@ spec:
                 apiVersion: v1
                 fieldPath: status.podIP
         ports:
+        - name: pbs-comm
+          containerPort: 17001
+        - name: pbs-server
+          containerPort: 15001          
         - name: pbs-node-ssh
           containerPort: 22
         # readinessProbe:
