@@ -15,7 +15,8 @@ spec:
     targetPort: 22
   clusterIP: None
   selector:
-    app: pbspro
+    #app: pbspro-node
+    statefulset.kubernetes.io/pbspro-node: pbspro-cluster-node
   sessionAffinity: None
   type: ClusterIP
 status:
