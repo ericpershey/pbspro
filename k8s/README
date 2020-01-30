@@ -4,25 +4,20 @@
 # 3.  apply creates the objects in kubernetes and runs them 
 # 4.  deployments are for scaling, pods are just used to test.  deployments create pods using a template.
 
-# To start the PBS Pro cluster, run the following in bash:
+# BASH: Start minikube cluster and build the PBS Pro Docker images
 minikube start --memory 4gb
 eval $(minikube docker-env)
-cd k8s; ./build_images.sh; cd ..
-kubectl apply -f k8s/pbspro-cluster-rbac.yml
-# kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
-# kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
-kubectl apply -f k8s/pbspro-cluster-service.yml
 KUBE_IP=$(minikube ip)
-MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath="{.spec.ports[?(@.name==\"pbs-server\")].nodePort}")
-echo $KUBE_IP $MANAGEMENT_PORT
-kubectl exec -it pbspro-cluster -- /bin/bash
+cd k8s; ./build_images.sh; cd ..
 
-
-# To start the PBS Pro cluster, run the following in xonsh:
+# XONSH: Start minikube cluster and build the PBS Pro Docker images
 minikube start --memory 4gb
 minikube docker-env - > /tmp/minikube_docker-env
 source-bash /tmp/minikube_docker-env
+$KUBE_IP=$(minikube ip).strip()
 cd k8s; ./build_images.sh; cd ..
+
+# GENERIC: Start the PBS Pro Cluster
 kubectl apply -f k8s/pbspro-cluster-rbac.yml
 # kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
 # kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
@@ -37,18 +32,30 @@ kubectl apply -f k8s/pbspro-cluster-pod-server-configmap.yml
 kubectl apply -f k8s/pbspro-cluster-pod-server.yml
 # create the nodes
 kubectl apply -f k8s/pbspro-cluster-statefulset-node.yml
-$KUBE_IP=$(minikube ip).strip()
+
+# BASH: Get PBS Cluster environment
+MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath="{.spec.ports[?(@.name==\"pbs-server\")].nodePort}")
+echo $KUBE_IP $MANAGEMENT_PORT
+#$POD_PBS_SERVER=$(kubectl get pod -l app=pbspro-server -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
+$POD_PBS_SERVER=$(kubectl get pod -l app=pbspro -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
+$POD_PBS_NODE=$(kubectl get pod -l app=pbspro-cluster-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
+echo $POD_PBS_SERVER $POD_PBS_NODE
+
+# XONSH: Get PBS Cluster environment
 $MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath='{.spec.ports[?(@.name=="pbs-server")].nodePort}').strip('\'')
 echo $KUBE_IP $MANAGEMENT_PORT
 #$POD_PBS_SERVER=$(kubectl get pod -l app=pbspro-server -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 $POD_PBS_SERVER=$(kubectl get pod -l app=pbspro -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 $POD_PBS_NODE=$(kubectl get pod -l app=pbspro-cluster-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 echo $POD_PBS_SERVER $POD_PBS_NODE
+
+# GENERIC: Operate on PBS Cluster
 kubectl exec -it $POD_PBS_SERVER -- cat /etc/resolv.conf
 kubectl exec -it $POD_PBS_NODE -- cat /etc/resolv.conf
 kubectl exec -it $POD_PBS_SERVER -- /bin/bash
 kubectl exec -it $POD_PBS_NODE -- /bin/bash
 
+# GENERIC: Destroy the PBS Cluster
 #kubectl delete pod/$POD_PBS_SERVER
 #kubectl delete pod/$POD_PBS_NODE
 #kubectl delete -f k8s/pbspro-cluster-statefulset-server.yml
@@ -58,12 +65,10 @@ kubectl delete -f k8s/pbspro-cluster-pod-server-service.yml
 kubectl delete -f k8s/pbspro-cluster-pod-server-configmap.yml
 kubectl delete -f k8s/pbspro-cluster-statefulset-node-configmap.yml
 kubectl delete -f k8s/pbspro-cluster-job-scripts.yml
-$POD_PBS_SERVER = "pbspro-pod-server"
 
-# To destroy the cluter, run the following:
+# GENERIC: Destroy the minikube cluster
 minikube stop
 minikube delete
-
 
 # Debugging - run the server as a pod:
 kubectl apply -f k8s/pbspro-cluster-pod-server.yml
@@ -87,14 +92,6 @@ docker run -it --name pbspro-pod-server -h pbs -e PBS_START_MOM=0 pbspro/pbspro_
 docker exec -it pbspro-pod-server bash
 
 kubectl get pod pbspro-pod-server -o json
-
-
-$POD_PBS_SERVER=$(kubectl get pod -l app=pbspro -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
-$POD_PBS_NODE=$(kubectl get pod -l app=pbspro-cluster-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
-
-
-#both
-yum install -y vim openssh-server
 
 #node
 kubectl exec -it $POD_PBS_NODE -- /bin/bash
