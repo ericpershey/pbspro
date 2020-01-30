@@ -3,9 +3,9 @@ kind: Service
 metadata:
   labels:
     app: pbspro-node
-  name: pbspro-pod-node
+  name: pbspro-node
   namespace: default
-  selfLink: /api/v1/namespaces/default/services/pbspro-pod-node
+  selfLink: /api/v1/namespaces/default/services/pbspro-node
 spec:
   #externalTrafficPolicy: Cluster
   ports:
@@ -15,9 +15,7 @@ spec:
     targetPort: 22
   clusterIP: None
   selector:
-    #app: pbspro-node
-    statefulset.kubernetes.io/pbspro-node: pbspro-cluster-node
+    app: pbspro-node
+    #statefulset.kubernetes.io/pbspro-node: pbspro-cluster-node
   sessionAffinity: None
   type: ClusterIP
-status:
-  loadBalancer: {}

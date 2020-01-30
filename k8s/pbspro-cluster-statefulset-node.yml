@@ -3,17 +3,17 @@ kind: StatefulSet
 metadata:
   labels:
     app: pbspro-node  
-  name: pbspro-cluster-node
+  name: pbspro-node
 spec:
-  serviceName: "node"
+  serviceName: "pbspro-node"
   replicas: 1
   selector:
     matchLabels:
-      app: pbspro-cluster-node
+      app: pbspro-node
   template:
     metadata:
       labels:
-        app: pbspro-cluster-node
+        app: pbspro-node
     spec:
       #hostNetwork: true
       containers:
