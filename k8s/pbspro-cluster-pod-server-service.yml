@@ -7,21 +7,21 @@ metadata:
   namespace: default
   selfLink: /api/v1/namespaces/default/services/pbspro-pod-server
 spec:
-  clusterIP: 10.96.169.147
+  #clusterIP: 10.96.169.147
   externalTrafficPolicy: Cluster
   ports:
   - name: port-1
-    nodePort: 32211
+    #nodePort: 32211
     port: 17001
     protocol: TCP
     targetPort: 17001
   - name: port-2
-    nodePort: 30275
+    #nodePort: 30275
     port: 15001
     protocol: TCP
     targetPort: 15001
   - name: port-3
-    nodePort: 31601
+    #nodePort: 31601
     port: 22
     protocol: TCP
     targetPort: 22

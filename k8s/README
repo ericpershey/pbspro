@@ -24,6 +24,7 @@ kubectl apply -f k8s/pbspro-cluster-rbac.yml
 # kubectl apply -f k8s/pbspro-cluster-statefulset-server.yml
 # create the service to link them
 kubectl apply -f k8s/pbspro-cluster-pod-server-service.yml
+kubectl apply -f k8s/pbspro-cluster-statefulset-node-service.yml
 # apply configmaps before the pods
 kubectl apply -f k8s/pbspro-cluster-job-scripts.yml
 kubectl apply -f k8s/pbspro-cluster-statefulset-node-configmap.yml
@@ -62,6 +63,7 @@ kubectl exec -it $POD_PBS_NODE -- /bin/bash
 kubectl delete -f k8s/pbspro-cluster-statefulset-node.yml
 kubectl delete -f k8s/pbspro-cluster-pod-server.yml
 kubectl delete -f k8s/pbspro-cluster-pod-server-service.yml
+kubectl delete -f k8s/pbspro-cluster-statefulset-node-service.yml
 kubectl delete -f k8s/pbspro-cluster-pod-server-configmap.yml
 kubectl delete -f k8s/pbspro-cluster-statefulset-node-configmap.yml
 kubectl delete -f k8s/pbspro-cluster-job-scripts.yml
