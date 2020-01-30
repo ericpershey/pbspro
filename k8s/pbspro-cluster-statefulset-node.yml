@@ -37,6 +37,10 @@ spec:
                 apiVersion: v1
                 fieldPath: status.podIP
         ports:
+        - name: pbs-comm
+          containerPort: 17001
+        - name: pbs-server
+          containerPort: 15001          
         - name: pbs-node-ssh
           containerPort: 22
         # readinessProbe:

@@ -47,7 +47,7 @@ $MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath='{.spec.ports[?(@.n
 echo $KUBE_IP $MANAGEMENT_PORT
 #$POD_PBS_SERVER=$(kubectl get pod -l app=pbspro-server -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 $POD_PBS_SERVER=$(kubectl get pod -l app=pbspro -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
-$POD_PBS_NODE=$(kubectl get pod -l app=pbspro-cluster-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
+$POD_PBS_NODE=$(kubectl get pod -l app=pbspro-node -o jsonpath="{.items[0].metadata.name}").strip('\'').strip('"')
 echo $POD_PBS_SERVER $POD_PBS_NODE
 
 # GENERIC: Operate on PBS Cluster
