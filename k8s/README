@@ -27,11 +27,15 @@ kubectl apply -f k8s/pbspro-cluster-rbac.yml
 # kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
 # kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
 # kubectl apply -f k8s/pbspro-cluster-statefulset-server.yml
-kubectl apply -f k8s/pbspro-cluster-pod-server.yml
-kubectl apply -f k8s/pbspro-cluster-statefulset-node.yml
+# create the service to link them
 kubectl apply -f k8s/pbspro-cluster-pod-server-service.yml
+# apply configmaps before the pods
 kubectl apply -f k8s/pbspro-cluster-statefulset-node-configmap.yml
 kubectl apply -f k8s/pbspro-cluster-pod-server-configmap.yml
+# create the server
+kubectl apply -f k8s/pbspro-cluster-pod-server.yml
+# create the nodes
+kubectl apply -f k8s/pbspro-cluster-statefulset-node.yml
 $KUBE_IP=$(minikube ip).strip()
 $MANAGEMENT_PORT=$(kubectl get svc pbspro-cluster -ojsonpath='{.spec.ports[?(@.name=="pbs-server")].nodePort}').strip('\'')
 echo $KUBE_IP $MANAGEMENT_PORT
@@ -50,6 +54,8 @@ kubectl exec -it $POD_PBS_NODE -- /bin/bash
 kubectl delete -f k8s/pbspro-cluster-statefulset-node.yml
 kubectl delete -f k8s/pbspro-cluster-pod-server.yml
 kubectl delete -f k8s/pbspro-cluster-pod-server-service.yml
+kubectl delete -f k8s/pbspro-cluster-pod-server-configmap.yml
+kubectl delete -f k8s/pbspro-cluster-statefulset-node-configmap.yml
 $POD_PBS_SERVER = "pbspro-pod-server"
 
 # To destroy the cluter, run the following:
@@ -108,3 +114,12 @@ sudo /opt/pbs/bin/qmgr -c "set queue default queue_type = Execution"
 sudo /opt/pbs/bin/qmgr -c "set queue default enabled = True"
 sudo /opt/pbs/bin/qmgr -c "set queue default started = True"
 sudo netstat -tulpn | grep LISTEN
+
+
+kubectl create configmap pbspro-cluster-pod-server-configmap --from-env-file=/etc/pbs.conf
+kubectl get configmap pbspro-cluster-pod-server-configmap -o yaml
+kubectl delete -f k8s/pbspro-cluster-pod-server-configmap.yml
+kubectl apply -f k8s/pbspro-cluster-pod-server-configmap.yml
+
+kubectl delete -f k8s/pbspro-cluster-statefulset-node-configmap.yml
+kubectl apply -f k8s/pbspro-cluster-statefulset-node-configmap.yml

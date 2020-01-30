@@ -9,17 +9,20 @@ spec:
   containers:
   - name: pbspro-server # this is the pod name
     image: pbspro/pbspro_server_202001:centos7
+    #command: 
+    #- /etc/init.d/pbs
+    #- "start"
     securityContext:
       privileged: true
     env:
-      - name: PBS_START_MOM
-        value: "0"
-      - name: PBS_START_SERVER
-        value: "1"
-      - name: PBS_START_SCHED
-        value: "1"
-      - name: PBS_START_COMM
-        value: "1"
+      - name: LANG
+        value: "en_US.UTF-8"
+      - name: LANGUAGE
+        value: "en_US.UTF-8"
+      - name: LC_ALL
+        value: "en_US.UTF-8"
+      - name: LC_CTYPE
+        value: "en_US.UTF-8"
       - name: HOSTNAME
         valueFrom:
           fieldRef:
@@ -33,11 +36,11 @@ spec:
     - name: pbs-server-ssh
       containerPort: 22      
     volumeMounts:
-    - name: pbspro-cluster-pod-server-configmap
+    - name: config-volume-server
       mountPath: /etc/pbs.conf
-      readOnly: false
+      subPath: pbs.conf
   volumes:
-  - name: pbspro-cluster-pod-server-configmap
+  - name: config-volume-server
     configMap:
       name: pbspro-cluster-pod-server-configmap
   dnsPolicy: ClusterFirst

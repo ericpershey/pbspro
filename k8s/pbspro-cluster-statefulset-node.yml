@@ -21,16 +21,14 @@ spec:
         securityContext:
           privileged: true
         env:
-          - name: PBS_START_MOM
-            value: "1"
-          - name: PBS_START_SERVER
-            value: "0"
-          - name: PBS_START_SCHED
-            value: "0"
-          - name: PBS_START_COMM
-            value: "0"
-          - name: PBS_SERVER
-            value: "pbspro-cluster-server-0"
+          - name: LANG
+            value: "en_US.UTF-8"
+          - name: LANGUAGE
+            value: "en_US.UTF-8"
+          - name: LC_ALL
+            value: "en_US.UTF-8"
+          - name: LC_CTYPE
+            value: "en_US.UTF-8"
           - name: HOSTNAME
             valueFrom:
               fieldRef:
@@ -51,5 +49,13 @@ spec:
         #     port: 15001
         #   initialDelaySeconds: 15
         #   periodSeconds: 20
+        volumeMounts:
+          - name: config-volume-node
+            mountPath: /etc/pbs.conf
+            subPath: pbs.conf
+      volumes:
+      - name: config-volume-node
+        configMap:
+          name: pbspro-cluster-statefulset-node-configmap       
       dnsPolicy: ClusterFirst
       

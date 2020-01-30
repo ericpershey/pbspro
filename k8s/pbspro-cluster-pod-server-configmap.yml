@@ -1,19 +1,17 @@
 apiVersion: v1
 data:
-  PBS_CORE_LIMIT: unlimited
-  PBS_EXEC: /opt/pbs
-  PBS_HOME: /var/spool/pbs
-  PBS_SCP: /usr/bin/scp
-  PBS_SERVER: pbspro-pod-server.default.svc.cluster.local
-  PBS_START_COMM: "1"
-  PBS_START_MOM: "0"
-  PBS_START_SCHED: "1"
-  PBS_START_SERVER: "1"
+  pbs.conf: |+
+    PBS_CORE_LIMIT=unlimited
+    PBS_EXEC=/opt/pbs
+    PBS_HOME=/var/spool/pbs
+    PBS_SCP=/usr/bin/scp
+    PBS_SERVER=pbspro-pod-server
+    PBS_START_COMM="1"
+    PBS_START_MOM="0"
+    PBS_START_SCHED="1"
+    PBS_START_SERVER="1"
+
 kind: ConfigMap
 metadata:
-  #creationTimestamp: "2020-01-29T22:42:01Z"
   name: pbspro-cluster-pod-server-configmap
   namespace: default
-  #resourceVersion: "100295"
-  #selfLink: /api/v1/namespaces/default/configmaps/pbspro-cluster-pod-server-configmap
-  #uid: 5262bb5d-5ff3-4517-9cb3-29bbc16149df

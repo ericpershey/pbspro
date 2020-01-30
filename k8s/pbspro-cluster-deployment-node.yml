@@ -22,31 +22,33 @@ spec:
       hostNetwork: true
       containers:
       - image: pbspro/pbspro_node_202001:centos7
+        command: ["/etc/init.d/pbs"]
+        args: ["start"]
         imagePullPolicy: IfNotPresent
         name: pbspro-node
         securityContext:
           privileged: true
         env:
-          - name: PBS_START_MOM
-            value: "1"
-          - name: PBS_START_SERVER
-            value: "0"
-          - name: PBS_START_SCHED
-            value: "0"
-          - name: PBS_START_COMM
-            value: "0"
+          - name: LANG
+            value: "en_US.UTF-8"
+          - name: LANGUAGE
+            value: "en_US.UTF-8"
+          - name: LC_ALL
+            value: "en_US.UTF-8"
+          - name: LC_CTYPE
+            value: "en_US.UTF-8"
           - name: HOSTNAME
             valueFrom:
               fieldRef:
                 apiVersion: v1
                 fieldPath: status.podIP
         ports:
-        - name: pbs-server
-          containerPort: 15001
-        - name: pbs-comm
-          containerPort: 17001
-        - name: pbs-server-ssh
-          containerPort: 22              
+        # - name: pbs-server
+        #   containerPort: 15001
+        # - name: pbs-comm
+        #   containerPort: 17001
+        # - name: pbs-server-ssh
+        #   containerPort: 22              
         # readinessProbe:
         #   tcpSocket:
         #     port: 15001
@@ -57,5 +59,13 @@ spec:
         #     port: 15001
         #   initialDelaySeconds: 15
         #   periodSeconds: 20
+      volumeMounts:
+        - name: config-volume-node
+          mountPath: /etc/pbs.conf
+          subPath: pbs.conf
+      volumes:
+      - name: config-volume-node
+        configMap:
+          name: pbspro-cluster-statefulset-node-configmap       
       dnsPolicy: ClusterFirst
       

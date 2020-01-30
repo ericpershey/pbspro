@@ -1,14 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  creationTimestamp: "2020-01-29T22:16:50Z"
   labels:
     app: pbspro
   name: pbspro-pod-server
   namespace: default
-  resourceVersion: "96952"
   selfLink: /api/v1/namespaces/default/services/pbspro-pod-server
-  uid: e912241b-8b0f-484e-8b47-e321f9a72fc5
 spec:
   clusterIP: 10.96.169.147
   externalTrafficPolicy: Cluster
