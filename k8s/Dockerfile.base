@@ -55,4 +55,5 @@ RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.n
     net-tools \
     bind-utils \
     openssh-server \
-    openssh-clients
+    openssh-clients && \
+    ssh-keygen -A

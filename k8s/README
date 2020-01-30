@@ -123,3 +123,5 @@ kubectl apply -f k8s/pbspro-cluster-pod-server-configmap.yml
 
 kubectl delete -f k8s/pbspro-cluster-statefulset-node-configmap.yml
 kubectl apply -f k8s/pbspro-cluster-statefulset-node-configmap.yml
+
+sudo netstat -tulpn | grep LISTEN
