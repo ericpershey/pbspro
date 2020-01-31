@@ -2,12 +2,12 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: pbspro
-  name: pbspro-pod-server
+    app: pbspro-server
+  name: pbspro-server
   namespace: default
-  selfLink: /api/v1/namespaces/default/services/pbspro-pod-server
+  selfLink: /api/v1/namespaces/default/services/pbspro-server
 spec:
-  externalTrafficPolicy: Cluster
+  #externalTrafficPolicy: Cluster
   ports:
   - name: port-1
     port: 17001
@@ -21,9 +21,11 @@ spec:
     port: 22
     protocol: TCP
     targetPort: 22
+  clusterIP: None
   selector:
-    app: pbspro
+    app: pbspro-server
   sessionAffinity: None
-  type: NodePort
+  #type: NodePort
+  type: ClusterIP
 status:
   loadBalancer: {}

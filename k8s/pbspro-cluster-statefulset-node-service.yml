@@ -9,10 +9,18 @@ metadata:
 spec:
   #externalTrafficPolicy: Cluster
   ports:
-  - name: port-4
+  - name: port-4 #pbs-node-ssh
     port: 22
     protocol: TCP
     targetPort: 22
+  - name: port-5 #pbs-manager-service-port
+    port: 15003
+    protocol: TCP
+    targetPort: 15003
+  - name: port-6 #pbs-mom-service-port
+    port: 15002
+    protocol: TCP
+    targetPort: 15002
   clusterIP: None
   selector:
     app: pbspro-node

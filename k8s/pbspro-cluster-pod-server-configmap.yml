@@ -5,12 +5,11 @@ data:
     PBS_EXEC=/opt/pbs
     PBS_HOME=/var/spool/pbs
     PBS_SCP=/usr/bin/scp
-    PBS_SERVER=pbspro-pod-server
+    PBS_SERVER=pbspro-server
     PBS_START_COMM="1"
     PBS_START_MOM="0"
     PBS_START_SCHED="1"
     PBS_START_SERVER="1"
-
 kind: ConfigMap
 metadata:
   name: pbspro-cluster-pod-server-configmap

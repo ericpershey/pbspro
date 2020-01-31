@@ -2,8 +2,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   labels:
-    app: pbspro
-  name: pbspro-pod-server
+    app: pbspro-server
+  name: pbspro-server
 spec:
   # hostNetwork: true
   containers:

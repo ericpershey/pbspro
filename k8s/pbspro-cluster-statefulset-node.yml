@@ -2,10 +2,10 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   labels:
-    app: pbspro-node  
+    app: pbspro-node
   name: pbspro-node
 spec:
-  serviceName: "pbspro-node"
+  serviceName: pbspro-node #must match selector in the service
   replicas: 1
   selector:
     matchLabels:
@@ -37,22 +37,12 @@ spec:
                 apiVersion: v1
                 fieldPath: status.podIP
         ports:
-        - name: pbs-comm
-          containerPort: 17001
-        - name: pbs-server
-          containerPort: 15001          
-        - name: pbs-node-ssh
+        - name: a
+          containerPort: 15003
+        - name: b
+          containerPort: 15002
+        - name: c
           containerPort: 22
-        # readinessProbe:
-        #   tcpSocket:
-        #     port: 15001
-        #   initialDelaySeconds: 5
-        #   periodSeconds: 10
-        # livenessProbe:
-        #   tcpSocket:
-        #     port: 15001
-        #   initialDelaySeconds: 15
-        #   periodSeconds: 20
         volumeMounts:
           - name: config-volume-node
             mountPath: /etc/pbs.conf
