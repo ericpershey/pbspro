@@ -34,6 +34,9 @@ kubectl apply -f k8s/pbspro-cluster-pod-server-configmap.yml
 # create the server
 kubectl apply -f k8s/pbspro-cluster-pod-server.yml
 # create the nodes
+# it takes some time to come up, lets give it a few until we figure
+# out how to make a dependency.
+sleep 5
 kubectl apply -f k8s/pbspro-cluster-statefulset-node.yml
 
 # BASH: Get PBS Cluster environment
