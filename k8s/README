@@ -142,3 +142,4 @@ cat < /dev/tcp/pbspro-server/22
 #until we have ssh working, we leave the output and error files
 su pbsuser
 qsub -k oe /info_pbs.sh
+for i in `seq 10`; do qsub -k oe /info_pbs.sh; done
