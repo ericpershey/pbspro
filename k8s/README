@@ -107,12 +107,20 @@ sed -i "s/PBS_SERVER=.*/PBS_SERVER=pbspro-pod-server.default.svc.cluster.local/"
 /usr/sbin/sshd
 
 #both
-/opt/pbs/bin/qmgr -c "create node pbspro-cluster-node-0"
 /opt/pbs/bin/qmgr -c "create node pbspro-node-0.pbspro-node.default.svc.cluster.local"
+/opt/pbs/bin/qmgr -c "create node pbspro-node-1.pbspro-node.default.svc.cluster.local"
+/opt/pbs/bin/qmgr -c "create node pbspro-node-2.pbspro-node.default.svc.cluster.local"
+/opt/pbs/bin/qmgr -c "create node pbspro-node-4.pbspro-node.default.svc.cluster.local"
+/opt/pbs/bin/qmgr -c "create node pbspro-node-3.pbspro-node.default.svc.cluster.local"
+/opt/pbs/bin/qmgr -c "create node pbspro-node-5.pbspro-node.default.svc.cluster.local"
+/opt/pbs/bin/qmgr -c "create node pbspro-node-6.pbspro-node.default.svc.cluster.local"
+/opt/pbs/bin/qmgr -c "create node pbspro-node-7.pbspro-node.default.svc.cluster.local"
 sudo /opt/pbs/bin/qmgr -c "create queue default"
 sudo /opt/pbs/bin/qmgr -c "set queue default queue_type = Execution"
 sudo /opt/pbs/bin/qmgr -c "set queue default enabled = True"
 sudo /opt/pbs/bin/qmgr -c "set queue default started = True"
+sudo /opt/pbs/bin/qmgr -c "set server flatuid = True"
+
 sudo netstat -tulpn | grep LISTEN
 
 
@@ -126,3 +134,8 @@ kubectl apply -f k8s/pbspro-cluster-statefulset-node-configmap.yml
 
 sudo netstat -tulpn | grep LISTEN
 cat < /dev/tcp/127.0.0.1/22
+cat < /dev/tcp/pbspro-server/22
+
+#until we have ssh working, we leave the output and error files
+su pbsuser
+qsub -k oe /info_pbs.sh

@@ -6,7 +6,7 @@ metadata:
   name: pbspro-node
 spec:
   serviceName: pbspro-node #must match selector in the service
-  replicas: 1
+  replicas: 8
   selector:
     matchLabels:
       app: pbspro-node
