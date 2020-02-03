@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -43,6 +43,7 @@ class TestJobPurge(TestFunctional):
     This test suite tests the Job purge process
     """
 
+    @skipOnCpuSet
     def test_job_files_after_execution(self):
         """
         Checks the job related files and ensures that files are

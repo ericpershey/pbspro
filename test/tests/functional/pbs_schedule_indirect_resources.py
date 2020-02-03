@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -67,6 +67,7 @@ class TestIndirectResources(TestFunctional):
 
         return (jobid, job)
 
+    @skipOnCpuSet
     def test_node_grouping_with_indirect_res(self):
         """
         Test node grouping with indirect resources set on some nodes

@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -44,6 +44,7 @@ class TestJobComment(TestFunctional):
     Testing job comment is accurate
     """
 
+    @skipOnCpuSet
     def test_job_comment_on_resume(self):
         """
         Testing whether job comment is accurate

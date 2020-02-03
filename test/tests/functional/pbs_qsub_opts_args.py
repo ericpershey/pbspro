@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -141,6 +141,7 @@ bhtiusabsdlg' % (os.environ['HOME'])
         rv = self.du.run_cmd(self.server.hostname, cmd=cmd)
         self.assertEqual(rv['rc'], 0, 'qsub failed')
 
+    @skipOnCpuSet
     def test_qsub_with_option_a(self):
         """
         Test submission of job with execution time(future and past)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of the PBS Professional ("PBS Pro") software.
@@ -794,7 +794,7 @@ on_job_exit(struct work_task *ptask)
 
 				if (preq) {		/* have files to copy 		*/
 					if (release_nodes_on_stageout) {
-						if (free_sister_vnodes(pjob, NULL, log_buffer, LOG_BUF_SIZE, NULL) != 0) {
+						if (free_sister_vnodes(pjob, NULL, NULL, log_buffer, LOG_BUF_SIZE, NULL) != 0) {
 							log_event(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_WARNING, pjob->ji_qs.ji_jobid, log_buffer);
 						}
 					}

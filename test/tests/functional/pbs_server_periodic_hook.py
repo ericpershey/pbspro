@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -391,8 +391,7 @@ pbs.logmsg(pbs.LOG_DEBUG, "periodic hook ended at %%d" %% time.time())
         host_name = str(self.server.hostname)
         self.server.create_hook(hook_name, attrs={'enabled': "False"})
         attrs = {'event': "periodic", 'freq': '120'}
-        match_str1 = str(TEST_USER1) + "@" + host_name + \
-            " is unauthorized to access hooks data from server " + host_name
+        match_str1 = "unauthorized to access hooks data from server"
         try:
             self.server.manager(MGR_CMD_SET, HOOK, attrs, hook_name,
                                 runas=TEST_USER1)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of the PBS Professional ("PBS Pro") software.
@@ -180,3 +180,4 @@ char *logfile = NULL;
 
 char path_log[_POSIX_PATH_MAX];
 int dflt_sched = 0;
+int server_dyn_res_alarm = 0;

@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -1410,7 +1410,7 @@ class PBSTestSuite(unittest.TestCase):
         if not mom.isUp():
             self.logger.error('mom ' + mom.shortname + ' is down after revert')
         self.server.manager(MGR_CMD_CREATE, NODE, None, mom.shortname)
-        a = {'state': 'free', 'resources_available.ncpus': (GE, 1)}
+        a = {'state': 'free'}
         self.server.expect(NODE, a, id=mom.shortname, interval=1)
         return mom
 

@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -93,8 +93,8 @@ class TestHookTimeout(TestFunctional):
         hook_body = "import pbs\n"
         a = {'event': 'execjob_epilogue', 'enabled': 'True'}
 
-        rv = self.server.create_import_hook("test", a, hook_body)
-        self.assertTrue(rv)
+        self.server.create_hook("test", a)
+        self.server.import_hook("test", hook_body)
 
         # First batch of hook update is for the *.HK files
         self.server.log_match(

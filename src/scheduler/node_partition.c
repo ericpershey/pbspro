@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of the PBS Professional ("PBS Pro") software.
@@ -456,7 +456,7 @@ create_node_partitions(status *policy, node_info **nodes, char **resnames, unsig
 						str = buf;
 					}
 					else {
-						str = concat_str(resnames[res_i], "=", res->str_avail[val_i], 0);
+						pbs_asprintf(&str, "%s=%s", resnames[res_i], res->str_avail[val_i]);
 						free_str = 1;
 					}
 					/* If we find the partition, we've already created it - add the node

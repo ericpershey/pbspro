@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of the PBS Professional ("PBS Pro") software.
@@ -308,8 +308,11 @@ typedef struct resc_limit {		/* per node limits for Mom	*/
 	long long rl_vmem;		/* total mem space (virtual)	*/
 	int	  rl_naccels;		/* number of accelerators	*/
 	long long rl_accel_mem;		/* accelerator mem (real mem)	*/
+	pbs_list_head rl_other_res;	/* list of all other resources found in execvnode and sched select*/
+	unsigned int  rl_res_count;	/* total count of resources */
 	char	  *chunkstr;		/* chunk represented */
 	int	  chunkstr_sz;		/* size of chunkstr */
+	char	  *chunkspec;		/* the spec in select string representing the chunk */
 	string_and_number_t host_chunk[2]; /* chunks representing exec_host/exec_host2  */
 } resc_limit_t;
 
@@ -441,6 +444,7 @@ struct ajtrk {
 	int trk_exitstat;  /* if executed and exitstat set */
 	int trk_substate; /* sub state    */
 	int trk_stgout; /* stageout status  */
+	int trk_discarding; /* indicate job is discarding */
 	struct job *trk_psubjob; /* pointer to instantiated subjob */
 };
 
@@ -514,6 +518,15 @@ struct block_job_reply {
 #define	JSVERSION	1900	/* 1900 denotes the 19.x.x version */
 #define	ji_taskid	ji_extended.ji_ext.ji_taskidx
 #define	ji_nodeid	ji_extended.ji_ext.ji_nodeidx
+
+enum bg_hook_request {
+	BG_NONE,
+	BG_IS_DISCARD_JOB,
+	BG_PBS_BATCH_DeleteJob,
+	BG_PBSE_SISCOMM,
+	BG_IM_DELETE_JOB_REPLY,
+	BG_IM_DELETE_JOB
+};
 
 struct job {
 
@@ -595,8 +608,9 @@ struct job {
 	int		ji_stdout;	/* socket for stdout */
 	int		ji_stderr;	/* socket for stderr */
 	int		ji_ports[2];	/* ports for stdout/err */
-	int		ji_hook_running_bg_on; /* set when hook starts in the background*/
+	enum	bg_hook_request	ji_hook_running_bg_on; /* set when hook starts in the background*/
 #else					/* END Mom ONLY -  start Server ONLY */
+	int		ji_discarding;	/* discarding job */
 	struct batch_request *ji_prunreq; /* outstanding runjob request */
 	pbs_list_head	ji_svrtask;	/* links to svr work_task list */
 	struct pbs_queue  *ji_qhdr;	/* current queue header */
@@ -865,7 +879,7 @@ typedef struct	infoent {
 #define IM_RESTART		16
 #define IM_DELETE_JOB		17
 #define IM_REQUEUE		18
-#define	IM_DELETE_JOB_REPLY	19
+#define IM_DELETE_JOB_REPLY		19
 #define IM_SETUP_JOB		20
 #define IM_DELETE_JOB2		21	/* sent by sister mom to delete job early */
 #define IM_SEND_RESC		22

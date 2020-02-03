@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -409,6 +409,7 @@ class TestQstatFormats(TestFunctional):
         except ValueError:
             self.assertTrue(False)
 
+    @skipOnCpuSet
     def test_qstat_json_valid_multiple_jobs_p(self):
         """
         Test json output of qstat -f is in valid format when multiple jobs are

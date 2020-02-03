@@ -1,6 +1,6 @@
 
 #
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of the PBS Professional ("PBS Pro") software.
@@ -107,6 +107,7 @@ pbs_probe_LDADD = \
 pbs_probe_SOURCES = pbs_probe.c
 
 pbs_python_CPPFLAGS =  \
+	-DPBS_PYTHON=1.1 \
 	-I$(top_srcdir)/src/include \
 	@PYTHON_INCLUDES@ @KRB5_CFLAGS@
 
