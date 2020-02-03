@@ -21,9 +21,6 @@ cd k8s; ./build_images.sh; cd ..
 
 # GENERIC: Start the PBS Pro Cluster
 kubectl apply -f k8s/pbspro-cluster-rbac.yml
-# kubectl apply -f k8s/pbspro-cluster-deployment-server.yml
-# kubectl apply -f k8s/pbspro-cluster-deployment-node.yml
-# kubectl apply -f k8s/pbspro-cluster-statefulset-server.yml
 # create the service to link them
 kubectl apply -f k8s/pbspro-cluster-pod-server-service.yml
 kubectl apply -f k8s/pbspro-cluster-statefulset-node-service.yml
