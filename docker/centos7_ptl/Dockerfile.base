@@ -44,10 +44,19 @@ RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.n
     postgresql-server \
     postgresql-contrib \ 
     python3 \
-    sendmail \
+    postfix \
     sudo \
     tcl \
     tk \
     libical \
     which \
-    man
+    man \
+    mlocate \
+    net-tools \
+    bind-utils \
+    openssh-server \
+    openssh-clients \
+    strace \
+    wget \
+    vim && \
+    ssh-keygen -A
