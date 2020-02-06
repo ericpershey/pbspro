@@ -1,0 +1,60 @@
+# base image for building pbspro
+FROM debian:9
+# install dependencies for building
+RUN apt-get update -y
+    apt-get install -y
+    expat-devel \
+    gcc \
+    git \
+    hwloc-devel \
+    libedit-devel \
+    libical-devel \
+    libtool \
+    libX11-devel \
+    libXext \
+    libXft \
+    libXt-devel \
+    make \
+    ncurses-devel \
+    openssl-devel \
+    perl \
+    postgresql-contrib \
+    postgresql-devel \
+    python3 \
+    python3-devel \
+    python36-pytz.noarch \
+    python36-dateutil.noarch \
+    python36-nose.noarch \
+    pexpect.noarch \
+    python36-pexpect.noarch \
+    rpm-build \
+    swig \
+    tcl-devel \
+    tk-devel \
+    libtool-ltdl-devel \
+    libpcap-devel \
+    libnet \
+    valgrind \
+    pssh \
+    valgrind-devel \
+    expat \
+    libedit \
+    postgresql-server \
+    postgresql-contrib \ 
+    python3 \
+    postfix \
+    sudo \
+    tcl \
+    tk \
+    libical \
+    which \
+    man \
+    mlocate \
+    net-tools \
+    bind-utils \
+    openssh-server \
+    openssh-clients \
+    strace \
+    wget \
+    vim && \
+    ssh-keygen -A

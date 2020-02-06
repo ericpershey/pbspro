@@ -1,0 +1,10 @@
+FROM pbspro/pbspro_build_202002:debian9 as builder
+RUN /home/pbsuser/pbspro/k8s/install_pbspro_server.sh
+LABEL maintainer="eric.pershey@gmail.com"
+LABEL description="PBS Professional Open Source Server"
+# in minikube 1.7, this should be there.
+COPY ./docker-init /sbin/docker-init
+COPY ./entrypoint_server.sh /
+ENTRYPOINT ["/sbin/docker-init", "--"]
+# CMD ["bash", "/home/pbsuser/pbspro/k8s/entrypoint_server.sh"]
+CMD ["bash", "/entrypoint_server.sh"]
