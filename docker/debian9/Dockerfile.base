@@ -1,59 +1,52 @@
 # base image for building pbspro
 FROM debian:9
 # install dependencies for building
-RUN apt-get update -y
-    apt-get install -y
-    expat-devel \
+RUN apt-get update -y && \
+    apt-get install --assume-yes -y \
+    libexpat1-dev \
     gcc \
     git \
-    hwloc-devel \
-    libedit-devel \
-    libical-devel \
-    libtool \
-    libX11-devel \
-    libXext \
-    libXft \
-    libXt-devel \
+    hwloc \
+    libedit-dev \
+    libical-dev \
+    libx11-dev \
+    libxext6 \
+    libxft-dev \
+    libxt-dev \
     make \
-    ncurses-devel \
-    openssl-devel \
+    libncurses-dev \
+    libssl-dev \
     perl \
-    postgresql-contrib \
-    postgresql-devel \
     python3 \
-    python3-devel \
-    python36-pytz.noarch \
-    python36-dateutil.noarch \
-    python36-nose.noarch \
-    pexpect.noarch \
-    python36-pexpect.noarch \
-    rpm-build \
+    python3-dateutil \
+    python3-pexpect \
+    python3-dev \
     swig \
-    tcl-devel \
-    tk-devel \
-    libtool-ltdl-devel \
-    libpcap-devel \
-    libnet \
+    tcl-dev \
+    tk-dev \
+    libltdl-dev \
+    libpcap-dev \
+    libnet1 \
     valgrind \
     pssh \
-    valgrind-devel \
     expat \
-    libedit \
-    postgresql-server \
-    postgresql-contrib \ 
+    libedit-dev \
+    postgresql-server-dev-all \
+    postgresql-all \ 
     python3 \
-    postfix \
+#    postfix \
+    sendmail \ 
     sudo \
     tcl \
     tk \
-    libical \
-    which \
+    libical-dev \
     man \
     mlocate \
     net-tools \
-    bind-utils \
+    bind9utils \
+    dnsutils \
     openssh-server \
-    openssh-clients \
+    openssh-client \
     strace \
     wget \
     vim && \
