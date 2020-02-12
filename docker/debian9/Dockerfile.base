@@ -49,5 +49,7 @@ RUN apt-get update -y && \
     openssh-client \
     strace \
     wget \
-    vim && \
+    vim \
+    autoconf \
+    autogen && \
     ssh-keygen -A
