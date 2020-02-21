@@ -20,6 +20,8 @@ RUN apt-get update -y && \
     python3 \
     python3-dateutil \
     python3-pexpect \
+    python3-pip \
+    python3-nose \
     python3-dev \
     swig \
     tcl-dev \
@@ -32,10 +34,9 @@ RUN apt-get update -y && \
     expat \
     libedit-dev \
     postgresql-server-dev-all \
-    postgresql-all \ 
-    python3 \
+    postgresql-all \
 #    postfix \
-    sendmail \ 
+    sendmail \
     sudo \
     tcl \
     tk \
