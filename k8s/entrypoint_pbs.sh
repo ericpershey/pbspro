@@ -1,6 +1,4 @@
 #!/bin/sh
-env|sort > /tmp/pbs_env
-
 pbs_conf_file=/etc/pbs.conf
 mom_conf_file=/var/spool/pbs/mom_priv/config
 hostname=$(hostname)
@@ -11,11 +9,6 @@ sed -i "s/\$clienthost .*/\$clienthost $hostname/" $mom_conf_file
 
 # start PBS Pro
 /etc/init.d/pbs start
-
-# create default non-root user
-# adduser pbsuser && su - pbsuser
-# adduser postgres && su - postgres
-#su - /opt/pbs/unsupported/pbs_config --make-ug
 
 #exec "$@"
 exec /bin/sleep infinity

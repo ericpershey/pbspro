@@ -27,8 +27,9 @@ RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.n
     python36-pytz.noarch \
     python36-dateutil.noarch \
     python36-nose.noarch \
-    pexpect.noarch \
     python36-pexpect.noarch \
+    python36-defusedxml.noarch \
+    pexpect.noarch \
     rpm-build \
     swig \
     tcl-devel \

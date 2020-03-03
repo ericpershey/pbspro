@@ -88,7 +88,7 @@ kubectl get pod -l app=pbspro-pod-server -o jsonpath="{.items[0].metadata.name}"
 
 # Debugging - images
 docker rm pbspro-pod-server
-docker run -it --name pbspro-pod-server -h pbs -e PBS_START_MOM=0 pbspro/pbspro_server_202001:centos7
+docker run -it --name pbspro-pod-server -h pbs -e PBS_START_MOM=0 pbspro/pbspro_server:centos7
 docker exec -it pbspro-pod-server bash
 
 kubectl get pod pbspro-pod-server -o json

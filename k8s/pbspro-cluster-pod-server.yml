@@ -8,10 +8,7 @@ spec:
   # hostNetwork: true
   containers:
   - name: pbspro-server # this is the pod name
-    image: pbspro/pbspro_server_202001:centos7
-    #command: 
-    #- /etc/init.d/pbs
-    #- "start"
+    image: pbspro/pbspro_server:centos7
     securityContext:
       privileged: true
     env:
