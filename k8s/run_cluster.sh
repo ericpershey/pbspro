@@ -1,5 +1,4 @@
 #!/bin/bash -xe
-minikube start --memory 4gb
 source ./set_environment.sh
 KUBE_IP=$(minikube ip)
 echo $KUBE_IP
