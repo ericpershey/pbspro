@@ -21,17 +21,21 @@ kubectl apply -f pbspro-cluster-statefulset-node.yml
 sleep 5
 POD_PBS_SERVER=$(kubectl get pod -l app=pbspro-server -o jsonpath="{.items[0].metadata.name}")
 POD_PBS_NODE=$(kubectl get pod -l app=pbspro-node -o jsonpath="{.items[0].metadata.name}")
-echo $POD_PBS_SERVER $POD_PBS_NODE
-kubectl exec -it $POD_PBS_SERVER -- cat /etc/resolv.conf
-kubectl exec -it $POD_PBS_NODE -- cat /etc/resolv.conf
-kubectl get pods --all-namespaces
-kubectl cp ./pbspro_create_cluster.sh $POD_PBS_SERVER:/pbspro_create_cluster.sh
-kubectl exec -it $POD_PBS_SERVER -- /bin/bash /pbspro_create_cluster.sh
+echo ${POD_PBS_SERVER} ${POD_PBS_NODE}
+kubectl exec -it ${POD_PBS_SERVER} -- cat /etc/resolv.conf
+kubectl exec -it ${POD_PBS_NODE} -- cat /etc/resolv.conf
+kubectl cp ./pbspro_create_cluster.sh ${POD_PBS_SERVER}:/pbspro_create_cluster.sh
+kubectl exec -it ${POD_PBS_SERVER} -- /bin/bash /pbspro_create_cluster.sh
 #kubectl exec -it $POD_PBS_SERVER -- /bin/bash
 #kubectl exec -it $POD_PBS_NODE -- /bin/bash
-for i in $(seq 0 7);
+sleep 5
+for i in {0..7}
 do
-	kubectl exec -it pbspro-node-$1 -- /bin/bash /etc/init.d/pbs start
+   kubectl exec -it pbspro-node-$1 -- /bin/bash /etc/init.d/pbs start
 done
+kubectl get pods --all-namespaces
+echo "Now you can run something like the following:"
+echo "kubectl exec -it $POD_PBS_NODE -- /bin/bash"
+echo "kubectl exec -it $POD_PBS_SERVER -- /bin/bash"
 #minikube stop
 #minikube delete
