@@ -30,3 +30,9 @@ kubectl cp ./pbspro_create_cluster.sh $POD_PBS_SERVER:/pbspro_create_cluster.sh
 kubectl exec -it $POD_PBS_SERVER -- /bin/bash /pbspro_create_cluster.sh
 #kubectl exec -it $POD_PBS_SERVER -- /bin/bash
 #kubectl exec -it $POD_PBS_NODE -- /bin/bash
+for i in $(seq 0 7);
+do
+	kubectl exec -it pbspro-node-$1 -- /bin/bash /etc/init.d/pbs start
+done
+#minikube stop
+#minikube delete
