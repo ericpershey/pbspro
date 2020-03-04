@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/bash -xe
 minikube start --memory 4gb
-eval $(minikube docker-env)
+source ./set_environment.sh
 KUBE_IP=$(minikube ip)
 echo $KUBE_IP
 # GENERIC: Start the PBS Pro Cluster
@@ -19,10 +19,14 @@ kubectl apply -f pbspro-cluster-pod-server.yml
 # figure out how to make a dependency.
 sleep 5
 kubectl apply -f pbspro-cluster-statefulset-node.yml
+sleep 5
 POD_PBS_SERVER=$(kubectl get pod -l app=pbspro-server -o jsonpath="{.items[0].metadata.name}")
 POD_PBS_NODE=$(kubectl get pod -l app=pbspro-node -o jsonpath="{.items[0].metadata.name}")
 echo $POD_PBS_SERVER $POD_PBS_NODE
 kubectl exec -it $POD_PBS_SERVER -- cat /etc/resolv.conf
 kubectl exec -it $POD_PBS_NODE -- cat /etc/resolv.conf
-kubectl exec -it $POD_PBS_SERVER -- /bin/bash
+kubectl get pods --all-namespaces
+kubectl cp ./pbspro_create_cluster.sh $POD_PBS_SERVER:/pbspro_create_cluster.sh
+kubectl exec -it $POD_PBS_SERVER -- /bin/bash /pbspro_create_cluster.sh
+#kubectl exec -it $POD_PBS_SERVER -- /bin/bash
 #kubectl exec -it $POD_PBS_NODE -- /bin/bash

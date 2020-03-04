@@ -19,7 +19,7 @@ spec:
       containers:
       - name: pbspro-node
         imagePullPolicy: IfNotPresent
-        image: pbspro/pbspro_node:centos7
+        image: pbspro/pbspro_node_centos7
         securityContext:
           privileged: true
         env:

@@ -1,3 +1,9 @@
+# new instructions
+./build_docker_images.sh
+./run_cluster.sh
+kubectl exec -it $POD_PBS_SERVER -- /bin/bash
+
+
 # Notes:
 # 1.  make sure you have created new images if you updated them.
 # 2.  Don't use _ no matter what you think, kube doesn't like it in the names

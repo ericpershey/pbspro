@@ -8,7 +8,8 @@ spec:
   # hostNetwork: true
   containers:
   - name: pbspro-server # this is the pod name
-    image: pbspro/pbspro_server:centos7
+    image: pbspro/pbspro_server_centos7
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     env:
