@@ -1,5 +1,6 @@
 #!/bin/bash -xe
-source ./set_environment.sh
+source ./set_environment_minikube.sh
+#docker login
 KUBE_IP=$(minikube ip)
 echo $KUBE_IP
 # GENERIC: Start the PBS Pro Cluster
@@ -29,9 +30,9 @@ kubectl exec -it ${POD_PBS_SERVER} -- /bin/bash /pbspro_create_cluster.sh
 #kubectl exec -it $POD_PBS_SERVER -- /bin/bash
 #kubectl exec -it $POD_PBS_NODE -- /bin/bash
 sleep 5
-for i in {0..7}
+for i in 0 1 2 3 4 5 6 7;
 do
-   kubectl exec -it pbspro-node-$1 -- /bin/bash /etc/init.d/pbs start
+   kubectl exec -it pbspro-node-${i} -- /bin/bash /etc/init.d/pbs start
 done
 kubectl get pods --all-namespaces
 echo "Now you can run something like the following:"
