@@ -1,5 +1,5 @@
 #!/bin/bash -ex
-# set_environment must be called first
+source ./set_environment_local.sh
 for PBS_IMAGE_TAG in "${PBS_IMAGE_TAG_ARRAY[@]}"
 do
 	export PBS_CONTAINER_NAME="pbsdev-${PBS_IMAGE_TAG}"

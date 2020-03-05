@@ -8,10 +8,15 @@ do
 	export PBS_HOST_NAME="${PBS_CONTAINER_NAME}"
 	echo "Running container ${PBS_CONTAINER_NAME}"
 	docker cp ./run_ptl.sh ${PBS_CONTAINER_NAME}:/run_ptl.sh
-	docker exec --privileged --env PBS_SOURCE_USER=$USER ${PBS_CONTAINER_NAME} /bin/bash /run_ptl.sh
+	docker exec --privileged \
+		--env PBS_SOURCE_USER=$USER \
+        -e PBS_SOURCE_DIR=${PBS_SOURCE_DIR} \
+        -e PBS_BUILD_DIR=${PBS_BUILD_DIR} \
+		${PBS_CONTAINER_NAME} /bin/bash /run_ptl.sh
     docker exec -it \
         --env PBS_SOURCE_USER=$USER \
         -e PBS_SOURCE_DIR=${PBS_SOURCE_DIR} \
+        -e PBS_BUILD_DIR=${PBS_BUILD_DIR} \
         -e PBS_START_MOM=0 \
         -e PBS_START_SERVER=1 \
         -e PBS_START_SCHED=1 \

@@ -1,8 +1,10 @@
 #!/bin/bash -x
+echo "Executing run_ptl.sh.."
+echo "PBS_SOURCE_DIR: ${PBS_SOURCE_DIR}"
+echo "PBS_BUILD_DIR: ${PBS_BUILD_DIR}"
 cd $PBS_SOURCE_DIR
 sudo -u $PBS_SOURCE_USER make maintainer-clean
 sudo -u $PBS_SOURCE_USER ./autogen.sh
-export PBS_BUILD_DIR=/tmp/build-pbspro
 export PBS_INSTALL_BASE=/opt
 export PBS_INSTALL_DIR=${PBS_INSTALL_BASE}/pbs
 export PTL_INSTALL_DIR=${PBS_INSTALL_BASE}/ptl
@@ -11,6 +13,7 @@ export PYTHON3_MAJOR_VERSION=$(python3 --version | \
   sed -r -e 's/Python ([[:digit:]]+)\.([[:digit:]]+)\.[[:digit:]]+/\1.\2/')
 export PYTHONPATH=${PTL_INSTALL_DIR}/lib/python${PYTHON3_MAJOR_VERSION}/site-packages:${PYTHONPATH}
 sudo rm -rf ${PBS_BUILD_DIR} && sudo mkdir -p ${PBS_BUILD_DIR} && cd ${PBS_BUILD_DIR}
+echo "Configuring.."
 sudo ${PBS_SOURCE_DIR}/configure --prefix=${PBS_INSTALL_DIR} --enable-ptl
 cd ${PBS_BUILD_DIR}
 sudo make -j 8
