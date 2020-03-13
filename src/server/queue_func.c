@@ -476,8 +476,14 @@ action_queue_partition(attribute *pattr, void *pobj, int actmode)
 {
 	int i;
 
+	if (actmode == ATR_ACTION_RECOV)
+		return PBSE_NONE;
+
 	if (((pbs_queue *)pobj)->qu_qs.qu_type  == QTYPE_RoutePush)
 		return PBSE_ROUTE_QUE_NO_PARTITION;
+
+	if (strcmp(pattr->at_val.at_str, DEFAULT_PARTITION) == 0)
+		return PBSE_DEFAULT_PARTITION;
 
 	for (i=0; i < svr_totnodes; i++) {
 		if (pbsndlist[i]->nd_pque) {

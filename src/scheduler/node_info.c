@@ -202,7 +202,7 @@ query_node_info_chunk(th_data_query_ninfo *data)
 			return;
 		}
 
-		if (node_in_partition(ninfo, sinfo->partitions)) {
+		if (node_in_partition(ninfo, sinfo->partition)) {
 			if (first_talk_with_mom) {	/* need to acquire a lock for talk_with_mom the first time */
 				pthread_mutex_lock(&general_lock);
 				if (!first_talk_with_mom)
@@ -1309,8 +1309,8 @@ talk_with_mom(node_info *ninfo)
  * @param[in]	filter_func	-	pointer to a function that will filter the nodes
  *								- returns 1: job will be added to filtered array
  *								- returns 0: job will NOT be added to filtered array
- *	  							arg - an optional arg passed to filter_func
- *	  							flags - describe how nodes are filtered
+ * @param[in]	arg - an optional arg passed to filter_func
+ * @param[in]	flags - describe how nodes are filtered
  *
  * @return pointer to filtered array
  *
@@ -2793,8 +2793,7 @@ eval_placement(status *policy, selspec *spec, node_info **ninfo_arr, place *pl,
 	 *         a ptr to a reordered static array
 	 */
 	if ((pl->pack && spec->total_chunks == 1) ||
-		(conf.provision_policy == AVOID_PROVISION && resresv->aoename != NULL) ||
-		(resresv->is_resv && resresv->resv != NULL && resresv->resv->check_alternate_nodes))
+		(conf.provision_policy == AVOID_PROVISION && resresv->aoename != NULL))
 		nptr = reorder_nodes(ninfo_arr, resresv);
 
 	if (nptr == NULL)
@@ -4244,8 +4243,7 @@ check_resources_for_node(resource_req *resreq, node_info *ninfo,
 
 					if (is_excl(resc_resv->place_spec, ninfo->sharing) || resresv_excl) {
 						min_chunks = 0;
-					}
-					else {
+					} else {
 						cur_res = nres;
 						while (cur_res != NULL) {
 							if (cur_res->type.is_consumable) {
@@ -5093,21 +5091,6 @@ reorder_nodes(node_info **nodes, resource_resv *resresv)
 		snprintf(last_node_name, sizeof(last_node_name), "%s", nodes[0]->name);
 
 	if (resresv != NULL) {
-		if (resresv->is_resv && resresv->resv != NULL && resresv->resv->check_alternate_nodes) {
-			int		i = 0;
-			node_info	*temp = NULL;
-
-			memcpy(nptr, nodes, (nsize + 1) * sizeof(node_info *));
-			for (i = 0; nptr[i] != NULL; i++) {
-				temp = find_node_by_rank(resresv->ninfo_arr, nptr[i]->rank);
-				if (temp != NULL)
-					nptr[i]->nscr.to_be_sorted = 0;
-				else
-					nptr[i]->nscr.to_be_sorted = 1;
-			}
-			qsort(nptr, i, sizeof(node_info*), cmp_nodes_sort);
-			return nptr;
-		}
 		if (resresv->aoename != NULL && conf.provision_policy == AVOID_PROVISION) {
 			memcpy(nptr, nodes, (nsize+1) * sizeof(node_info *));
 
@@ -6276,7 +6259,7 @@ check_node_array_eligibility(node_info **ninfo_arr, resource_resv *resresv, plac
  *	node_in_partition	-  Tells whether the given node belongs to this scheduler
  *
  * @param[in]	ninfo		-  node information
- * @param[in]	partitions	-  array of partitions associated to scheduler
+ * @param[in]	partition	-  partition associated to scheduler
  *
  *
  * @return	int
@@ -6284,7 +6267,7 @@ check_node_array_eligibility(node_info **ninfo_arr, resource_resv *resresv, plac
  * @retval	0	: if failure
  */
 int
-node_in_partition(node_info *ninfo, char **partitions)
+node_in_partition(node_info *ninfo, char *partition)
 {
 	if (dflt_sched) {
 		if (ninfo->partition == NULL)
@@ -6295,7 +6278,7 @@ node_in_partition(node_info *ninfo, char **partitions)
 	if (ninfo->partition == NULL)
 		return 0;
 
-	if (is_string_in_arr(partitions, ninfo->partition))
+	if (strcmp(partition, ninfo->partition) == 0)
 		return 1;
 	else
 		return 0;

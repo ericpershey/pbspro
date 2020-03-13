@@ -86,7 +86,6 @@
 #include "node_partition.h"
 #include "pbs_internal.h"
 
-
 /**
  * @brief
  * 		Statuses reservations from the server in batch status form.
@@ -188,6 +187,21 @@ query_reservations(server_info *sinfo, struct batch_status *resvs)
 
 	for (cur_resv = resvs; cur_resv != NULL; cur_resv = cur_resv->next) {
 		int ignore_resv = 0;
+		clear_schd_error(err);
+		struct attrl	*attrp = NULL;
+		/* Check if this reservation belongs to this scheduler */
+		for (attrp = cur_resv->attribs; attrp != NULL; attrp = attrp->next) {
+			if (strcmp(attrp->name, ATTR_partition) == 0) {
+				if (sinfo->partition != NULL && (strcmp(attrp->value, sinfo->partition) != 0))
+					ignore_resv = 1;
+				break;
+			}
+		}
+		if (ignore_resv == 1) {
+			sinfo->num_resvs--;
+			continue;
+		}
+
 		/* convert resv info from server batch_status into resv_info */
 		if ((resresv = query_resv(cur_resv, sinfo)) == NULL) {
 			free_resource_resv_array(resresv_arr);
@@ -573,6 +587,9 @@ query_resv(struct batch_status *resv, server_info *sinfo)
 	long		count = 0; 		/* used to convert string -> num */
 	char		*selectspec = NULL;	/* used for holding select specification. */
 
+	if (resv == NULL)
+		return NULL;
+
 	if ((advresv = new_resource_resv()) == NULL)
 		return NULL;
 
@@ -695,6 +712,9 @@ query_resv(struct batch_status *resv, server_info *sinfo)
 		}
 		else if (!strcmp(attrp->name, ATTR_resv_count))
 			advresv->resv->count = atoi(attrp->value);
+		else if (!strcmp(attrp->name, ATTR_partition)) {
+			advresv->resv->partition = strdup(attrp->value);
+		}
 		attrp = attrp->next;
 	}
 	/* If reservation is unconfirmed and the number of occurrences is 0 then flag
@@ -755,8 +775,8 @@ new_resv_info()
 	rinfo->execvnodes_seq = NULL;
 	rinfo->count = 0;
 	rinfo->is_standing = 0;
-	rinfo->check_alternate_nodes = 0;
 	rinfo->occr_start_arr = NULL;
+	rinfo->partition = NULL;
 
 	return rinfo;
 }
@@ -790,6 +810,8 @@ free_resv_info(resv_info *rinfo)
 
 	if (rinfo->occr_start_arr != NULL)
 		free(rinfo->occr_start_arr);
+
+	free(rinfo->partition);
 
 	free(rinfo);
 
@@ -827,12 +849,13 @@ dup_resv_info(resv_info *rinfo, server_info *sinfo)
 	nrinfo->resv_state = rinfo->resv_state;
 	nrinfo->resv_substate = rinfo->resv_substate;
 	nrinfo->is_standing = rinfo->is_standing;
-	nrinfo->check_alternate_nodes = rinfo->check_alternate_nodes;
 	nrinfo->timezone = string_dup(rinfo->timezone);
 	nrinfo->rrule = string_dup(rinfo->rrule);
 	nrinfo->resv_idx = rinfo->resv_idx;
 	nrinfo->execvnodes_seq = string_dup(rinfo->execvnodes_seq);
 	nrinfo->count = rinfo->count;
+	if (rinfo->partition != NULL)
+		nrinfo->partition = string_dup(rinfo->partition);
 
 	/* the queues may not be available right now.  If they aren't, we'll
 	 * catch this when we duplicate the queues
@@ -903,7 +926,6 @@ check_new_reservations(status *policy, int pbs_sd, resource_resv **resvs, server
 	qsort(sinfo->resvs, sinfo->num_resvs, sizeof(resource_resv*), cmp_resv_state);
 
 	for (i = 0; sinfo->resvs[i] != NULL; i++) {
-
 		if (sinfo->resvs[i]->resv ==NULL) {
 			log_event(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_INFO,
 				sinfo->resvs[i]->name,
@@ -1088,8 +1110,7 @@ check_new_reservations(status *policy, int pbs_sd, resource_resv **resvs, server
 				/* increment the count if we successfully processed all occurrences */
 				if (j == occr_count)
 					count++;
-			}
-			else if (pbsrc == RESV_CONFIRM_FAIL) {
+			} else if (pbsrc == RESV_CONFIRM_FAIL) {
 				/* For a degraded reservation, it had already been confirmed in a
 				 * previous scheduling cycle. We retrieve the existing object from
 				 * the all_resresv list and update the retry_time to break out of
@@ -1139,7 +1160,6 @@ check_new_reservations(status *policy, int pbs_sd, resource_resv **resvs, server
 			return -1;
 		}
 	}
-
 	free_schd_error(err);
 	return count;
 }
@@ -1160,20 +1180,13 @@ static int
 disable_reservation_occurrence(timed_event *events,
 	resource_resv *resv)
 {
-	timed_event *te;
-
-	te = find_timed_event(events, 0, resv->name, TIMED_RUN_EVENT, resv->start);
-	if (te != NULL)
-		set_timed_event_disabled(te, 1);
-	else
+	if(resv == NULL)
 		return 0;
 
-	te = find_timed_event(events, 0, resv->name, TIMED_END_EVENT, resv->end);
-	if (te != NULL)
-		set_timed_event_disabled(te, 1);
-	else
-		return 0;
-
+	if (resv->run_event != NULL)
+		set_timed_event_disabled(resv->run_event, 1);
+	if (resv->end_event != NULL)
+		set_timed_event_disabled(resv->end_event, 1);
 	return 1;
 }
 
@@ -1198,10 +1211,10 @@ disable_reservation_occurrence(timed_event *events,
 int
 confirm_reservation(status *policy, int pbs_sd, resource_resv *unconf_resv, server_info *nsinfo)
 {
-	time_t sim_time;          /* time in simulation */
-	unsigned int simrc = TIMED_NOEVENT;/* ret code from simulate_events() */
+	time_t sim_time;			/* time in simulation */
+	unsigned int simrc = TIMED_NOEVENT;	/* ret code from simulate_events() */
 	schd_error *err = NULL;
-	int pbsrc = 0;    /* return code from pbs_confirmresv() */
+	int pbsrc = 0;				/* return code from pbs_confirmresv() */
 	enum resv_conf rconf = RESV_CONFIRM_SUCCESS; /* assume reconf success */
 	char logmsg[MAX_LOG_SIZE];
 	char logmsg2[MAX_LOG_SIZE];
@@ -1245,6 +1258,7 @@ confirm_reservation(status *policy, int pbs_sd, resource_resv *unconf_resv, serv
 	err = new_schd_error();
 	if (err == NULL)
 		return RESV_CONFIRM_FAIL;
+
 
 	/* If the number of occurrences is not set, this is a first time confirmation
 	 * otherwise it is a reconfirmation request
@@ -1368,7 +1382,8 @@ confirm_reservation(status *policy, int pbs_sd, resource_resv *unconf_resv, serv
 		 * are, then resources allocated to this reservation are released and the
 		 * reconfirmation proceeds.
 		 */
-		if (nresv->resv->resv_substate == RESV_DEGRADED || nresv->resv->resv_substate == RESV_IN_CONFLICT) {
+		if (nresv->resv->resv_substate == RESV_DEGRADED || nresv->resv->resv_substate == RESV_IN_CONFLICT || 
+			nresv->resv->resv_state == RESV_BEING_ALTERED) {
 			/* determine the number of vnodes associated to the reservation that are
 			 * unavailable. If none, then this reservation or occurrence does not
 			 * require reconfirmation.
@@ -1383,7 +1398,8 @@ confirm_reservation(status *policy, int pbs_sd, resource_resv *unconf_resv, serv
 			} else if (nresv->resv->is_standing && nresv->resv->resv_state == RESV_DELETING_JOBS) {
 				snprintf(logmsg, sizeof(logmsg), "Occurrence is ending, will try later");
 				rconf = RESV_CONFIRM_FAIL;
-			} else if (vnodes_down > 0 || nresv->resv->resv_substate == RESV_IN_CONFLICT) {
+			} else if (vnodes_down > 0 || nresv->resv->resv_substate == RESV_IN_CONFLICT || 
+				nresv->resv->resv_state == RESV_BEING_ALTERED) {
 				if (nresv->resv->resv_state == RESV_RUNNING) {
 					char *sel;
 					free_selspec(nresv->execselect);
@@ -1440,6 +1456,7 @@ confirm_reservation(status *policy, int pbs_sd, resource_resv *unconf_resv, serv
 			/* unconfirm the reservation to let the process of confirmation go on */
 			nresv->resv->resv_state = RESV_UNCONFIRMED;
 		}
+		
 		if (nresv->resv->req_start == PBS_RESV_FUTURE_SCH) { /* ASAP Resv */
 			resv_start_time = calc_run_time(nresv->name, nsinfo, NO_FLAGS);
 			/* Update occr_start_arr used to update the real sinfo structure */
@@ -1519,6 +1536,7 @@ confirm_reservation(status *policy, int pbs_sd, resource_resv *unconf_resv, serv
 	/* Finished simulating occurrences now time to confirm if ok. Currently
 	 * the confirmation is an all or nothing process but may come to change. */
 	if (confirmd_occr == occr_count) {
+		char confirm_msg[LOG_BUF_SIZE] = {0};
 		/* We either confirm a standing or advance reservation, the standing
 		 * has a special sequence of execvnodes while the advance has a single
 		 * execvnode. The sequence of execvnodes is created by concatenating
@@ -1535,8 +1553,11 @@ confirm_reservation(status *policy, int pbs_sd, resource_resv *unconf_resv, serv
 		/* Send a reservation confirm message, if anything goes wrong pbsrc
 		 * will return an error
 		 */
+		snprintf(confirm_msg, LOG_BUF_SIZE, "%s:partition=%s", PBS_RESV_CONFIRM_SUCCESS,
+			 nsinfo->partition?nsinfo->partition:DEFAULT_PARTITION);
+
 		pbsrc = pbs_confirmresv(pbs_sd, nresv_parent->name, short_xc,
-			resv_start_time, PBS_RESV_CONFIRM_SUCCESS);
+			resv_start_time, confirm_msg);
 	}
 	else {
 		/* This message is sent to inform that we could not confirm the reservation.
