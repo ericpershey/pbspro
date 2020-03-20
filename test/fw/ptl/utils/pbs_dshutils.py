@@ -61,6 +61,14 @@ logging.INFOCLI = logging.INFO - 1
 logging.INFOCLI2 = logging.INFOCLI - 1
 
 
+class TimeOut(Exception):
+
+    """
+    Raise this exception to mark a test as timed out.
+    """
+    pass
+
+
 class PbsConfigError(Exception):
     """
     Initialize PBS configuration error
@@ -1023,7 +1031,12 @@ class DshUtils(object):
                 e = p.stderr.readline()
                 ret['rc'] = 0
             else:
-                (o, e) = p.communicate(input)
+                try:
+                    (o, e) = p.communicate(input)
+                except TimeOut:
+                    self.logger.error("TimeOut Exception, cmd:%s" %
+                                      str(runcmd))
+                    raise
                 ret['rc'] = p.returncode
 
             if as_script:
@@ -1037,7 +1050,8 @@ class DshUtils(object):
 
             # handle the case where stdout is not a PIPE
             if o is not None:
-                ret['out'] = [i.decode("utf-8") for i in o.splitlines()]
+                ret['out'] = [i.decode("utf-8", 'backslashreplace')
+                              for i in o.splitlines()]
             else:
                 ret['out'] = []
             # Some output can be very verbose, for example listing many lines
@@ -1049,7 +1063,8 @@ class DshUtils(object):
             else:
                 self.logger.debug('out: ' + str(ret['out']))
             if e is not None:
-                ret['err'] = [i.decode("utf-8") for i in e.splitlines()]
+                ret['err'] = [i.decode("utf-8", 'backslashreplace')
+                              for i in e.splitlines()]
             else:
                 ret['err'] = []
             if ret['err'] and logerr:
@@ -1206,6 +1221,9 @@ class DshUtils(object):
                            recursive=recursive, runas=runas)
             if ((uid is not None and uid != self.get_current_user()) or
                     gid is not None):
+                if dest == self.get_pbs_conf_file(targethost):
+                    uid = pwd.getpwnam('root')[2]
+                    gid = pwd.getpwnam('root')[3]
                 self.chown(targethost, path=dest, uid=uid, gid=gid, sudo=True,
                            recursive=False)
 
@@ -1537,7 +1555,7 @@ class DshUtils(object):
         if path is None or (uid is None and gid is None):
             return False
         _u = ''
-        if isinstance(uid, int)and uid != -1:
+        if isinstance(uid, int) and uid != -1:
             _u = pwd.getpwuid(uid).pw_name
         elif (isinstance(uid, str) and (uid != '-1')):
             _u = uid
@@ -1547,6 +1565,17 @@ class DshUtils(object):
                 _u = str(uid)
         if _u == '':
             return False
+        if gid is not None:
+            _g = ''
+            if isinstance(gid, int) and gid != -1:
+                _g = grp.getgrgid(gid).gr_name
+            elif (isinstance(gid, str) and (gid != '-1')):
+                _g = gid
+            else:
+                # must be as PbsGroup object
+                if str(gid) != '-1':
+                    _g = str(gid)
+            _u = _u + ':' + _g
         cmd = [self.which(hostname, 'chown', level=level)]
         if recursive:
             cmd += ['-R']
@@ -1554,12 +1583,6 @@ class DshUtils(object):
         ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
                            runas=runas, level=level)
         if ret['rc'] == 0:
-            if gid is not None:
-                rv = self.chgrp(hostname, path, gid=gid, sudo=sudo,
-                                level=level, recursive=recursive, runas=runas,
-                                logerr=logerr)
-                if not rv:
-                    return False
             return True
         return False
 
