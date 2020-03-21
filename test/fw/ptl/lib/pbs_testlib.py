@@ -6787,16 +6787,13 @@ class Server(PBSService):
                                 bsl += tmpbsl
             else:
                 rc = 0
-                if oid is None:
-                    rc = pbs_manager(c, cmd, obj_type, i, a, extend)
-                else:
-                    for i in oid:
-                        tmprc = pbs_manager(c, cmd, obj_type, i, a, extend)
-                        if tmprc != 0:
-                            rc = tmprc
-                            break
-                    if rc == 0:
+                for i in oid:
+                    tmprc = pbs_manager(c, cmd, obj_type, i, a, extend)
+                    if tmprc != 0:
                         rc = tmprc
+                        break
+                if rc == 0:
+                    rc = tmprc
         bs_list = []
         if cmd == MGR_CMD_DELETE and oid is not None and rc == 0:
             for i in oid:
