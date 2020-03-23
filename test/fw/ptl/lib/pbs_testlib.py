@@ -38,7 +38,6 @@
 import collections
 import copy
 import datetime
-import grp
 import logging
 import os
 import pickle
@@ -221,6 +220,15 @@ CMD_ERROR_MAP = {
     'terminate': 'PbsQtermError',
     'alterresv': 'PbsResvAlterError'
 }
+
+
+def cmp(left, right):
+
+    """
+    Compares left to right as Python 2.7 would.
+    """
+    result = (left > right) - (left < right)
+    return result
 
 
 class PtlConfig(object):
@@ -14892,7 +14900,6 @@ class PBSInitServices(object):
                 init_cmd += ["%s=%s" % (k, str(v))]
             _as = True
         else:
-            fn = None
             if (conf_file is not None) and (conf_file != self.dflt_conf_file):
                 init_cmd += ['PBS_CONF_FILE=' + conf_file]
                 _as = True
