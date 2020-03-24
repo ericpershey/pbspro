@@ -14,17 +14,17 @@ do
 		--init ${PBS_IMAGE_NAME_TAG} \
 		sleep infinity
 	docker start ${PBS_CONTAINER_NAME}
-	case "${PBS_IMAGE_TAG}" in
-    centos7 )
-        export PBS_SUDO_GROUP="wheel"
-        ;;
-    debian9 )
-        export PBS_SUDO_GROUP="sudo"
-        ;;
-    *) echo "No sudo group found for ${PBS_IMAGE_TAG}"
+	export PBS_SUDO_GROUP=""
+	for sudo_group in "wheel" "sudo" ; do
+		if docker exec ${PBS_CONTAINER_NAME} getent group $sudo_group 2>&1 >/dev/null ; then
+			export PBS_SUDO_GROUP=$sudo_group
+			break
+		fi
+	done
+	if test -z "$PBS_SUDO_GROUP" ; then
+		 echo "No sudo group found for ${PBS_IMAGE_TAG}"
         exit 1
-        ;;
-	esac
+	fi
 	echo "Adding Users to the container: $PBS_IMAGE_TAG $HOME Group:${PBS_SUDO_GROUP}"
 	docker exec ${PBS_CONTAINER_NAME} useradd -M -U -u $UID -G ${PBS_SUDO_GROUP} ${USER}
 	docker exec ${PBS_CONTAINER_NAME} bash -c 'echo "{$USER} ALL=(ALL) NOPASSWD: ALL" >/etc/sudoers.d/pbs-testing-user'
