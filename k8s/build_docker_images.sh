@@ -1,6 +1,5 @@
 #!/bin/bash -ex
 # set_environment must be called first
-cp -p /usr/bin/docker-init .
 for PBS_IMAGE_TAG in "${PBS_IMAGE_TAG_ARRAY[@]}"
 do
 	echo "Building images for: $PBS_IMAGE_TAG"
