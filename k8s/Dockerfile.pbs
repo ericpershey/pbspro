@@ -26,6 +26,7 @@ RUN cd /home/pbsuser/pbspro && \
     sudo /opt/pbs/unsupported/pbs_config --make-ug && \
     sudo sed -i -e "/^PBS_START_/ d" /etc/pbs.conf && \
     sudo sed -i -e "/^PBS_SERVER_/ d" /etc/pbs.conf
+COPY ./docker-init /sbin/docker-init
 COPY ./entrypoint_pbs.sh /
 ENTRYPOINT ["/sbin/docker-init", "--"]
 # CMD ["bash", "/home/pbsuser/pbspro/k8s/entrypoint_pbs.sh"]
