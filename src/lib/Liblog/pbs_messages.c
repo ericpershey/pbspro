@@ -422,6 +422,9 @@ char *msg_alps_switch_err = "Switching ALPS reservation failed";
 char *msg_softwt_stf = "soft_walltime is not supported with Shrink to Fit jobs";
 char *msg_node_busy = "Node is busy";
 char *msg_default_partition = "Default partition name is not allowed";
+char *msg_depend_runone = "Job deleted, a dependent job ran";
+char *msg_histdepend = "Finished job did not satisfy dependency";
+
 /*
  * The following table connects error numbers with text
  * to be returned to the client.  Each is guaranteed to be pure text.
@@ -605,6 +608,7 @@ struct pbs_err_to_txt pbs_err_to_txt[] = {
 	{PBSE_SVR_SCHED_JSF_INCOMPAT, &msg_jsf_incompatible},
 	{PBSE_NODE_BUSY, &msg_node_busy},
 	{PBSE_DEFAULT_PARTITION, &msg_default_partition},
+	{PBSE_HISTDEPEND, &msg_histdepend},
 	{ 0, NULL }		/* MUST be the last entry */
 };
 
