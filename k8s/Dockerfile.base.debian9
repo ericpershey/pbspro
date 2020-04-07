@@ -52,6 +52,7 @@ RUN apt-get update -y && \
     strace \
     wget \
     vim \
+    lsof \
     autoconf \
     libhwloc-dev \
     autogen && \

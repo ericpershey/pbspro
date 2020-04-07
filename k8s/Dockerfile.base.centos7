@@ -59,5 +59,6 @@ RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.n
     openssh-clients \
     strace \
     wget \
+    lsof \
     vim && \
     ssh-keygen -A
