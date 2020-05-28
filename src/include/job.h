@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 #ifndef	_PBS_JOB_H
 #define	_PBS_JOB_H
 #ifdef	__cplusplus
@@ -517,7 +519,7 @@ struct block_job_reply {
  */
 
 
-#define	JSVERSION_18	800	/* 18 denotes the PBSPro version and it covers the job structure from >= 13.x to <= 18.x */
+#define	JSVERSION_18	800	/* 18 denotes the PBS version and it covers the job structure from >= 13.x to <= 18.x */
 #define	JSVERSION	1900	/* 1900 denotes the 19.x.x version */
 #define	ji_taskid	ji_extended.ji_ext.ji_taskidx
 #define	ji_nodeid	ji_extended.ji_ext.ji_nodeidx
@@ -552,8 +554,6 @@ struct job {
 #ifndef PBS_MOM
 	struct batch_request *ji_pmt_preq;		/* outstanding preempt job request for deleting jobs */
 #endif /* PBS_MOM */
-	int ji_licneed;			/* # of cpu licenses needed by job */
-	int		ji_licalloc;	/* actual # of cpu licenses allocated */
 #ifdef	PBS_MOM				/* MOM ONLY */
 	struct batch_request *ji_preq;	/* outstanding request */
 	struct grpcache *ji_grpcache;	/* cache of user's groups */
@@ -967,8 +967,7 @@ task_find	(job		*pjob,
 #define JOB_STDERR_SUFFIX  ".ER"	/* job standard error */
 #define JOB_CKPT_SUFFIX    ".CK"	/* job checkpoint file */
 #define JOB_TASKDIR_SUFFIX ".TK"	/* job task directory */
-#define JOB_CPUSET_SUFFIX  ".CS"	/* job cpuset */
-#define JOB_BAD_SUFFIX	   ".BD"	/* save bad job file */
+#define JOB_BAD_SUFFIX     ".BD"	/* save bad job file */
 
 /*
  * Job states are defined by POSIX as:
@@ -1235,13 +1234,6 @@ extern int   get_used_wall(job*);
 extern int   get_used_cput(job*);
 extern int   get_cput(job*);
 extern void  remove_deleted_resvs(void);
-
-extern void  clear_and_populate_svr_unlicensedjobs(void);
-extern void  relicense_svr_unlicensedjobs(void);
-extern int   set_cpu_licenses_need(job *, char *);
-extern void  allocate_cpu_licenses(job *);
-extern void  deallocate_cpu_licenses(job *);
-extern void  deallocate_cpu_licenses2(job *, int);
 
 extern void del_job_related_file(job *pjob, char *fsuffix);
 #ifdef PBS_MOM

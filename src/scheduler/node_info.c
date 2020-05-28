@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 
 /**
  * @file    node_info.c
@@ -359,7 +361,7 @@ query_nodes(int pbs_sd, server_info *sinfo)
 
 		for (nidx = 0; ninfo_arr[nidx] != NULL; nidx++)
 			ninfo_arr[nidx]->rank = get_sched_rank();
-		
+
 		ninfo_arr[nidx] = NULL;
 	} else {
 		if ((ninfo_arr = (node_info **) malloc((num_nodes + 1) * sizeof(node_info *))) == NULL) {
@@ -434,7 +436,7 @@ query_nodes(int pbs_sd, server_info *sinfo)
 	}
 
 	if (nidx == 0) {
-		log_event(PBSEVENT_SCHED, PBS_EVENTCLASS_SERVER, LOG_INFO, __func__, 
+		log_event(PBSEVENT_SCHED, PBS_EVENTCLASS_SERVER, LOG_INFO, __func__,
 			"No nodes found in partitions serviced by scheduler");
 		pbs_statfree(nodes);
 		free(ninfo_arr);
@@ -558,7 +560,7 @@ query_node_info(struct batch_status *node, server_info *sinfo)
 		else if (!strcmp(attrp->name, ATTR_NODE_Sharing)) {
 			ninfo->sharing = str_to_vnode_sharing(attrp->value);
 			if (ninfo->sharing == VNS_UNSET) {
-				log_eventf(PBSEVENT_SCHED, PBS_EVENTCLASS_NODE, LOG_INFO, ninfo->name, 
+				log_eventf(PBSEVENT_SCHED, PBS_EVENTCLASS_NODE, LOG_INFO, ninfo->name,
 					"Unknown sharing type: %s using default shared", attrp->value);
 				ninfo->sharing = VNS_DFLT_SHARED;
 			}
@@ -696,6 +698,7 @@ new_node_info()
 	new->is_stale = 0;
 	new->is_maintenance = 0;
 	new->is_provisioning = 0;
+	new->is_sleeping = 0;
 	new->is_multivnoded = 0;
 	new->has_ghost_job = 0;
 
@@ -750,7 +753,7 @@ new_node_info()
 
 	new->svr_node = NULL;
 	new->hostset = NULL;
-	
+
 	new->node_events = NULL;
 	new->bucket_ind = -1;
 	new->node_ind = -1;
@@ -945,7 +948,7 @@ free_node_info(node_info *ninfo)
 
 		if (ninfo->nodesig != NULL)
 			free(ninfo->nodesig);
-		
+
 		if(ninfo->node_events != NULL)
 			free_te_list(ninfo->node_events);
 
@@ -1747,7 +1750,7 @@ dup_node_info(node_info *onode, server_info *nsinfo,
 
 	nnode->bucket_ind = onode->bucket_ind;
 	nnode->node_ind = onode->node_ind;
-	
+
 	nnode->nscr = onode->nscr;
 
 	if (onode->partition != NULL) {
@@ -1918,8 +1921,8 @@ collect_jobs_on_nodes(node_info **ninfo_arr, resource_resv **resresv_arr, int si
 					 * recalculated later.
 					 */
 					ninfo_arr[i]->has_ghost_job = 1;
-					log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_NODE, LOG_DEBUG, ninfo_arr[i]->name, 
-						"Job %s reported running on node no longer exists or is not in running state", 
+					log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_NODE, LOG_DEBUG, ninfo_arr[i]->name,
+						"Job %s reported running on node no longer exists or is not in running state",
 						ninfo_arr[i]->jobs[j]);
 				}
 
@@ -2207,7 +2210,7 @@ update_node_on_end(node_info *ninfo, resource_resv *resresv, char *job_state)
 							res = res->indirect_res;
 						res->assigned -= resreq->amount;
 						if (res->assigned < 0) {
-							log_eventf(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, ninfo->name, 
+							log_eventf(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, ninfo->name,
 								"%s turned negative %.2lf, setting it to 0", res->name, res->assigned);
 							res->assigned = 0;
 						}
@@ -2337,6 +2340,7 @@ new_nspec()
 	ns->go_provision = 0;
 	ns->ninfo = NULL;
 	ns->resreq = NULL;
+	ns->chk = NULL;
 
 	return ns;
 }
@@ -2368,12 +2372,13 @@ free_nspec(nspec *ns)
  *
  * @param[in]	ons	-	the nspec to duplicate
  * @param[in]	nsinfo	-	the new server info
+ * @param[in]	sel	-	select spec to map nspec to
  *
  * @return	newly duplicated nspec
  *
  */
 nspec *
-dup_nspec(nspec *ons, node_info **ninfo_arr)
+dup_nspec(nspec *ons, node_info **ninfo_arr, selspec *sel)
 {
 	nspec *nns;
 
@@ -2391,6 +2396,8 @@ dup_nspec(nspec *ons, node_info **ninfo_arr)
 	nns->go_provision = ons->go_provision;
 	nns->ninfo = find_node_by_indrank(ninfo_arr, ons->ninfo->node_ind, ons->ninfo->rank);
 	nns->resreq = dup_resource_req_list(ons->resreq);
+	if (sel != NULL)
+		nns->chk = find_chunk_by_seq_num(sel->chunks, ons->seq_num);
 
 	return nns;
 }
@@ -2399,14 +2406,14 @@ dup_nspec(nspec *ons, node_info **ninfo_arr)
  * @brief
  * 		dup_nspecs - duplicate an array of nspecs
  *
- * @param[in]	onspecs	-	the nspecs to duplicate
- * @param[in]	ninfo_arr	-	the nodes corresponding to the nspecs
- *
+ * @param[in]	onspecs		- the nspecs to duplicate
+ * @param[in]	ninfo_arr	- the nodes corresponding to the nspecs
+ * @param[in]	sel		- select spec to map nspecs to
  * @return	duplicated nspec array
  *
  */
 nspec **
-dup_nspecs(nspec **onspecs, node_info **ninfo_arr)
+dup_nspecs(nspec **onspecs, node_info **ninfo_arr, selspec *sel)
 {
 	nspec **nnspecs;
 	int num_ns;
@@ -2423,7 +2430,7 @@ dup_nspecs(nspec **onspecs, node_info **ninfo_arr)
 		return NULL;
 
 	for (i = 0; onspecs[i] != NULL; i++)
-		nnspecs[i] = dup_nspec(onspecs[i], ninfo_arr);
+		nnspecs[i] = dup_nspec(onspecs[i], ninfo_arr, sel);
 
 	nnspecs[i] = NULL;
 
@@ -2648,7 +2655,7 @@ eval_selspec(status *policy, selspec *spec, place *placespec,
 	for (i = 0; nodepart[i] != NULL && rc == 0; i++) {
 		clear_schd_error(err);
 		if (resresv_can_fit_nodepart(policy, nodepart[i], resresv, flags, err)) {
-			log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG, resresv->name, 
+			log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG, resresv->name,
 				"Evaluating placement set: %s", nodepart[i]->name);
 			if (nodepart[i]->ok_break)
 				pass_flags |= EVAL_OKBREAK;
@@ -2674,7 +2681,7 @@ eval_selspec(status *policy, selspec *spec, place *placespec,
 		}
 		else {
 			translate_fail_code(err, NULL, reason);
-			log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG, resresv->name, 
+			log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG, resresv->name,
 				"Placement set %s is too small: %s", nodepart[i]->name, reason);
 			set_schd_error_codes(err, NOT_RUN, SET_TOO_SMALL);
 			set_schd_error_arg(err, ARG1, "Placement");
@@ -2855,7 +2862,7 @@ eval_placement(status *policy, selspec *spec, node_info **ninfo_arr, place *pl,
 			}
 
 			rc = any_succ_rc = 0;
-			log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_NODE, LOG_DEBUG, 
+			log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_NODE, LOG_DEBUG,
 				resresv->name, "Evaluating host %s", hostsets[i]->res_val);
 
 			/* Pack on One Host Placement:
@@ -2941,7 +2948,7 @@ eval_placement(status *policy, selspec *spec, node_info **ninfo_arr, place *pl,
 						else
 							translate_fail_code(err, NULL, reason);
 
-						log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG, 
+						log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
 							resresv->name, "Insufficient host-level resources %s", reason);
 
 						/* don't be so specific in the comment since it's only for a single host */
@@ -3012,7 +3019,7 @@ eval_placement(status *policy, selspec *spec, node_info **ninfo_arr, place *pl,
 						else
 							translate_fail_code(err, NULL, reason);
 
-						log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG, 
+						log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
 							resresv->name, "Insufficient host-level resources %s", reason);
 
 						/* don't be so specific in the comment since it's only for a single host */
@@ -3144,8 +3151,8 @@ eval_placement(status *policy, selspec *spec, node_info **ninfo_arr, place *pl,
 				free_nodes(dup_ninfo_arr);
 			}
 			else {
-				log_eventf(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, resresv->name, 
-					"Unexpected Placement: not %s, %s, %s, or %s", 
+				log_eventf(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, resresv->name,
+					"Unexpected Placement: not %s, %s, %s, or %s",
 					PLACE_Scatter, PLACE_VScatter, PLACE_Pack, PLACE_Free);
 			}
 		}
@@ -3629,7 +3636,7 @@ eval_simple_selspec(status *policy, chunk *chk, node_info **pninfo_arr,
 		nsa[i] = NULL;
 	}
 
-	log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_NODE, LOG_DEBUG, resresv->name, 
+	log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_NODE, LOG_DEBUG, resresv->name,
 		"Failed to satisfy subchunk: %s", chk->str_chunk);
 
 	/* If the last node we looked at was fine, err would be empty.
@@ -3945,7 +3952,7 @@ resources_avail_on_vnode(resource_req *specreq_cons, node_info *node,
 						if (resresv->select->total_chunks > 1 && pl->scatter != 1 && pl->vscatter != 1)
 							set_current_aoe(node, resresv->aoename);
 						if (resresv->is_job) {
-							log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_NOTICE, resresv->name, 
+							log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_NOTICE, resresv->name,
 								"Vnode %s selected for provisioning with AOE %s", node->name, resresv->aoename);
 						}
 					}
@@ -3961,7 +3968,7 @@ resources_avail_on_vnode(resource_req *specreq_cons, node_info *node,
 							set_current_eoe(node, resresv->eoename);
 
 						if (resresv->is_job)
-							log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_NOTICE, resresv->name, 
+							log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_NOTICE, resresv->name,
 								"Vnode %s selected for power with EOE %s", node->name, resresv->eoename);
 					}
 
@@ -4000,7 +4007,7 @@ resources_avail_on_vnode(resource_req *specreq_cons, node_info *node,
 					/* use tmpreq to wrap the amount so we can use res_to_str */
 					tmpreq.amount = amount;
 
-					log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_NODE, LOG_DEBUG, node->name, 
+					log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_NODE, LOG_DEBUG, node->name,
 						"vnode allocated %s=%s", req->name, res_to_str(&tmpreq, RF_REQUEST));
 
 					allocated = 1;
@@ -4217,7 +4224,7 @@ check_resources_for_node(resource_req *resreq, node_info *ninfo,
 				}
 				else {
 					ns = NULL;
-					log_eventf(PBSEVENT_SCHED, PBS_EVENTCLASS_SCHED, LOG_WARNING, resresv->name, 
+					log_eventf(PBSEVENT_SCHED, PBS_EVENTCLASS_SCHED, LOG_WARNING, resresv->name,
 						"Event %s is a run/end event w/o nspec array, ignoring event", event->name);
 				}
 
@@ -4720,13 +4727,14 @@ create_execvnode(nspec **ns)
  *		parse_execvnode - parse an execvnode into an nspec array
  *
  * @param[in]	execvnode	-	the execvnode to parse
- * @param[in]	sinfo	-	server to get the nodes from
+ * @param[in]	sinfo		-	server to get the nodes from
+ * @param[in]	sel		- select to map 
  *
  * @return	a newly allocated nspec array for the execvnode
  *
  */
 nspec **
-parse_execvnode(char *execvnode, server_info *sinfo)
+parse_execvnode(char *execvnode, server_info *sinfo, selspec *sel)
 {
 	char *simplespec;
 	char *excvndup;
@@ -4746,6 +4754,11 @@ parse_execvnode(char *execvnode, server_info *sinfo)
 	char *p;
 	char *tailptr = NULL;
 	int hp;
+	int cur_chunk_num = 0;
+	int cur_tot_chunks = 0;
+	int chunks_ind;
+	int num_paren = 0;
+	int in_superchunk = 0;
 
 	if (execvnode == NULL || sinfo == NULL)
 		return NULL;
@@ -4758,9 +4771,15 @@ parse_execvnode(char *execvnode, server_info *sinfo)
 	while (p != NULL && *p != '\0') {
 		if (*p == '+')
 			num_chunk++;
+		if (*p == '(')
+			num_paren++;
 
 		p++;
 	}
+
+	/* Number of chunks in exec_vnode don't match selspec, don't map chunks*/
+	if (sel != NULL && num_paren != sel->total_chunks)
+		sel = NULL;
 
 	if ((nspec_arr = (nspec **) calloc(num_chunk + 1, sizeof(nspec *))) == NULL) {
 		log_err(errno, __func__, MEM_ERR_MSG);
@@ -4771,12 +4790,18 @@ parse_execvnode(char *execvnode, server_info *sinfo)
 		return NULL;
 
 	simplespec = parse_plus_spec_r(excvndup, &tailptr, &hp);
+	if (hp > 0) /* simplespec starts with '(' but doesn't close */
+		in_superchunk = 1;
 
 	if (simplespec == NULL)
 		invalid = 1;
 	else if (parse_node_resc_r(simplespec, &node_name, &num_el, &nlkv, &kv) != 0)
 		invalid = 1;
 
+	if (sel != NULL) {
+		cur_tot_chunks = sel->chunks[0]->num_chunks;
+		chunks_ind = 0;
+	}
 	for (i = 0; i < num_chunk && !invalid && simplespec != NULL; i++) {
 		nspec_arr[i] = new_nspec();
 		if (nspec_arr[i] != NULL) {
@@ -4802,8 +4827,24 @@ parse_execvnode(char *execvnode, server_info *sinfo)
 					"Exechost contains a node that does not exist.");
 				invalid = 1;
 			}
-			if (i == num_chunk - 1)
+			if (sel != NULL) {
+				/* This shouldn't happen since we checked above to make sure we could map properly */
+				if (sel->chunks[chunks_ind] == NULL) {
+					log_event(PBS_EVENTCLASS_NODE, PBS_EVENTCLASS_NODE, LOG_WARNING, __func__, "Select spec and exec_vnode/resv_nodes can not be mapped");
+					free_nspecs(nspec_arr);
+					return NULL;
+				}
+				nspec_arr[i]->chk = sel->chunks[chunks_ind];
+				nspec_arr[i]->seq_num = nspec_arr[i]->chk->seq_num;
+			}
+			if (!in_superchunk || hp < 0) {
 				nspec_arr[i]->end_of_chunk = 1;
+				if (sel != NULL) {
+					cur_chunk_num++;
+					if (cur_chunk_num == cur_tot_chunks)
+						chunks_ind++;
+				}
+			}
 		}
 		else
 			invalid = 1;
@@ -4812,6 +4853,12 @@ parse_execvnode(char *execvnode, server_info *sinfo)
 			simplespec = parse_plus_spec_r(tailptr, &tailptr, &hp);
 			if (simplespec != NULL) {
 				int ret;
+
+				if (hp > 0) /* simplespec starts with '(' but doesn't end with ')' */
+					in_superchunk = 1;
+				else if (hp < 0) /* simplespec ends with ')' but does not start with '(' */
+					in_superchunk = 0;
+				/* hp == 0 simplespec either starts and ends with '(' ')' or has neither */
 
 				ret = parse_node_resc_r(simplespec, &node_name, &num_el, &nlkv, &kv);
 				if (ret < 0)
@@ -4878,7 +4925,7 @@ node_state_to_str(node_info *ninfo)
 
 	if (ninfo->is_sleeping)
 		return ND_sleep;
-	
+
 	if (ninfo->is_maintenance)
 		return ND_maintenance;
 
@@ -4889,7 +4936,8 @@ node_state_to_str(node_info *ninfo)
 /**
  * @brief
  *		combine_nspec_array - find and combine any nspec's for the same node
- *		in an nspec array
+ *		in an nspec array.  Because nspecs no longer map to the original chunks
+ *		they came from, seq_num and chk no longer have meaning.  They are cleared.
  *
  * @param[in,out]	nspec_arr	-	array to combine
  *
@@ -4909,6 +4957,8 @@ combine_nspec_array(nspec **nspec_arr)
 		return;
 
 	for (i = 0; nspec_arr[i] != NULL; i++) {
+		nspec_arr[i]->seq_num = 0;
+		nspec_arr[i]->chk = NULL;
 		for (j = i + 1; nspec_arr[j] != NULL; j++) {
 			if (nspec_arr[i]->resreq != NULL &&
 				nspec_arr[i]->ninfo == nspec_arr[j]->ninfo) {
@@ -4916,16 +4966,15 @@ combine_nspec_array(nspec **nspec_arr)
 				prev_j = NULL;
 
 				while (req_j != NULL) {
-					req_i =
-						find_resource_req(nspec_arr[i]->resreq, req_j->def);
+					req_i = find_resource_req(nspec_arr[i]->resreq, req_j->def);
 					if (req_i != NULL) {
 						/* we assume that if the resource is a boolean or a string
 						 * the value is either the same, or doesn't exist
 						 * so we don't need to do validity checking
 						 */
 						if (req_j->type.is_consumable)
-							req_i->amount +=  req_j->amount;
-						else if (req_j->type.is_string && req_i->res_str ==NULL) {
+							req_i->amount += req_j->amount;
+						else if (req_j->type.is_string && req_i->res_str == NULL) {
 							req_i->res_str = req_j->res_str;
 							req_j->res_str = NULL;
 						}
@@ -5100,7 +5149,7 @@ reorder_nodes(node_info **nodes, resource_resv *resresv)
 			cmp_aoename = string_dup(resresv->aoename);
 			qsort(nptr, nsize, sizeof(node_info *), cmp_aoe);
 
-			log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG, resresv->name, 
+			log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG, resresv->name,
 				"Re-sorted the nodes on aoe %s, since aoe was requested", resresv->aoename);
 
 			return nptr;
@@ -5799,7 +5848,7 @@ create_node_array_from_str(node_info **nodes, char **strnodes)
 				ninfo_arr[j] = NULL;
 			}
 			else
-				log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__, 
+				log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__,
 					"Node %s not found in list.", strnodes[i]);
 		}
 	}
@@ -5820,13 +5869,13 @@ find_node_ind(node_info **ninfo_arr, int rank) {
 	int i;
 	if(ninfo_arr == NULL)
 		return -1;
-	
+
 	for (i = 0; ninfo_arr[i] != NULL && ninfo_arr[i]->rank != rank; i++)
 		;
 
 	if(ninfo_arr[i] == NULL)
 		return -1;
-	
+
 	return i;
 }
 
@@ -5869,10 +5918,10 @@ find_node_by_rank(node_info **ninfo_arr, int rank)
 node_info *find_node_by_indrank(node_info **ninfo_arr, int ind, int rank) {
 	if(ninfo_arr == NULL || *ninfo_arr == NULL)
 		return NULL;
-	
+
 	if(ninfo_arr[0] == NULL || ninfo_arr[0]->server == NULL || ninfo_arr[0]->server->unordered_nodes == NULL || ind == -1)
 		return find_node_by_rank(ninfo_arr, rank);
-	
+
 	return ninfo_arr[0]->server->unordered_nodes[ind];
 }
 
@@ -6354,6 +6403,6 @@ int add_node_events(timed_event *te, void *arg1, void *arg2) {
 		if (add_event_to_nodes(te, nspecs) == 0)
 			return -1;
 	}
-	
+
 	return 0;
 }

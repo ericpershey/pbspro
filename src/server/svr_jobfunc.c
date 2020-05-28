@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file    svr_jobfunc.c
  *
@@ -62,12 +64,6 @@
  *      state_char2int()   - returns the state from char form to int form.
  *		uniq_nameANDfile() - creates a unique filename and file for an object
  *		remove_deleted_resvs() - remove reservations marked RESV_FINISHED
- *		set_cpu_licenses_need()- set # of cpu licenses needed by a job
- *		allocate_cpu_licenses()- assign cpu licenses to a job
- *		deallocate_cpu_licenses()     - unassign cpu licenses from a job
- *		clear_and_populate_svr_unlicensedjobs() - empties then adds entries
- *												to svr_unlicensedjobs.
- *		relicense_svr_unlicensedjobs()- relicense jobs in svr_unlicensedjobs
  *      update_eligible_time() - calc eligible time and modify accrue_type
  *		determine_accruetype() - determines accruetype
  *		alter_eligibletime() - resets sampletime of job
@@ -169,7 +165,6 @@ extern char *msg_mombadmodify;
 extern struct server server;
 extern int  pbs_mom_port;
 extern pbs_list_head svr_alljobs;
-extern pbs_list_head svr_unlicensedjobs;
 extern char  *msg_badwait;		/* error message */
 extern char  *msg_daemonname;
 extern char  *msg_also_deleted_job_history;
@@ -3525,14 +3520,6 @@ Time4occurrenceFinish(resc_resv *presv)
 
 	if (sub == RESV_DEGRADED) {
 		DBPRT(("degraded_time of %s is %s", presv->ri_qs.ri_resvID, ctime(&presv->ri_degraded_time)))
-		/* If no jobs are running in this reservation, unset the scheduler name
-		 * so that the reservation can be confirmed by any scheduler
-		 */
-		if (presv->ri_qp->qu_njstate[JOB_STATE_RUNNING] + presv->ri_qp->qu_njstate[JOB_STATE_EXITING] == 0) {
-			resv_attr_def[(int)RESV_ATR_partition].at_free(&presv->ri_wattr[(int)RESV_ATR_partition]);
-			presv->rep_sched_count= 0;
-			presv->req_sched_count= 0;
-		}
 	}
 
 	/* Set the reservation state and substate */
@@ -4602,7 +4589,7 @@ start_end_dur_wall(void *pobj, int objtype)
 		else if (!(prsc = add_resource_entry(pattr, rscdef)))
 			return (-1);
 	} else {
-		if (presv->ri_alter_flags & RESV_DURATION_MODIFIED) 
+		if (presv->ri_alter_flags & RESV_DURATION_MODIFIED)
 			swcode += 4;
 		if (presv->ri_alter_flags & RESV_END_TIME_MODIFIED)
 			swcode += 2; /*calcualte start time*/

@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file    job_info.c
  *
@@ -1144,6 +1146,7 @@ query_job(struct batch_status *job, server_info *sinfo, schd_error *err)
 	long count;			/* long used in string->long conversion */
 	char *endp;			/* used for strtol() */
 	resource_req *resreq;		/* resource_req list for resources requested  */
+	char *execvnode = NULL;		/* Hold the exec_vnode until the end of the parsing */
 
 	if ((resresv = new_resource_resv()) == NULL)
 		return NULL;
@@ -1265,7 +1268,7 @@ query_job(struct batch_status *job, server_info *sinfo, schd_error *err)
 		else if (!strcmp(attrp->name, ATTR_comment))	/* job comment */
 			resresv->job->comment = string_dup(attrp->value);
 		else if (!strcmp(attrp->name, ATTR_released)) /* resources_released */
-			resresv->job->resreleased = parse_execvnode(attrp->value, sinfo);
+			resresv->job->resreleased = parse_execvnode(attrp->value, sinfo, NULL);
 		else if (!strcmp(attrp->name, ATTR_euser))	/* account name */
 			resresv->user = string_dup(attrp->value);
 		else if (!strcmp(attrp->name, ATTR_egroup))	/* group name */
@@ -1310,19 +1313,8 @@ query_job(struct batch_status *job, server_info *sinfo, schd_error *err)
 		/* array_indices_remaining */
 		else if (!strcmp(attrp->name, ATTR_array_indices_remaining))
 			resresv->job->queued_subjobs = range_parse(attrp->value);
-		else if (!strcmp(attrp->name, ATTR_execvnode)) { /* where job is running*/
-			/*
-			 * An execvnode may have a vnode chunk in it multiple times.
-			 * parse_execvnode() will return us a nspec array with a nspec per
-			 * chunk.  The rest of the scheduler expects one nspec per vnode.
-			 * This combining of vnode chunks is the job of combine_nspec_array().
-			 */
-			resresv->nspec_arr = parse_execvnode(attrp->value, sinfo);
-			combine_nspec_array(resresv->nspec_arr);
-
-			if (resresv->nspec_arr != NULL)
-				resresv->ninfo_arr = create_node_array_from_nspec(resresv->nspec_arr);
-		}
+		else if (!strcmp(attrp->name, ATTR_execvnode))
+			execvnode = attrp->value;
 		else if (!strcmp(attrp->name, ATTR_l)) { /* resources requested*/
 			resreq = find_alloc_resource_req_by_str(resresv->resreq, attrp->resource);
 			if (resreq == NULL) {
@@ -1359,30 +1351,26 @@ query_job(struct batch_status *job, server_info *sinfo, schd_error *err)
 					}
 				}
 			}
-		}
-		else if (!strcmp(attrp->name, ATTR_rel_list)) {
+		} else if (!strcmp(attrp->name, ATTR_rel_list)) {
 			resreq = find_alloc_resource_req_by_str(resresv->job->resreq_rel, attrp->resource);
 			if (resreq != NULL)
 				set_resource_req(resreq, attrp->value);
 			if (resresv->job->resreq_rel == NULL)
 				resresv->job->resreq_rel = resreq;
-		}
-		else if (!strcmp(attrp->name, ATTR_used)) { /* resources used */
+		} else if (!strcmp(attrp->name, ATTR_used)) { /* resources used */
 			resreq =
 				find_alloc_resource_req_by_str(resresv->job->resused, attrp->resource);
 			if (resreq != NULL)
 				set_resource_req(resreq, attrp->value);
 			if (resresv->job->resused ==NULL)
 				resresv->job->resused = resreq;
-		}
-		else if (!strcmp(attrp->name, ATTR_accrue_type)) {
+		} else if (!strcmp(attrp->name, ATTR_accrue_type)) {
 			count = strtol(attrp->value, &endp, 10);
 			if (*endp == '\0')
 				resresv->job->accrue_type = count;
 			else
 				resresv->job->accrue_type = 0;
-		}
-		else if (!strcmp(attrp->name, ATTR_eligible_time))
+		} else if (!strcmp(attrp->name, ATTR_eligible_time))
 			resresv->job->eligible_time = (time_t) res_to_num(attrp->value, NULL);
 		else if (!strcmp(attrp->name, ATTR_estimated)) {
 			if (!strcmp(attrp->resource, "start_time")) {
@@ -1405,6 +1393,15 @@ query_job(struct batch_status *job, server_info *sinfo, schd_error *err)
 		}
 
 		attrp = attrp->next;
+	}
+
+	if (execvnode != NULL) {
+		resresv->orig_nspec_arr = parse_execvnode(execvnode, sinfo, resresv->select);
+		resresv->nspec_arr = dup_nspecs(resresv->orig_nspec_arr, sinfo->nodes, resresv->select);
+		combine_nspec_array(resresv->nspec_arr);
+
+		if (resresv->nspec_arr != NULL)
+			resresv->ninfo_arr = create_node_array_from_nspec(resresv->nspec_arr);
 	}
 
 	return resresv;
@@ -1765,7 +1762,7 @@ int send_job_updates(int pbs_sd, resource_resv *job) {
  * 		send delayed attributes to the server for a job
  *
  * @param[in]	pbs_sd	-	server connection descriptor
- * @param[in]	job_name	-	name of job for pbs_alterjob()
+ * @param[in]	job_name	-	name of job for pbs_asyalterjob()
  * @param[in]	pattr	-	attrl list to update on the server
  *
  * @return	int
@@ -2780,7 +2777,7 @@ dup_job_info(job_info *ojinfo, queue_info *nqinfo, server_info *nsinfo)
 	njinfo->array_id = string_dup(ojinfo->array_id);
 	njinfo->queued_subjobs = dup_range_list(ojinfo->queued_subjobs);
 
-	njinfo->resreleased = dup_nspecs(ojinfo->resreleased, nsinfo->nodes);
+	njinfo->resreleased = dup_nspecs(ojinfo->resreleased, nsinfo->nodes, NULL);
 	njinfo->resreq_rel = dup_resource_req_list(ojinfo->resreq_rel);
 
 	if (nqinfo->server->fairshare !=NULL) {
@@ -3959,6 +3956,10 @@ create_subjob_from_array(resource_resv *array, int index, char *subjob_name)
 
 	subjob = dup_resource_resv(array, array->server, array->job->queue, err);
 
+	/* make a copy of dependent jobs */
+	subjob->job->depend_job_str = string_dup(array->job->depend_job_str);
+	subjob->job->dependent_jobs = (resource_resv **) dup_array(array->job->dependent_jobs);
+
 	array->job->queued_subjobs = tmp;
 
 	if (subjob == NULL) {
@@ -4755,7 +4756,7 @@ update_estimated_attrs(int pbs_sd, resource_resv *job,
 
 	/* create attrl for estimated.exec_vnode to be passed as the 'extra' field
 	 * to update_job_attr().  This will cause both attributes to be updated
-	 * in one call to pbs_alterjob()
+	 * in one call to pbs_asyalterjob()
 	 */
 	attr.name = ATTR_estimated;
 	attr.resource = "exec_vnode";
@@ -5014,7 +5015,7 @@ nspec **create_res_released_array(status *policy, resource_resv *resresv)
 	if ((resresv == NULL) || (resresv->nspec_arr == NULL) || (resresv->ninfo_arr == NULL))
 		return NULL;
 
-	nspec_arr = dup_nspecs(resresv->nspec_arr, resresv->ninfo_arr);
+	nspec_arr = dup_nspecs(resresv->nspec_arr, resresv->ninfo_arr, NULL);
 	if (nspec_arr == NULL)
 		return NULL;
 	if (policy->rel_on_susp != NULL) {
@@ -5255,13 +5256,22 @@ static int cull_preemptible_jobs(resource_resv *job, void *arg)
 				if (find_node_by_host(job->ninfo_arr, hreq->res_str) != NULL)
 					return 1;
 			} else {
+				if (inp->err->rdef->type.is_non_consumable) {
+					/* In the non-consumable case, we need to pass the job on.
+					 * There is a case when a job requesting a non-specific
+					 * select is allocated a node with a non-consumable.
+					 * We will check nodes to see if they are useful in
+					 * select_index_to_preempt
+					 */
+					return 1;
+				}
 				for (index = 0; job->select->chunks[index] != NULL; index++)
 				{
 					for (req_scan = job->select->chunks[index]->req; req_scan != NULL; req_scan = req_scan->next)
 					{
 						if (req_scan->def == inp->err->rdef) {
 							if (req_scan->type.is_non_consumable ||
-							    req_scan->amount > 0) {
+								req_scan->amount > 0) {
 									return 1;
 							}
 						}
@@ -5396,8 +5406,10 @@ static char **parse_runone_job_list(char *depend_val) {
 	    depend_str = string_dup(depend_val);
 
 	start = strstr(depend_str, depend_type);
-	if (start == NULL)
+	if (start == NULL) {
+		free(depend_str);
 		return NULL;
+	}
 
 	r = start + strlen(depend_type);
 	for (i = 0; r[i] != '\0'; i++) {

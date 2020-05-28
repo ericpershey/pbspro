@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 
 /**
  * @file    fifo.c
@@ -869,6 +871,7 @@ main_sched_loop(status *policy, int sd, server_info *sinfo, schd_error **rerr)
 		comment[0] = '\0';
 		log_msg[0] = '\0';
 		qinfo = njob->job->queue;
+		sort_again = SORTED;
 
 		clear_schd_error(err);
 
@@ -945,10 +948,8 @@ main_sched_loop(status *policy, int sd, server_info *sinfo, schd_error **rerr)
 			int cal_rc;
 #ifdef NAS /* localmod 034 */
 			int bf_rc;
-			sort_again = SORTED;
 			if ((bf_rc = site_should_backfill_with_job(policy, sinfo, njob, num_topjobs, num_topjobs_per_queues, err)))
 #else
-			sort_again = SORTED;
 			if (should_backfill_with_job(policy, sinfo, njob, num_topjobs) != 0) {
 #endif
 				cal_rc = add_job_to_calendar(sd, policy, sinfo, njob, should_use_buckets);
@@ -975,6 +976,7 @@ main_sched_loop(status *policy, int sd, server_info *sinfo, schd_error **rerr)
 							break;
 					}
 #else
+					sort_again = MAY_RESORT_JOBS;
 					if (njob->job->is_preempted == 0 || sinfo->enforce_prmptd_job_resumption == 0) { /* preempted jobs don't increase top jobs count */
 						if (qinfo->backfill_depth == UNSPECIFIED)
 							num_topjobs++;
@@ -1999,7 +2001,7 @@ add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo,
 #endif /* localmod 068 */
 			if (bjob->nspec_arr != NULL)
 				free_nspecs(bjob->nspec_arr);
-			bjob->nspec_arr = parse_execvnode(exec, sinfo);
+			bjob->nspec_arr = parse_execvnode(exec, sinfo, NULL);
 			if (bjob->nspec_arr != NULL) {
 				char *selectspec;
 				if (bjob->ninfo_arr != NULL)
@@ -2778,4 +2780,3 @@ validate_sched_attrs(int connector)
 
 	return 1;
 }
-

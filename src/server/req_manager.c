@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 
 /**
  * @file    req_manager.c
@@ -1473,26 +1475,12 @@ mgr_server_unset(struct batch_request *preq, conn_t *conn)
 
 	plist = (svrattrl *)GET_NEXT(preq->rq_ind.rq_manager.rq_attr);
 
-	/* Check unsetting single_signon_password_enable,	*/
-	/*                 pbs_license_info,			*/
+	/* Check unsetting pbs_license_info,			*/
 	/*                 pbs_license_min,			*/
 	/*                 pbs_license_max,			*/
 	/*                 pbs_license_linger_time.		*/
 	while (plist) {
-		if (strcasecmp(plist->al_name, ATTR_ssignon_enable) == 0) {
-
-			/* from true to unset */
-			if ( (server.sv_attr[SRV_ATR_ssignon_enable].at_flags       \
-						       & ATR_VFLAG_SET) &&     \
-        		(server.sv_attr[SRV_ATR_ssignon_enable].at_val.at_long \
-								== 1) && \
-        		(GET_NEXT(svr_alljobs) != NULL) ) {
-
-				reply_badattr(PBSE_SSIGNON_BAD_TRANSITION1, bad_attr,
-					plist, preq);
-				return;
-			}
-		} else if (strcasecmp(plist->al_name, ATTR_aclroot) == 0) {
+		if (strcasecmp(plist->al_name, ATTR_aclroot) == 0) {
 			/*Only root at server host can unset server attribute "acl_roots".*/
 			if (!is_local_root(preq->rq_user, preq->rq_host)) {
 				reply_badattr(PBSE_ATTRRO, bad_attr, plist, preq);

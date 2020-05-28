@@ -3,37 +3,40 @@
 # Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 import time
@@ -90,7 +93,15 @@ class TestReservations(TestFunctional):
 
         return self.server.submit(r)
 
-    @skipOnCpuSet
+    @staticmethod
+    def cust_attr(name, totnodes, numnode, attrib):
+        a = {}
+        if numnode % 2 == 0:
+            a['resources_available.color'] = 'red'
+        else:
+            a['resources_available.color'] = 'blue'
+        return {**attrib, **a}
+
     def degraded_resv_reconfirm(self, start, end, rrule=None, run=False):
         """
         Test that a degraded reservation gets reconfirmed
@@ -98,12 +109,18 @@ class TestReservations(TestFunctional):
         a = {'reserve_retry_time': 5}
         self.server.manager(MGR_CMD_SET, SERVER, a)
 
+        a = {'type': 'string', 'flag': 'h'}
+        self.server.manager(MGR_CMD_CREATE, RSC, a, id='color')
+        self.scheduler.add_resource('color')
+
         a = {'resources_available.ncpus': 1}
-        self.server.create_vnodes('vn', a, num=2, mom=self.mom)
+        self.server.create_vnodes('vn', a, num=3, mom=self.mom,
+                                  attrfunc=self.cust_attr)
 
         now = int(time.time())
 
-        rid = self.submit_reservation(user=TEST_USER, select='1:ncpus=1',
+        rid = self.submit_reservation(user=TEST_USER,
+                                      select='1:ncpus=1:color=red',
                                       rrule=rrule, start=start, end=end)
 
         a = {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2')}
@@ -128,7 +145,7 @@ class TestReservations(TestFunctional):
         a.update(resv_state)
         self.server.expect(RESV, a, id=rid)
 
-        a = {'resources_available.ncpus': (GT, 0)}
+        a = {'resources_available.color': 'red'}
         free_nodes = self.server.filter(NODE, a)
         nodes = list(free_nodes.values())[0]
 
@@ -142,7 +159,6 @@ class TestReservations(TestFunctional):
 
         self.server.expect(RESV, a, id=rid, interval=1)
 
-    @skipOnCpuSet
     def degraded_resv_failed_reconfirm(self, start, end, rrule=None,
                                        run=False, resume=False):
         """
@@ -226,6 +242,7 @@ class TestReservations(TestFunctional):
 
         self.server.expect(RESV, resv_state, id=rid)
 
+    @skipOnCpuSet
     def test_degraded_standing_reservations(self):
         """
         Verify that degraded standing reservations are reconfirmed
@@ -235,6 +252,7 @@ class TestReservations(TestFunctional):
         self.degraded_resv_reconfirm(start=t + 25, end=t + 625,
                                      rrule='freq=HOURLY;count=5')
 
+    @skipOnCpuSet
     def test_degraded_advance_reservations(self):
         """
         Verify that degraded advance reservations are reconfirmed
@@ -243,6 +261,7 @@ class TestReservations(TestFunctional):
         t = int(time.time())
         self.degraded_resv_reconfirm(start=t + 25, end=t + 625)
 
+    @skipOnCpuSet
     def test_degraded_standing_running_reservations(self):
         """
         Verify that degraded standing reservations are reconfirmed
@@ -252,6 +271,7 @@ class TestReservations(TestFunctional):
         self.degraded_resv_reconfirm(start=t + 25, end=t + 625,
                                      rrule='freq=HOURLY;count=5', run=True)
 
+    @skipOnCpuSet
     def test_degraded_advance_running_reservations(self):
         """
         Verify that degraded advance reservations are not reconfirmed
@@ -261,6 +281,7 @@ class TestReservations(TestFunctional):
         self.degraded_resv_reconfirm(
             start=t + 25, end=t + 625, run=True)
 
+    @skipOnCpuSet
     def test_degraded_standing_reservations_fail(self):
         """
         Verify that degraded standing reservations are not
@@ -270,6 +291,7 @@ class TestReservations(TestFunctional):
         self.degraded_resv_failed_reconfirm(start=t + 120, end=t + 720,
                                             rrule='freq=HOURLY;count=5')
 
+    @skipOnCpuSet
     def test_degraded_advance_reservations_fail(self):
         """
         Verify that advance reservations are not reconfirmed if there
@@ -278,6 +300,7 @@ class TestReservations(TestFunctional):
         t = int(time.time())
         self.degraded_resv_failed_reconfirm(start=t + 120, end=t + 720)
 
+    @skipOnCpuSet
     def test_degraded_standing_running_reservations_fail(self):
         """
         Verify that degraded running standing reservations are not
@@ -288,6 +311,7 @@ class TestReservations(TestFunctional):
                                             rrule='freq=HOURLY;count=5',
                                             run=True)
 
+    @skipOnCpuSet
     def test_degraded_advance_running_reservations_fail(self):
         """
         Verify that advance running reservations are not reconfirmed if there
@@ -296,6 +320,51 @@ class TestReservations(TestFunctional):
         t = int(time.time())
         self.degraded_resv_failed_reconfirm(
             start=t + 25, end=t + 625, run=True)
+
+    @skipOnCpuSet
+    def test_degraded_advanced_reservation_superchunk(self):
+        """
+        Verify that an advanced reservation requesting a superchunk is
+        correctly reconfirmed on other nodes
+        """
+        retry = 15
+        a = {'resources_available.ncpus': 1}
+        self.server.create_vnodes('vn', a, num=6, mom=self.mom)
+        self.server.manager(MGR_CMD_SET, SERVER, {'reserve_retry_time': retry})
+
+        now = int(time.time())
+        a = {'Resource_List.select': '1:ncpus=1+1:ncpus=3',
+             'reserve_start': now + 60, 'reserve_end': now + 240}
+        r = Reservation(attrs=a)
+        rid = self.server.submit(r)
+
+        self.server.expect(RESV, {'reserve_state':
+                                  (MATCH_RE, 'RESV_CONFIRMED|2')}, id=rid)
+        st = self.server.status(RESV, 'resv_nodes', id=rid)[0]
+        nds1 = st['resv_nodes']
+        # Should have 4 nodes.  Nodes 2-4 are the superchunk.  Choose the
+        # middle node to avoid the '(' and ')' of the superchunk.
+        sp = nds1.split('+')
+        sn = sp[2].split(':')[0]
+
+        # Keep the first chunk's node around to confirm it is still the same
+        sc = sp[0]
+
+        t = int(time.time())
+        self.server.manager(MGR_CMD_SET, NODE, {'state': 'offline'}, id=sn)
+        self.server.expect(RESV, {'reserve_state':
+                                  (MATCH_RE, 'RESV_DEGRADED|10')}, id=rid)
+
+        retry_time = t + retry
+        offset = retry_time - int(time.time())
+        self.server.expect(RESV, {'reserve_state':
+                                  (MATCH_RE, 'RESV_CONFIRMED|2')},
+                           id=rid, offset=offset)
+        st = self.server.status(RESV, 'resv_nodes', id=rid)[0]
+        nds2 = st['resv_nodes']
+        self.assertEqual(len(sp), len(nds2.split('+')))
+        self.assertNotEqual(nds1, nds2)
+        self.assertEquals(sc, nds1.split('+')[0])
 
     @skipOnCpuSet
     def test_standing_reservation_occurrence_two_not_degraded(self):
@@ -2214,3 +2283,27 @@ class TestReservations(TestFunctional):
         jid = self.server.submit(J)
 
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
+
+    @skipOnCpuSet
+    def test_resv_job_hard_walltime(self):
+        """
+        Test that a job with hard walltime will not conflict with
+        reservtion if hard walltime is less that reservation start time.
+        """
+        a = {'resources_available.ncpus': 4}
+        self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
+
+        now = int(time.time())
+
+        a = {'Resource_List.ncpus': 4, 'reserve_start': now + 65,
+             'reserve_end': now + 240}
+        R = Reservation(TEST_USER, attrs=a)
+        rid = self.server.submit(R)
+        self.server.expect(RESV,
+                           {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2')},
+                           id=rid)
+        a = {'Resource_List.ncpus': 4,
+             'Resource_List.walltime': 50}
+        J = Job(TEST_USER, attrs=a)
+        jid = self.server.submit(J)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid)

@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file	mom_comm.c
  */
@@ -1316,14 +1318,6 @@ receive_job_update(int stream, job *pjob)
 		hook			*last_phook;
 		unsigned int		hook_fail_action = 0;
 
-#if	defined(MOM_CPUSET) && !defined(IRIX6_CPUSET)
-		/* preserve job's current cpuset and processes, but mark the
-		 * resources internally as free, so that a subset of them can be
-		 * re-assigned back to the job via modify_cpuset().
-		 */
-		suspend_job(pjob);
-#endif	/* MOM_CPUSET && !IRIX6_CPUSET */
-
 		if ((rc=job_nodes(pjob)) != 0) {
 			snprintf(log_buffer, sizeof(log_buffer),
 			   	"failed updating internal nodes data (rc=%d)", rc);
@@ -1331,13 +1325,6 @@ receive_job_update(int stream, job *pjob)
                                  pjob->ji_qs.ji_jobid, log_buffer);
 			return (-1);
 		}
-
-#if	defined(MOM_CPUSET) && !defined(IRIX6_CPUSET)
-		if (modify_cpuset(pjob) < 0) {
-			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE, pjob->ji_qs.ji_jobid, "failed to modify job's current cpuset");
-			return (-1);
-		}
-#endif	/* MOM_CPUSET && !IRIX6_CPUSET */
 
 		mom_hook_input_init(&hook_input);
 		hook_input.pjob = pjob;
@@ -2943,7 +2930,6 @@ recv_resc_used_from_sister(int stream, char *jobid, int nodeidx)
  *						succeeded
  * @retval PRE_FINISH_FAIL_JOB_SETUP_SEND	action to do job_setup_send() failed
  * @retval PRE_FINISH_FAIL_JOIN_EXTRA		action to do job_join_extra() failed
- * @retval PRE_FINISH_FAIL_NEW_CPUSET		action to create new cpuset failed
  *
  */
 pre_finish_results_t
@@ -2963,12 +2949,6 @@ pre_finish_exec(job *pjob, int do_job_setup_send)
 		if (job_join_extra(pjob, &pjob->ji_hosts[0]) != 0)
 			return PRE_FINISH_FAIL_JOIN_EXTRA;
 	}
-
-#if	defined(MOM_CPUSET) && !defined(IRIX6_CPUSET)
-	if (new_cpuset(pjob) < 0) {
-		return PRE_FINISH_FAIL_NEW_CPUSET;
-	}
-#endif	/* MOM_CPUSET && !IRIX6_CPUSET */
 
 	/*
 	 * If there is a job_setup_send function,
@@ -3253,9 +3233,10 @@ im_request(int stream, int version)
 			/* np is set from job_nodes_inner */
 
 
-			/* NULL value passed to hook_input.vnl */
-			/* means to assign */
-			/* vnode list using pjob->ji_host[].   */
+			/*
+			 * NULL value passed to hook_input.vnl
+			 * means to assign vnode list using pjob->ji_host[].
+			 */
 			mom_hook_input_init(&hook_input);
 			hook_input.pjob = pjob;
 
@@ -3275,10 +3256,11 @@ im_request(int stream, int version)
 				default:
 					/* a value of '0' means explicit reject encountered. */
 					if (hook_rc != 0) {
-						/* we've hit an internal error (malloc error, full disk, etc...), so */
-						/* treat this now like a  hook error so hook fail_action  */
-						/* will be consulted.  */
-						/* Before, behavior of an internal error was to ignore it! */
+						/*
+						 * we've hit an internal error (malloc error, full disk, etc...), so
+						 * treat this now like a  hook error so hook fail_action will be
+						 * consulted. Before, behavior of an internal error was to ignore it!
+						 */
 						hook_errcode = PBSE_HOOKERROR;
 					}
 					SEND_ERR2(hook_errcode, (char *)hook_msg);
@@ -3352,15 +3334,6 @@ im_request(int stream, int version)
 					goto done;
 				}
 			}
-
-#if	defined(MOM_CPUSET) && !defined(IRIX6_CPUSET)
-			if (new_cpuset(pjob) < 0) {
-				(void)mom_process_hooks(HOOK_EVENT_EXECJOB_ABORT, PBS_MOM_SERVICE_NAME, mom_host, &hook_input, &hook_output, hook_msg, sizeof(hook_msg), 1);
-				mom_deljob(pjob);
-				SEND_ERR(PBSE_SYSTEM)
-				goto done;
-			}
-#endif	/* MOM_CPUSET && !IRIX6_CPUSET */
 
 			(void)job_save(pjob, SAVEJOB_FULL);
 			(void)strcpy(namebuf, path_jobs);	/* job directory path */
@@ -4329,6 +4302,37 @@ join_err:
 			log_event(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_DEBUG,
 				jobid, "RESTART received");
 
+			/*
+			 * NULL value passed to hook_input.vnl means to assign
+			 * vnode list using pjob->ji_host[].
+			 */
+			mom_hook_input_init(&hook_input);
+			hook_input.pjob = pjob;
+			mom_hook_output_init(&hook_output);
+			hook_output.reject_errcode = &hook_errcode;
+			hook_output.last_phook = &last_phook;
+			hook_output.fail_action = &hook_fail_action;
+
+			hook_rc=mom_process_hooks(HOOK_EVENT_EXECJOB_BEGIN,
+					PBS_MOM_SERVICE_NAME, mom_host,
+					&hook_input, &hook_output,
+					hook_msg, sizeof(hook_msg), 1);
+			if (hook_rc <= 0) {
+				/* a value of '0' means explicit reject encountered. */
+				if (hook_rc != 0) {
+					/*
+					 * we've hit an internal error (malloc error, full disk, etc...), so
+					 * treat this now like a  hook error so hook fail_action will be consulted.
+					 * Before, behavior of an internal error was to ignore it!
+					 */
+					hook_errcode = PBSE_HOOKERROR;
+					send_hook_fail_action(last_phook);
+				}
+				SEND_ERR2(hook_errcode, (char *)hook_msg);
+				mom_deljob(pjob);
+				break;
+			}
+
 			errcode = local_restart(pjob, NULL);
 
 			if (errcode != PBSE_NONE) {	/* error, send reply */
@@ -4554,16 +4558,6 @@ join_err:
 							break;
 						  case PRE_FINISH_FAIL_JOIN_EXTRA:
 							goto done;
-						  case PRE_FINISH_FAIL_NEW_CPUSET:
-							log_joberr(PBSE_SYSTEM, __func__, "new_cpuset failed on MS", pjob->ji_qs.ji_jobid);
-							DBPRT(("%s: JOIN_JOB %s\n", __func__, pjob->ji_qs.ji_jobid))
-							/* whether or not job is node failure tolerant, we need it to bail out */
-							if (do_tolerate_node_failures(pjob))
-								/* force tolerant job to exit and rerun */
-								exec_bail(pjob, JOB_EXEC_RETRY, "create a cpuset");
-							else
-								job_start_error(pjob, PBSE_SYSTEM, mom_host, "create a cpuset");
-							goto err;
 						  case PRE_FINISH_FAIL_JOB_SETUP_SEND:
 							sprintf(log_buffer, "could not send setup");
 							goto err;
@@ -5099,16 +5093,6 @@ join_err:
 							break;
 						  case PRE_FINISH_FAIL_JOIN_EXTRA:
 							goto done;
-						  case PRE_FINISH_FAIL_NEW_CPUSET:
-							log_joberr(PBSE_SYSTEM, __func__, "new_cpuset failed on MS", pjob->ji_qs.ji_jobid);
-							DBPRT(("%s: JOIN_JOB %s\n", __func__, pjob->ji_qs.ji_jobid))
-							/* whether or not job is node failure tolerant, we need it to bail out */
-							if (do_tolerate_node_failures(pjob))
-								/* force tolerant job to exit and rerun */
-								exec_bail(pjob, JOB_EXEC_RETRY, "create a cpuset");
-							else
-								job_start_error(pjob, PBSE_SYSTEM, mom_host, "create a cpuset");
-							goto err;
 						  case PRE_FINISH_FAIL_JOB_SETUP_SEND:
 							sprintf(log_buffer, "could not send setup");
 							goto err;

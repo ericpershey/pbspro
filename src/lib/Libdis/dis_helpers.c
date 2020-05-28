@@ -1,40 +1,42 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 #include <errno.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -53,8 +55,6 @@ static int __transport_read(int fd);
 static void dis_pack_buf(pbs_dis_buf_t *);
 static int dis_resize_buf(pbs_dis_buf_t *, size_t, size_t);
 static int transport_chan_is_encrypted(int);
-static int dis_encrypt_and_send(int, void *, size_t);
-static int dis_recv_and_decrypt(int, void **, size_t *);
 
 /**
  * @brief
@@ -239,25 +239,162 @@ transport_chan_is_encrypted(int fd)
 	return (chan->auths[FOR_ENCRYPT].def != NULL && chan->auths[FOR_ENCRYPT].ctx_status == AUTH_STATUS_CTX_READY);
 }
 
+/**
+ * @brief
+ * 	create_pkt - create packet based on given value
+ *
+ * @param[in] type - type of pkt
+ * @param[in] data - data of pkt
+ * @param[in] len - length of data
+ * @param[out] pkt - generated pkt
+ * @param[out] pkt_len - length of generated pkt
+ *
+ * @return int
+ *
+ * @retval 0  - success
+ * @retval -1 - failure
+ *
+ * @par Side Effects:
+ *	None
+ *
+ * @par MT-safe: Yes
+ *
+ */
+static int
+create_pkt(int type, void *data, size_t len, void **pkt, size_t *pkt_len)
+{
+	int ndlen = 0;
+	void *_pkt = NULL;
+	char *pos = NULL;
+	size_t pktlen = 1 + sizeof(int) + len;
+
+	*pkt = NULL;
+	*pkt_len = 0;
+
+	_pkt = malloc(pktlen);
+	if (_pkt == NULL)
+		return -1;
+	pos = (char *)_pkt;
+	*pos++ = (char)type;
+	ndlen = htonl(len);
+	memcpy(pos, &ndlen, sizeof(int));
+	pos += sizeof(int);
+	memcpy(pos, data, len);
+	*pkt = _pkt;
+	*pkt_len = pktlen;
+	return 0;
+}
+
+/**
+ * @brief
+ * 	parse_pkt - parse given pkt into type, data and data length
+ *
+ * @param[in] pkt - pkt to be parsed
+ * @param[in] pkt_len - length of pkt
+ * @param[out] type - type of pkt
+ * @param[out] data - data of pkt
+ * @param[out] len - length of data
+ *
+ * @return int
+ *
+ * @retval 0  - success
+ * @retval -1 - failure
+ *
+ * @par Side Effects:
+ *	None
+ *
+ * @par MT-safe: Yes
+ *
+ */
+static int
+parse_pkt(void *pkt, size_t pkt_len, int *type, void **data_out, size_t *len_out)
+{
+	char *pos = (char *)pkt;
+
+	*type = *((unsigned char *)pos);
+	pos++;
+	*len_out = ntohl(*((int *)pos));
+	if (*len_out != (pkt_len - 1 - sizeof(int))) {
+		*type = 0;
+		*data_out = NULL;
+		*len_out = 0;
+		return -1;
+	}
+	pos += sizeof(int);
+	*data_out = malloc(*len_out);
+	if (data_out == NULL) {
+		*type = 0;
+		*len_out = 0;
+		return -1;
+	}
+	memcpy(*data_out, pos, *len_out);
+	return 0;
+}
+
+/**
+ * @brief
+ * 	transport_send_pkt - create pkt based on given value
+ * 	and send it over network. If channel for given fd is
+ * 	encrypted then pkt (with given data and type) will be
+ * 	encrypted then AUTH_ENCRYPTED_DATA pkt will be sent
+ *
+ * @param[in] fd - file descriptor
+ * @param[in] type - type of pkt
+ * @param[in] data_in - data of pkt
+ * @param[in] len_in - length of data
+ *
+ * @return int
+ *
+ * @retval >= 0  - success
+ * @retval -1 - failure
+ *
+ * @par Side Effects:
+ *	None
+ *
+ * @par MT-safe: Yes
+ *
+ */
 int
 transport_send_pkt(int fd, int type, void *data_in, size_t len_in)
 {
 	int i = 0;
-	int ndlen = 0;
 	void *pkt = NULL;
-	char *pos = NULL;
-	size_t pktlen = 1 + sizeof(int) + len_in;
+	size_t pktlen = 0;
 
-	pkt = malloc(pktlen);
-	if (pkt == NULL)
-		return -1;
-	pos = (char *)pkt;
-	*pos++ = (char)type;
-	ndlen = htonl(len_in);
-	memcpy(pos, &ndlen, sizeof(int));
-	pos += sizeof(int);
+	if (transport_chan_is_encrypted(fd)) {
+		void *authctx = transport_chan_get_authctx(fd, FOR_ENCRYPT);
+		auth_def_t *authdef = transport_chan_get_authdef(fd, FOR_ENCRYPT);
+		void *data_out = NULL;
+		size_t len_out = 0;
 
-	memcpy(pos, data_in, len_in);
+		if (data_in == NULL || len_in == 0 || authdef == NULL || authdef->encrypt_data == NULL)
+			return -1;
+
+		if (create_pkt(type, data_in, len_in, &pkt, &pktlen) != 0)
+			return -1;
+
+		if (authdef->encrypt_data(authctx, pkt, pktlen, &data_out, &len_out) != 0) {
+			free(pkt);
+			return -1;
+		}
+
+		free(pkt);
+
+		if (pktlen <= 0) {
+			free(data_out);
+			return -1;
+		}
+
+		if (create_pkt(AUTH_ENCRYPTED_DATA, data_out, len_out, &pkt, &pktlen) != 0) {
+			free(data_out);
+			return -1;
+		}
+		free(data_out);
+	} else {
+		if (create_pkt(type, data_in, len_in, &pkt, &pktlen) != 0) {
+			return -1;
+		}
+	}
 
 	i = transport_send(fd, pkt, pktlen);
 	free(pkt);
@@ -266,14 +403,38 @@ transport_send_pkt(int fd, int type, void *data_in, size_t len_in)
 	return i;
 }
 
+/**
+ * @brief
+ * 	transport_recv_pkt - receive pkt over network.
+ * 	If channel for given fd is encrypted then we
+ * 	will get AUTH_ENCRYPTED_DATA pkt (if not then its error)
+ * 	once AUTH_ENCRYPTED_DATA pkt is received, decrypt it
+ * 	to find actual unencrypted pkt
+ *
+ * @param[in] fd - file descriptor
+ * @param[out] type - type of pkt
+ * @param[out] data_out - data of pkt
+ * @param[out] len_out - length of data
+ *
+ * @return int
+ *
+ * @retval >= 0  - success
+ * @retval -1 - failure
+ *
+ * @par Side Effects:
+ *	None
+ *
+ * @par MT-safe: Yes
+ *
+ */
 int
 transport_recv_pkt(int fd, int *type, void **data_out, size_t *len_out)
 {
 	int i = 0;
 	char ndbuf[sizeof(int)];
 	int ndlen = 0;
-	size_t datasz = 0;
-	void *data = NULL;
+	size_t data_in_sz = 0;
+	void *data_in = NULL;
 
 	*type = 0;
 	*data_out = NULL;
@@ -287,120 +448,52 @@ transport_recv_pkt(int fd, int *type, void **data_out, size_t *len_out)
 	if (i != sizeof(int))
 		return i;
 	memcpy(&ndlen, (void *)&ndbuf, sizeof(int));
-	datasz = ntohl(ndlen);
-	if (datasz <= 0) {
+	data_in_sz = ntohl(ndlen);
+	if (data_in_sz <= 0) {
 		return -1;
 	}
 
-	data = malloc(datasz);
-	if (data == NULL) {
+	data_in = malloc(data_in_sz);
+	if (data_in == NULL) {
 		return -1;
 	}
-	i = transport_recv(fd, data, datasz);
-	if (i != datasz) {
-		free(data);
+	i = transport_recv(fd, data_in, data_in_sz);
+	if (i != data_in_sz) {
+		free(data_in);
 		return (i < 0 ? i : -1);
 	}
 
-	*data_out = data;
-	*len_out = datasz;
+	if (transport_chan_is_encrypted(fd)) {
+		void *authctx = transport_chan_get_authctx(fd, FOR_ENCRYPT);
+		auth_def_t *authdef = transport_chan_get_authdef(fd, FOR_ENCRYPT);
+		void *data = NULL;
+		size_t datasz = 0;
 
-	return i;
-}
+		if (*type != AUTH_ENCRYPTED_DATA) {
+			free(data_in);
+			return -1;
+		}
 
-/**
- * @brief
- * 	dis_encrypt_and_send - encrypt given data, assemble and send auth token
- *
- * @param[in] fd - file descriptor
- * @param[in] data_in - clear text data to send
- * @param[in] len_in - length of clear text data
- *
- * @return	int
- * @retval	>0	number of characters send
- * @retval	0	if EOD (no data currently avalable)
- * @retval	-1	if error
- * @retval	-2	if EOF (stream closed)
- *
- */
-static int
-dis_encrypt_and_send(int fd, void *data_in, size_t len_in)
-{
-	void *authctx = transport_chan_get_authctx(fd, FOR_ENCRYPT);
-	auth_def_t *authdef = transport_chan_get_authdef(fd, FOR_ENCRYPT);
-	void *data_out = NULL;
-	size_t len_out = 0;
-	int rc = 0;
+		if (authdef == NULL || authdef->decrypt_data == NULL) {
+			free(data_in);
+			return -1;
+		}
 
-	if (data_in == NULL || len_in == 0 || authdef == NULL || authdef->encrypt_data == NULL)
-		return -1;
+		if (authdef->decrypt_data(authctx, data_in, data_in_sz, &data, &datasz) != 0) {
+			free(data_in);
+			return -1;
+		}
 
-	if (authdef->encrypt_data(authctx, data_in, len_in, &data_out, &len_out) != 0)
-		return -1;
-
-	if (len_out <= 0)
-		return -1;
-
-	rc = transport_send_pkt(fd, AUTH_ENCRYPTED_DATA, data_out, len_out);
-	if (rc <= 0) {
-		free(data_out);
-		return rc;
-	}
-
-	free(data_out);
-
-	return len_out;
-}
-
-/**
- * @brief
- * 	dis_recv_and_decrypt - recv and decrypt auth token
- *
- * @param[in] fd - file descriptor
- * @param[out] data_out - received (after decrypt) clear text
- * @param[out] len_out - length of clear text data
- *
- * @return	int
- * @retval	>0	number of characters read
- * @retval	0	if EOD (no data currently avalable)
- * @retval	-1	if error
- * @retval	-2	if EOF (stream closed)
- *
- */
-static int
-dis_recv_and_decrypt(int fd, void **data_out, size_t *len_out)
-{
-	void *authctx = transport_chan_get_authctx(fd, FOR_ENCRYPT);
-	auth_def_t *authdef = transport_chan_get_authdef(fd, FOR_ENCRYPT);
-	void *data_in = NULL;
-	size_t len_in = 0;
-	int type = 0;
-	int rc = 0;
-
-	*data_out = NULL;
-	*len_out = 0;
-
-	if (authdef == NULL || authdef->decrypt_data == NULL)
-		return -1;
-
-	rc = transport_recv_pkt(fd, &type, &data_in, &len_in);
-	if (rc <= 0)
-		return rc;
-
-	if (type != AUTH_ENCRYPTED_DATA)
-		return -1;
-
-	if (len_in == 0)
-		return -2;
-
-	if (authdef->decrypt_data(authctx, data_in, len_in, data_out, len_out) != 0) {
 		free(data_in);
-		return -1;
+		if (parse_pkt(data, datasz, type, &data_in, &data_in_sz) != 0) {
+			free(data);
+			return -1;
+		}
+		free(data);
 	}
-
-	free(data_in);
-
-	return *len_out;
+	*data_out = data_in;
+	*len_out = data_in_sz;
+	return data_in_sz;
 }
 
 /**
@@ -641,17 +734,13 @@ __transport_read(int fd)
 	int i;
 	void *data = NULL;
 	size_t len = 0;
+	int type; /* unused */
 	pbs_dis_buf_t *tp = dis_get_readbuf(fd);
 
 	if (tp == NULL)
 		return -1;
 	dis_pack_buf(tp);
-	if (transport_chan_is_encrypted(fd)) {
-		i = dis_recv_and_decrypt(fd, &data, &len);
-	} else {
-		int type; /* unused */
-		i = transport_recv_pkt(fd, &type, &data, &len);
-	}
+	i = transport_recv_pkt(fd, &type, &data, &len);
 	if (i <= 0)
 		return i;
 	dis_resize_buf(tp, len, 0);
@@ -868,14 +957,9 @@ dis_flush(int fd)
 		return -1;
 	if (tp->tdis_trail == 0)
 		return 0;
-	if (transport_chan_is_encrypted(fd)) {
-		if (dis_encrypt_and_send(fd, (void *)tp->tdis_thebuf, tp->tdis_trail) <= 0)
-			return -1;
-	} else {
-		/* DIS doesn't have pkt type, pass 0 always for type in transport_send_pkt */
-		if (transport_send_pkt(fd, 0, (void *)tp->tdis_thebuf, tp->tdis_trail) <= 0)
-			return -1;
-	}
+	/* DIS doesn't have pkt type, pass 0 always for type in transport_send_pkt */
+	if (transport_send_pkt(fd, 0, (void *)tp->tdis_thebuf, tp->tdis_trail) <= 0)
+		return -1;
 	tp->tdis_eod = tp->tdis_lead;
 	dis_pack_buf(tp);
 	return 0;

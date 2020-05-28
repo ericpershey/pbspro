@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file	mom_main.c
  * @brief
@@ -108,9 +110,6 @@
 #include	"libsec.h"
 #include	"pbs_ecl.h"
 #include	"pbs_internal.h"
-#if	defined(MOM_CPUSET)
-#include	"mom_vnode.h"
-#endif	/* MOM_CPUSET */
 #include	"avltree.h"
 #ifndef	WIN32
 #ifndef NAS /* localmod 113 */
@@ -149,14 +148,6 @@
  * pointer is provided so multi-threaded mom implementations can replace it
  * with a pointer to a shared mutex.
  */
-
-#if IRIX6_CPUSET == 1
-#include "pbs_mutex.h"
-#include "cpusets.h"
-
-static pbs_mutex        pbs_commit_mtx;
-volatile pbs_mutex      *pbs_commit_ptr = &pbs_commit_mtx;
-#endif
 
 /* Global Data Items */
 int mock_run = 0;
@@ -200,9 +191,6 @@ extern void	mom_vnlp_report(vnl_t *vnl, char *header);
 
 int		alien_attach = 0;		/* attach alien procs */
 int		alien_kill = 0;			/* kill alien procs */
-#if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
-char		*cpuset_error_action = "offline";
-#endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
 int		lockfds;
 float		max_load_val   = -1.0;
 int		max_poll_downtime_val = PBS_MAX_POLL_DOWNTIME;
@@ -477,9 +465,6 @@ static handler_ret_t	addclient(char *);
 static handler_ret_t	add_mom_action(char *);
 static handler_ret_t	config_verscheck(char *);
 static handler_ret_t	cputmult(char *);
-#if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
-static handler_ret_t	set_cpuset_error_action(char *);
-#endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
 static handler_ret_t	parse_config(char *);
 static handler_ret_t	prologalarm(char *);
 static handler_ret_t	set_joinjob_alarm(char *);
@@ -570,9 +555,6 @@ static struct	specials {
 	{ "clienthost",			addclient },
 	{ "configversion",		config_verscheck },
 	{ "cputmult",			cputmult },
-#if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
-	{ "cpuset_error_action",	set_cpuset_error_action },
-#endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
 	{ "enforce",			set_enforcement },
 	{ "ideal_load",			setidealload },
 	{ "jobdir_root",		set_jobdir_root },
@@ -1079,7 +1061,7 @@ die(int sig)
  * @brief
  *	Performs initialization steps like loading pbs.conf values,
  *	setting core limit size, running platform-specific initializations
- *	(e.g. cpusets initializations, topology data gathering),
+ *	(e.g. topology data gathering),
  *	running the exechost_startup hook, and
  *	checking that there are no bad combinations of sharing values
  *	across the vnodes.
@@ -2249,49 +2231,6 @@ cputmult(char *value)
 		return HANDLER_FAIL;	/* error */
 	return HANDLER_SUCCESS;
 }
-
-#if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
-/**
- * @brief
- *	set the action to take when encountering
- *	CPU set errors.  value may be one of
- *
- *		"continue"	to log the errors and proceed normally
- *
- *		"offline"	in response to an error, the job's vnodes
- *				on this host will be marked offline;
- *				this is the default action
- *
- * @return      handler_ret_t
- * @retval      HANDLER_FAIL(0)         Failure
- * @retval      HANDLER_SUCCESS         Success
- *
- */
-
-static handler_ret_t
-set_cpuset_error_action(char *value)
-{
-	char		tok[80];
-	char		*action;
-
-	log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_DEBUG, __func__, value);
-
-	if ((value == 0) || (*value == '\0') || (strlen(value) >= sizeof(tok)))
-		return HANDLER_FAIL;
-
-	(void) TOKCPY(value, tok);
-
-	if (!strcmp(tok, "continue") || !strcmp(tok, "offline")) {
-		action = strdup(tok);
-		if (action != NULL) {
-			cpuset_error_action = action;
-			return HANDLER_SUCCESS;
-		}
-	}
-
-	return HANDLER_FAIL;
-}
-#endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
 
 /**
  * @brief
@@ -5104,17 +5043,6 @@ read_config(char *file)
 	if (addconfig_ret == HANDLER_FAIL)
 		return (1);
 	else {
-#if	defined(MOM_CPUSET)
-		/*
-		 *	If this isn't the first time we've read the additional
-		 *	configuration files, we may have undone any adjustments
-		 *	to various vnodes' resources_available.ncpus attributes.
-		 *	Now we resynch these attributes with the mom_vnodeinfo
-		 *	mvi_cpulist array of CPUs.
-		 */
-		cpu_raresync();
-#endif	/* MOM_CPUSET */
-
 		if (joinjob_alarm_time == -1)
 			update_joinjob_alarm_time = 1;
 		else
@@ -5794,13 +5722,6 @@ process_hup(void)
 	if (!real_hup)		/* no need to go on */
 		return;
 
-#if	MOM_CPUSET
-#if	(CPUSET_VERSION >= 4)
-	cpusets_initialize(2);		/* warm start recovery */
-#else
-	cpusets_initialize();
-#endif	/* CPUSET_VERSION >= 4 */
-#endif	/* MOM_CPUSET */
 
 #endif	/* MOM_BGL */
 }
@@ -7566,7 +7487,7 @@ char	*prog;
 	printf("To register as a service: %s -R\n", prog);
 	printf("To unregister the service: %s -U\n", prog);
 	printf("To run as a service: %s <other options...>\n", prog);
-	printf("To output PBSpro version and exit: %s --version\n", prog);
+	printf("To output version and exit: %s --version\n", prog);
 	printf("================================================================================\n");
 
 }
@@ -9023,6 +8944,9 @@ main(int argc, char *argv[])
 #endif /* DEBUG */
 
 	mom_pid = (pid_t)getpid();
+	(void)lseek(lockfds, (off_t)0, SEEK_SET);
+	(void)sprintf(log_buffer, "%d\n", mom_pid);
+	(void)write(lockfds, log_buffer, strlen(log_buffer));
 
 #else /* ! WIN32 ------------------------------------------------------------*/
 
@@ -9598,15 +9522,6 @@ main(int argc, char *argv[])
 	(void)mom_process_hooks(HOOK_EVENT_EXECHOST_PERIODIC,
 		PBS_MOM_SERVICE_NAME, mom_host, &hook_input,
 		NULL,  NULL, 0, 0);
-
-
-#if	MOM_CPUSET
-#if	(CPUSET_VERSION >= 4)
-	cpusets_initialize(recover);
-#else
-	cpusets_initialize();
-#endif	/* CPUSET_VERSION >= 4 */
-#endif	/* MOM_CPUSET */
 
 	/* record the fact that we are up and running */
 	(void)sprintf(log_buffer, msg_startup1, PBS_VERSION, recover);

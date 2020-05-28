@@ -3,37 +3,39 @@
 # Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
 
 from tests.functional import *
@@ -80,8 +82,9 @@ e.accept()
             # enumerated job
             check_dl = dl[:ind] + dl[ind + 1:]
             for job_list in check_dl:
-                    self.assertIn(job, job_list)
+                self.assertIn(job, job_list)
 
+    @skipOnCpuSet
     def test_runone_depend_basic(self):
         """
         Test basic runone dependency tests
@@ -94,7 +97,7 @@ e.accept()
         """
 
         job = Job(attrs={'Resource_List.select': '1:NewRes=ver3'})
-        job.set_sleep_time(5)
+        job.set_sleep_time(10)
         j1 = self.server.submit(job)
         d_job = Job(attrs={'Resource_List.select': '2:ncpus=1',
                            ATTR_depend: 'runone:' + j1})
@@ -105,7 +108,7 @@ e.accept()
                                      id=j1_2)
 
         job = Job(attrs={'Resource_List.select': '1:ncpus=4:NewRes=ver3'})
-        job.set_sleep_time(5)
+        job.set_sleep_time(10)
         j2 = self.server.submit(job)
         d_job = Job(attrs={'Resource_List.select': '2:ncpus=1',
                            ATTR_depend: 'runone:' + j2})
@@ -140,6 +143,7 @@ e.accept()
         self.server.expect(JOB, {ATTR_state: 'H', ATTR_h: 's'}, id=j3)
         self.assert_dependency(j1, j2, j3)
 
+    @skipOnCpuSet
     def test_runone_depend_basic_on_job_array(self):
         """
         Test basic runone dependency tests on job arrays
@@ -155,7 +159,7 @@ e.accept()
 
         job = Job(attrs={'Resource_List.select': '1:ncpus=1',
                          ATTR_J: '1-2'})
-        job.set_sleep_time(5)
+        job.set_sleep_time(10)
         j1 = self.server.submit(job)
         d_job = Job(attrs={'Resource_List.select': '2:ncpus=1',
                            ATTR_depend: 'runone:' + j1})
@@ -167,7 +171,7 @@ e.accept()
 
         job = Job(attrs={'Resource_List.select': '1:ncpus=4:NewRes=ver3',
                          ATTR_J: '1-2'})
-        job.set_sleep_time(5)
+        job.set_sleep_time(10)
         j2 = self.server.submit(job)
         d_job = Job(attrs={'Resource_List.select': '2:ncpus=1',
                            ATTR_depend: 'runone:' + j2})
@@ -179,7 +183,7 @@ e.accept()
 
         job = Job(attrs={'Resource_List.select': '1:ncpus=1',
                          ATTR_J: '1-2'})
-        job.set_sleep_time(5)
+        job.set_sleep_time(10)
         j3 = self.server.submit(job)
         j3_1 = job.create_subjob_id(j3, 1)
         d_job = Job(attrs={'Resource_List.select': '2:ncpus=1',
@@ -351,3 +355,201 @@ e.accept()
 
         a = {ATTR_depend: 'beforenotok:' + j1 + ":" + j2}
         self.check_job(a, reject_msg, 'F')
+
+    def check_depend_delete_msg(self, pjid, cjid):
+        """
+        helper function to check ia message that the dependent job (cjid)
+        is deleted because of the parent job (pjid)
+        """
+        msg = cjid + ";Job deleted as result of dependency on job " + pjid
+        self.server.log_match(msg)
+
+    def test_job_end_deleting_chain_of_dependency(self):
+        """
+        Submit a chain of dependent jobs and see if one of the running jobs
+        ends, all the dependent jobs (and their dependent jobs)
+        are also deleted.
+        """
+
+        a = {'job_history_enable': 'True'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        job = Job()
+        job.set_sleep_time(10)
+        j1 = self.server.submit(job)
+
+        a = {ATTR_depend: "afternotok:" + j1}
+        job = Job(attrs=a)
+        j2 = self.server.submit(job)
+
+        a = {ATTR_depend: "afterok:" + j2}
+        job = Job(attrs=a)
+        j3 = self.server.submit(job)
+
+        a = {ATTR_depend: "afterok:" + j1}
+        job = Job(attrs=a)
+        j4 = self.server.submit(job)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j1, extend='x')
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j2, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j1, j2)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j3, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j2, j3)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j4, max_attempts=3)
+
+    def test_qdel_deleting_chain_of_dependency(self):
+        """
+        Submit a chain of dependent jobs and see if one of the running jobs
+        is deleted, all the jobs without their dependency released
+        are also deleted.
+        Try the same test with array jobs as well.
+        """
+
+        a = {'job_history_enable': 'True'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        job = Job()
+        j1 = self.server.submit(job)
+
+        a = {ATTR_depend: "afterok:" + j1}
+        job = Job(attrs=a)
+        j2 = self.server.submit(job)
+
+        a = {ATTR_depend: "afternotok:" + j2}
+        job = Job(attrs=a)
+        j3 = self.server.submit(job)
+
+        a = {ATTR_depend: "after:" + j1}
+        job = Job(attrs=a)
+        j4 = self.server.submit(job)
+
+        a = {ATTR_depend: "afternotok:" + j1}
+        job = Job(attrs=a)
+        j5 = self.server.submit(job)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j1)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j4)
+        self.server.expect(JOB, {ATTR_state: 'H'}, id=j5)
+        self.server.delete(j1)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j1, extend='x')
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j2, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j1, j2)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j3, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j2, j3)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j4)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j5)
+        self.server.delete(j4)
+        self.server.delete(j5)
+
+        # repeat the steps for array job
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        job = Job(attrs={ATTR_J: '1-2'})
+        j5 = self.server.submit(job)
+
+        a = {ATTR_depend: "afterok:" + j5}
+        job = Job(attrs=a)
+        j6 = self.server.submit(job)
+
+        a = {ATTR_depend: "afternotok:" + j6}
+        job = Job(attrs=a)
+        j7 = self.server.submit(job)
+
+        a = {ATTR_depend: "after:" + j5}
+        job = Job(attrs=a)
+        j8 = self.server.submit(job)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.expect(JOB, {'job_state': 'B'}, id=j5)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j8)
+        self.server.delete(j5)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j5, extend='x')
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j6, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j5, j6)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j7, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j6, j7)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j8)
+
+    def test_qdel_held_job_deleting_chain_of_dependency(self):
+        """
+        Submit a chain of dependent jobs and see if one of the held jobs
+        is deleted, all the jobs without their dependency released
+        are also deleted.
+        """
+
+        a = {'job_history_enable': 'True'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        job = Job()
+        j1 = self.server.submit(job)
+
+        a = {ATTR_depend: "afternotok:" + j1}
+        job = Job(attrs=a)
+        j2 = self.server.submit(job)
+
+        a = {ATTR_depend: "afterok:" + j2}
+        job = Job(attrs=a)
+        j3 = self.server.submit(job)
+
+        a = {ATTR_depend: "after:" + j2}
+        job = Job(attrs=a)
+        j4 = self.server.submit(job)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.expect(JOB, {ATTR_state: 'H'}, id=j2)
+        self.server.expect(JOB, {ATTR_state: 'H'}, id=j3)
+        self.server.expect(JOB, {ATTR_state: 'H'}, id=j4)
+        self.server.delete(j2)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j2, extend='x',
+                           max_attempts=3)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j3, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j2, j3)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j4, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j2, j4)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j1)
+
+    def test_only_after_dependency_chain_is_deleted(self):
+        """
+        Submit a chain of dependent jobs and see that only downstream jobs
+        with after dependencies are deleted.
+        """
+
+        a = {'job_history_enable': 'True'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        job = Job()
+        j1 = self.server.submit(job)
+
+        a = {ATTR_depend: "afterok:" + j1}
+        job = Job(attrs=a)
+        j2 = self.server.submit(job)
+
+        a = {ATTR_depend: "afterok:" + j2}
+        job = Job(attrs=a)
+        j3 = self.server.submit(job)
+
+        a = {ATTR_depend: "after:" + j3}
+        job = Job(attrs=a)
+        j4 = self.server.submit(job)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.expect(JOB, {ATTR_state: 'H'}, id=j2)
+        self.server.expect(JOB, {ATTR_state: 'H'}, id=j3)
+        self.server.expect(JOB, {ATTR_state: 'H'}, id=j4)
+        self.server.delete(j3)
+        self.server.expect(JOB, {ATTR_state: 'H'}, id=j2)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j3, extend='x',
+                           max_attempts=3)
+        self.server.expect(JOB, {ATTR_state: 'F'}, id=j4, extend='x',
+                           max_attempts=3)
+        self.check_depend_delete_msg(j3, j4)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j1)

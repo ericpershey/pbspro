@@ -3,37 +3,40 @@
 # Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import resource
 
@@ -213,8 +216,8 @@ class TestMultipleSchedulers(TestFunctional):
         self.server.expect(SCHED, a, id='sc1', attrop=PTL_AND, max_attempts=10)
         pbs_home = self.server.pbs_conf['PBS_HOME']
         self.du.run_copy(self.server.hostname,
-                         os.path.join(pbs_home, 'sched_priv'),
-                         os.path.join(pbs_home, 'sc1_new_priv'),
+                         src=os.path.join(pbs_home, 'sched_priv'),
+                         dest=os.path.join(pbs_home, 'sc1_new_priv'),
                          recursive=True)
         self.server.manager(MGR_CMD_SET, SCHED,
                             {'sched_priv': '/var/spool/pbs/sc1_new_priv'},
@@ -276,15 +279,15 @@ class TestMultipleSchedulers(TestFunctional):
         msg = "sched_priv dir is not present for scheduler"
         self.assertTrue(ret['rc'], msg)
         self.du.run_copy(self.server.hostname,
-                         os.path.join(pbs_home, 'sched_priv'),
-                         os.path.join(pbs_home, 'sched_priv_sc5'),
+                         src=os.path.join(pbs_home, 'sched_priv'),
+                         dest=os.path.join(pbs_home, 'sched_priv_sc5'),
                          recursive=True, sudo=True)
         ret = self.scheds['sc5'].start()
         msg = "sched_logs dir is not present for scheduler"
         self.assertTrue(ret['rc'], msg)
         self.du.run_copy(self.server.hostname,
-                         os.path.join(pbs_home, 'sched_logs'),
-                         os.path.join(pbs_home, 'sched_logs_sc5'),
+                         src=os.path.join(pbs_home, 'sched_logs'),
+                         dest=os.path.join(pbs_home, 'sched_logs_sc5'),
                          recursive=True, sudo=True)
         ret = self.scheds['sc5'].start()
         self.scheds['sc5'].log_match(
@@ -600,6 +603,7 @@ class TestMultipleSchedulers(TestFunctional):
         self.server.expect(SCHED, a, id='sc1',
                            attrop=PTL_AND, max_attempts=10)
 
+    @skipOnCpuSet
     def test_job_sorted_per_scheduler(self):
         """
         Test jobs are sorted as per job_sort_formula
@@ -1136,7 +1140,7 @@ class TestMultipleSchedulers(TestFunctional):
         # Six equivalence classes. Two for the resource eating job in
         # different partitions and one for each user per partition.
         self.scheds['sc1'].log_match("Number of job equivalence classes: 6",
-                                     max_attempts=10, starttime=t)
+                                     starttime=t)
 
     def test_list_multi_sched(self):
         """
@@ -1794,6 +1798,7 @@ class TestMultipleSchedulers(TestFunctional):
                             {'scheduling': 'True'}, id='sc2')
         self.server.log_match("processing priority socket", starttime=t)
 
+    @skipOnCpuSet
     def test_advance_resv_in_multi_sched(self):
         """
         Test that advance reservations in a multi-sched environment can be
@@ -1826,7 +1831,7 @@ class TestMultipleSchedulers(TestFunctional):
         # it has free nodes
         t = int(time.time())
         a = {'Resource_List.select': '1:ncpus=2', 'reserve_start': t + 5,
-             'reserve_end': t + 15}
+             'reserve_end': t + 35}
         r = Reservation(TEST_USER, a)
         rid = self.server.submit(r)
         a = {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2')}
@@ -1844,6 +1849,7 @@ class TestMultipleSchedulers(TestFunctional):
         result = {'job_state': 'R', 'exec_vnode': '(vnode[1]:ncpus=1)'}
         self.server.expect(JOB, result, id=jid4)
 
+    @skipOnCpuSet
     def test_resv_in_empty_multi_sched_env(self):
         """
         Test that advance reservations gets confirmed by all the schedulers
@@ -1870,6 +1876,7 @@ class TestMultipleSchedulers(TestFunctional):
         msg = "Resv;" + rid + ";Reservation denied"
         self.server.log_match(msg)
 
+    @skipOnCpuSet
     def test_asap_resv(self):
         """
         Test ASAP reservation in multisched environment. It should not
@@ -2015,6 +2022,7 @@ e.accept()
         self.assertIn("hook 'h1' encountered an exception",
                       e.exception.msg[0])
 
+    @skipOnCpuSet
     def test_resv_alter(self):
         """
         Test if a reservation confirmed by a multi-sched can be altered by the
@@ -2033,8 +2041,8 @@ e.accept()
             self.server.expect(RESV, attr, rid)
             partition = self.server.status(RESV, 'partition', id=rid)
             if (partition[0]['partition'] == 'P1'):
-                    old_end_time = a['reserve_end']
-                    modify_resv = rid
+                old_end_time = a['reserve_end']
+                modify_resv = rid
         # Modify the endtime of reservation confirmed on partition P1 and
         # make sure the node solution is correct.
         end_time = old_end_time + 60
@@ -2078,7 +2086,6 @@ e.accept()
         # Add two nodes to partition P1 and turn off scheduling for all other
         # schedulers serving partition P2 and P3. Make scheduler sc1 serve
         # only partition P1 (vnode[0], vnode[1]).
-        self.common_setup()
         p1 = {'partition': 'P1'}
         self.server.manager(MGR_CMD_SET, NODE, p1, id="vnode[1]")
         self.server.expect(SCHED, p1, id="sc1")
@@ -2117,6 +2124,8 @@ e.accept()
         else:
             resv_state = {'reserve_state': (MATCH_RE, 'RESV_DEGRADED|10')}
 
+        self.server.manager(MGR_CMD_SET, SCHED, {'scheduling': 'false'},
+                            id="sc1")
         ret = self.server.status(RESV, 'partition', id=rid)
         a = {'state': 'offline'}
         self.server.manager(MGR_CMD_SET, NODE, a, id=resv_node)
@@ -2124,6 +2133,9 @@ e.accept()
         a = {'reserve_substate': 10}
         a.update(resv_state)
         self.server.expect(RESV, a, id=rid)
+
+        self.server.manager(MGR_CMD_SET, SCHED, {'scheduling': 'True'},
+                            id="sc1")
 
         other_node = "vnode[1]"
         if resv_node == "vnode[1]":
@@ -2137,11 +2149,12 @@ e.accept()
 
         self.server.expect(RESV, a, id=rid, interval=1)
 
-    def test_advance_confimred_resv_reconfirm(self):
+    def test_advance_confirmed_resv_reconfirm(self):
         """
         Test degraded reservation gets reconfirmed on a different
         node of the same partition in multi-sched environment
         """
+        self.common_setup()
         now = int(time.time())
         self.degraded_resv_reconfirm(start=now + 20, end=now + 200)
 
@@ -2150,6 +2163,7 @@ e.accept()
         Test degraded running reservation gets reconfirmed on a different
         node of the same partition in multi-sched environment
         """
+        self.common_setup()
         now = int(time.time())
         self.degraded_resv_reconfirm(start=now + 20, end=now + 200, run=True)
 
@@ -2158,6 +2172,7 @@ e.accept()
         Test degraded standing resv gets reconfirmed on a different
         node of the same partition in multi-sched environment
         """
+        self.common_setup()
         now = int(time.time())
         self.degraded_resv_reconfirm(start=now + 20, end=now + 200,
                                      rrule='FREQ=HOURLY;COUNT=2')
@@ -2167,10 +2182,12 @@ e.accept()
         Test degraded running standing resv gets reconfirmed on a different
         node of the same partition in multi-sched environment
         """
+        self.common_setup()
         now = int(time.time())
         self.degraded_resv_reconfirm(start=now + 20, end=now + 200, run=True,
                                      rrule='FREQ=HOURLY;COUNT=2')
 
+    @skipOnCpuSet
     def test_resv_from_job_in_multi_sched_using_qsub(self):
         """
         Test that a user is able to create a reservation out of a job using
@@ -2198,6 +2215,7 @@ e.accept()
              'partition': 'P1'}
         self.server.expect(RESV, a, id=rid)
 
+    @skipOnCpuSet
     def test_resv_from_job_in_multi_sched_using_rsub(self):
         """
         Test that a user is able to create a reservation out of a job using

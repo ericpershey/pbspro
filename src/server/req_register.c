@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file    req_register.c
  *
@@ -79,6 +81,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 #include "libpbs.h"
 #include "list_link.h"
 #include "attribute.h"
@@ -203,6 +206,10 @@ static void update_depend(job *pjob, char *d_jobid, char *d_svr, int op, int typ
 		if (dpj == NULL)
 			return;
 		del_depend_job(dpj);
+		if (GET_NEXT(dp->dp_jobs) == 0)
+			/* no more dependencies of this type */
+			del_depend(dp);
+
 		pjob->ji_wattr[(int)JOB_ATR_depend].at_flags |= ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
 		/* runone dependencies are circular */
 		if (type == JOB_DEPEND_TYPE_RUNONE)
@@ -727,6 +734,11 @@ depend_on_que(attribute *pattr, void *pobj, int mode)
 					if (b2 != b1+1)
 						return PBSE_IVALREQ;
 				}
+				if (strcmp(pparent->dc_child, pjob->ji_qs.ji_jobid) == 0) {
+					/* parent and child job ids are the same */
+					return PBSE_IVALREQ;
+				}
+
 				if (type == JOB_DEPEND_TYPE_RUNONE) {
 					job *djob = find_job(pparent->dc_child);
 					if (djob == NULL)
@@ -735,7 +747,7 @@ depend_on_que(attribute *pattr, void *pobj, int mode)
 					 * either running or already held because of dependency.
 					 * pay special attention to array parent jobs because those jobs
 					 * may not be in BEGUN state while a subjob might already be running
-					 * this is because JOB_STATE_BEGUN is set only when a mom reports 
+					 * this is because JOB_STATE_BEGUN is set only when a mom reports
 					 * session id, but there could be a case that a mom is in the process
 					 * of reporting a session id and user submits a dependent job.
 					 * To avoid such cases, verify that count of queued subjobs is equal
@@ -1056,6 +1068,9 @@ depend_on_term(job *pjob)
 				break;
 
 			case JOB_DEPEND_TYPE_BEFORENOTOK:
+				/* exitstat has defined values in case of user/admin forcefully deletes the job.
+				 * In such cases delete the chain on dependency.
+				 */
 				if (exitstat != 0)
 					op = JOB_DEPEND_OP_RELEASE;
 				else
@@ -1069,13 +1084,35 @@ depend_on_term(job *pjob)
 			case JOB_DEPEND_TYPE_RUNONE:
 				op = JOB_DEPEND_OP_DELETE;
 				break;
-
+			/* This case can only happen when a job with before start
+			 * dependency is getting deleted before it even runs.
+			 */
+			case JOB_DEPEND_TYPE_BEFORESTART:
+				op = JOB_DEPEND_OP_DELETE;
+				break;
 		}
-
 		if (op != -1) {
+			/* Check if the job is being deleted. If so, delete the dependency chain only for beforeok dependency */
+			if (pjob->ji_terminated == 1) {
+				if (type == JOB_DEPEND_TYPE_BEFORENOTOK || type == JOB_DEPEND_TYPE_BEFOREANY)
+					op = JOB_DEPEND_OP_RELEASE;
+				else
+					op = JOB_DEPEND_OP_DELETE;
+			}
+			/* This function is also called from job_abt when the job is in held state and abort substate.
+			 * In case of a held job, release the dependency chain.
+			 */
+			if (pjob->ji_qs.ji_state == JOB_STATE_HELD && pjob->ji_qs.ji_substate == JOB_SUBSTATE_ABORT) {
+				op = JOB_DEPEND_OP_DELETE;
+				/* In case the job being deleted is a job with runone dependency type
+				 * then there is no need to delete other dependent jobs.
+				 */
+				if (type == JOB_DEPEND_TYPE_RUNONE)
+					op = JOB_DEPEND_OP_RELEASE;
+			}
+
 			pparent = (struct depend_job *)GET_NEXT(pdep->dp_jobs);
 			while (pparent) {
-
 				/* "release" the job to execute */
 				rc = send_depend_req(pjob, pparent, type, op,
 					SYNC_SCHED_HINT_NULL, release_req);
@@ -1370,29 +1407,32 @@ send_depend_req(job *pjob, struct depend_job *pparent, int type, int op, int sch
 		return (PBSE_SYSTEM);
 	}
 
+	if (pjob->ji_wattr[JOB_ATR_job_owner].at_val.at_str == NULL)
+		return PBSE_INTERNAL;
+
 	for (i=0; i<PBS_MAXUSER; ++i) {
 		preq->rq_ind.rq_register.rq_owner[i] = pjob->ji_wattr[(int)JOB_ATR_job_owner].at_val.at_str[i];
 		if (preq->rq_ind.rq_register.rq_owner[i] == '@')
 			break;
 	}
 	preq->rq_ind.rq_register.rq_owner[i] = '\0';
-	(void)strcpy(preq->rq_ind.rq_register.rq_parent, pparent->dc_child);
-	(void)strcpy(preq->rq_ind.rq_register.rq_child, pjob->ji_qs.ji_jobid);
+	strcpy(preq->rq_ind.rq_register.rq_parent, pparent->dc_child);
+	strcpy(preq->rq_ind.rq_register.rq_child, pjob->ji_qs.ji_jobid);
 	/* Append "@<server_name>" since server's name may not match host name */
-	(void)strcat(preq->rq_ind.rq_register.rq_child, "@");
-	(void)strcat(preq->rq_ind.rq_register.rq_child, pbs_server_name);
+	strcat(preq->rq_ind.rq_register.rq_child, "@");
+	strcat(preq->rq_ind.rq_register.rq_child, pbs_server_name);
 	/* kludge for server:port follows */
 	if ((pc = strchr(server_name, (int)':')) != NULL) {
 		strcat(preq->rq_ind.rq_register.rq_child, pc);
 	}
 	preq->rq_ind.rq_register.rq_dependtype = type;
 	preq->rq_ind.rq_register.rq_op = op;
-	(void)strcpy(preq->rq_host, pparent->dc_svr);  /* for issue_to_svr() */
+	strcpy(preq->rq_host, pparent->dc_svr);  /* for issue_to_svr() */
 
 	preq->rq_ind.rq_register.rq_cost = 0;
 
 	if (issue_to_svr(pparent->dc_svr, preq, postfunc) == -1) {
-		(void)sprintf(log_buffer, "Unable to perform dependency with job %s", pparent->dc_child);
+		sprintf(log_buffer, "Unable to perform dependency with job %s", pparent->dc_child);
 		return (PBSE_BADHOST);
 	}
 	return (0);
@@ -1785,14 +1825,18 @@ build_depend(attribute *pattr, char *value)
 	int			type;
 
 	/*
-	 * Map first subword into dependency type.  If there is just the type
-	 * with no following job id or count, then leave an empty depend
-	 * struct;  set_depend will "remove" any of that kind.
+	 * Map first subword into dependency type. 
 	 */
 
 	if ((nxwrd = strchr(value, (int)':')) != NULL)
 		*nxwrd++ = '\0';
+	else
+		/* dependency can never be without ':<value>' */
+		return (PBSE_BADATVAL);
 
+	if (*nxwrd == '\0')
+		/* dependency can never be without a job-id or a number */
+		return (PBSE_BADATVAL);
 
 	for (pname = dependnames; pname->type != -1; pname++)
 		if (!strcmp(value, pname->name))

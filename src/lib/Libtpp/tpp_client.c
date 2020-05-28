@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 
 /**
  * @file	tpp_client.c
@@ -570,6 +572,7 @@ leaf_post_connect_handler(int tfd, void *data, void *c, void *extra)
 {
 	tpp_context_t *ctx = (tpp_context_t *) c;
 	conn_auth_t *authdata = (conn_auth_t *)extra;
+	int rc = 0;
 
 	if (!ctx)
 		return 0;
@@ -577,161 +580,45 @@ leaf_post_connect_handler(int tfd, void *data, void *c, void *extra)
 	if (ctx->type != TPP_ROUTER_NODE)
 		return 0;
 
-	if (strcmp(tpp_conf->auth_config->auth_method, AUTH_RESVPORT_NAME) != 0) {
-		void *data_out = NULL;
-		size_t len_out = 0;
-		int is_handshake_done = 0;
-		void *authctx = NULL;
-		auth_def_t *authdef = NULL;
-
-		if ((authdata = (conn_auth_t *)calloc(1, sizeof(conn_auth_t))) == NULL) {
-			tpp_log_func(LOG_CRIT, __func__, "Out of memory in post connect handler");
-			return -1;
-		}
-
-		authdef = get_auth(tpp_conf->auth_config->auth_method);
-		if (authdef == NULL) {
-			tpp_log_func(LOG_CRIT, __func__, "Failed to find authdef in post connect handler");
-			return -1;
-		}
-
-		authdef->set_config((const pbs_auth_config_t *)tpp_conf->auth_config);
-
-		if (authdef->create_ctx(&authctx, AUTH_CLIENT, AUTH_SERVICE_CONN, tpp_transport_get_conn_hostname(tfd))) {
-			tpp_log_func(LOG_CRIT, __func__, "Failed to create client auth context");
-			return -1;
-		}
-
-		authdata->authctx = authctx;
-		authdata->authdef = authdef;
-		tpp_transport_set_conn_extra(tfd, authdata);
-
-		if (authdef->process_handshake_data(authctx, NULL, 0, &data_out, &len_out, &is_handshake_done) != 0) {
-			if (len_out > 0) {
-				tpp_log_func(LOG_CRIT, __func__, (char *)data_out);
-				free(data_out);
-			}
-			return -1;
-		}
-
-		if (len_out > 0) {
-			tpp_auth_pkt_hdr_t ahdr = {0};
-			tpp_chunk_t chunks[2] = {{0}};
-			int fd = ((tpp_router_t *) ctx->ptr)->conn_fd;
-
-			ahdr.type = TPP_AUTH_CTX;
-			ahdr.for_encrypt = FOR_AUTH;
-			strcpy(ahdr.auth_type, authdef->name);
-
-			chunks[0].data = &ahdr;
-			chunks[0].len = sizeof(tpp_auth_pkt_hdr_t);
-
-			chunks[1].data = data_out;
-			chunks[1].len = len_out;
-
-			if (tpp_transport_vsend(fd, chunks, 2) != 0) {
-				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_transport_vsend failed, err=%d", errno);
-				tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
-				free(data_out);
-				return -1;
-			}
-			free(data_out);
-		}
+	if (tpp_conf->auth_config->encrypt_method[0] != '\0' ||
+		strcmp(tpp_conf->auth_config->auth_method, AUTH_RESVPORT_NAME) != 0) {
 
 		/*
-		 * We didn't send any auth handshake data
-		 * and auth handshake is not completed
-		 * so error out as we should send some auth handshake data
-		 * or auth handshake should be completed
+		 * Since either auth is not resvport or encryption is enabled,
+		 * initiate handshakes for them
+		 *
+		 * If encryption is enabled then first initiate handshake for it
+		 * else for authentication
+		 *
+		 * Here we are only initiating handshake, if any handshake needs
+		 * continuation then it will be handled in leaf_pkt_handler
 		 */
-		if (is_handshake_done == 0 && len_out == 0) {
-			tpp_log_func(LOG_CRIT, __func__, "Auth handshake failed");
+
+		int conn_fd = ((tpp_router_t *) ctx->ptr)->conn_fd;
+		authdata = tpp_make_authdata(tpp_conf, AUTH_CLIENT, tpp_conf->auth_config->auth_method, tpp_conf->auth_config->encrypt_method);
+		if (authdata == NULL) {
+			/* tpp_make_authdata already logged error */
 			return -1;
 		}
+		authdata->conn_initiator = 1;
+		tpp_transport_set_conn_extra(tfd, authdata);
 
-		if (is_handshake_done != 1)
-			return 0;
-	}
+		if (authdata->config->encrypt_method[0] != '\0') {
+			rc = tpp_handle_auth_handshake(tfd, conn_fd, authdata, FOR_ENCRYPT, NULL, 0);
+			if (rc != 1)
+				return rc;
+		}
 
-	if (tpp_conf->auth_config->encrypt_mode == ENCRYPT_ALL) {
-		if (strcmp(tpp_conf->auth_config->auth_method, tpp_conf->auth_config->encrypt_method) != 0) {
-			void *data_out = NULL;
-			size_t len_out = 0;
-			int is_handshake_done = 0;
-			void *authctx = NULL;
-			auth_def_t *authdef = NULL;
-
-			if ((authdata = (conn_auth_t *)calloc(1, sizeof(conn_auth_t))) == NULL) {
-				tpp_log_func(LOG_CRIT, __func__, "Out of memory in post connect handler");
-				return -1;
+		if (strcmp(authdata->config->auth_method, AUTH_RESVPORT_NAME) != 0) {
+			if (strcmp(authdata->config->auth_method, authdata->config->encrypt_method) != 0) {
+				rc = tpp_handle_auth_handshake(tfd, conn_fd, authdata, FOR_AUTH, NULL, 0);
+				if (rc != 1)
+					return rc;
+			} else {
+				authdata->authctx = authdata->encryptctx;
+				authdata->authdef = authdata->encryptdef;
+				tpp_transport_set_conn_extra(tfd, authdata);
 			}
-
-			authdef = get_auth(tpp_conf->auth_config->encrypt_method);
-			if (authdef == NULL) {
-				tpp_log_func(LOG_CRIT, __func__, "Failed to find authdef in post connect handler");
-				return -1;
-			}
-
-			authdef->set_config((const pbs_auth_config_t *)(tpp_conf->auth_config));
-
-			if (authdef->create_ctx(&authctx, AUTH_CLIENT, AUTH_SERVICE_CONN, tpp_transport_get_conn_hostname(tfd))) {
-				tpp_log_func(LOG_CRIT, __func__, "Failed to create client auth context");
-				return -1;
-			}
-
-			authdata->encryptctx = authctx;
-			authdata->encryptdef = authdef;
-			tpp_transport_set_conn_extra(tfd, authdata);
-
-			if (authdef->process_handshake_data(authctx, NULL, 0, &data_out, &len_out, &is_handshake_done) != 0) {
-				if (len_out > 0) {
-					tpp_log_func(LOG_CRIT, __func__, (char *)data_out);
-					free(data_out);
-				}
-				return -1;
-			}
-
-			if (len_out > 0) {
-				tpp_auth_pkt_hdr_t ahdr = {0};
-				tpp_chunk_t chunks[2] = {{0}};
-				int fd = ((tpp_router_t *) ctx->ptr)->conn_fd;
-
-				ahdr.type = TPP_AUTH_CTX;
-				ahdr.for_encrypt = FOR_ENCRYPT;
-				strcpy(ahdr.auth_type, authdef->name);
-
-				chunks[0].data = &ahdr;
-				chunks[0].len = sizeof(tpp_auth_pkt_hdr_t);
-
-				chunks[1].data = data_out;
-				chunks[1].len = len_out;
-
-				if (tpp_transport_vsend(fd, chunks, 2) != 0) {
-					snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_transport_vsend failed, err=%d", errno);
-					tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
-					free(data_out);
-					return -1;
-				}
-				free(data_out);
-			}
-
-			/*
-			* We didn't send any auth handshake data
-			* and auth handshake is not completed
-			* so error out as we should send some auth handshake data
-			* or auth handshake should be completed
-			*/
-			if (is_handshake_done == 0 && len_out == 0) {
-				tpp_log_func(LOG_CRIT, __func__, "Auth handshake failed");
-				return -1;
-			}
-
-			if (is_handshake_done != 1)
-				return 0;
-		} else {
-			authdata->encryptctx = authdata->authctx;
-			authdata->encryptdef = authdata->authdef;
-			tpp_transport_set_conn_extra(tfd, authdata);
 		}
 	}
 
@@ -1743,7 +1630,6 @@ tpp_shutdown()
 			dis_destroy_chan(sd);
 			free_stream_resources(strmarray[i].strm);
 			free_stream(sd);
-			destroy_connection(sd);
 		}
 	}
 	tpp_unlock(&strmarray_lock);
@@ -4023,12 +3909,7 @@ leaf_pkt_presend_handler(int tfd, tpp_packet_t *pkt, void *extra)
 	time_t now = time(0);
 	conn_auth_t *authdata = (conn_auth_t *)extra;
 
-	/* never encrypt auth context data */
-	if (type == TPP_AUTH_CTX)
-		return 0;
-
-	/* never encrypt auth context data */
-	if (type == TPP_AUTH_CTX)
+	if (type == TPP_AUTH_CTX && ((tpp_auth_pkt_hdr_t *)data)->for_encrypt == FOR_ENCRYPT)
 		return 0;
 
 	len = ntohl(len) - sizeof(tpp_data_pkt_hdr_t);
@@ -4047,51 +3928,7 @@ leaf_pkt_presend_handler(int tfd, tpp_packet_t *pkt, void *extra)
 			return -1;
 		}
 
-		if (strm->t_state == TPP_TRNS_STATE_OPEN) {
-			/*
-			 * both in the case of net or peer closed, it means the receiver
-			 * is not expecting (or cannot) receive a packet, so never send it
-			 * a data packet (ack packets are fine).
-			 */
-
-			/* if packet cannot be sent now then shelve them */
-			if (strm->num_unacked_pkts > rpp_highwater) {
-				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ,
-					"Stream %u reached highwater, %d, throttling, seq=%d", sd,
-					strm->num_unacked_pkts, ntohl(data->seq_no));
-				tpp_log_func(LOG_CRIT, NULL, tpp_get_logbuf());
-				if (shelve_pkt(pkt, NULL, now + TPP_THROTTLE_RETRY) != 0) {
-					tpp_free_pkt(pkt);
-				}
-
-				/*
-				 * return -1, so transport does not send packet,
-				 * but do not delete packet
-				 */
-				return -1;
-			}
-
-			/* add an ack packet to the data packet if available */
-			if (ack_no == UNINITIALIZED_INT) {
-				ack_info_t *ack = tpp_deque(&strm->ack_queue);
-				if (ack) {
-					ack->strm_ack_node = NULL; /* since we dequeued from strm */
-
-					ack_no = ack->seq_no;
-					TPP_DBPRT(("Setting piggyback ack sd=%u, seq=%u", sd, ack_no));
-					data->ack_seq = htonl(ack_no);
-
-					/* since we dequeued the ack, also remove from global list */
-					if (ack->global_ack_node) {
-						tpp_que_del_elem(&global_ack_queue, ack->global_ack_node);
-						ack->global_ack_node = NULL;
-					}
-
-					free(ack);
-				}
-			}
-			return 0;
-		} else {
+		if (strm->t_state != TPP_TRNS_STATE_OPEN) {
 			/* remove pkt from retry list in case its linked there */
 			if (pkt->extra_data) {
 				retry_info_t *rt = pkt->extra_data;
@@ -4103,6 +3940,50 @@ leaf_pkt_presend_handler(int tfd, tpp_packet_t *pkt, void *extra)
 			tpp_free_pkt(pkt);
 			return -1;
 		}
+
+		/*
+		 * both in the case of net or peer closed, it means the receiver
+		 * is not expecting (or cannot) receive a packet, so never send it
+		 * a data packet (ack packets are fine).
+		 */
+
+		/* if packet cannot be sent now then shelve them */
+		if (strm->num_unacked_pkts > rpp_highwater) {
+			snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ,
+				"Stream %u reached highwater, %d, throttling, seq=%d", sd,
+				strm->num_unacked_pkts, ntohl(data->seq_no));
+			tpp_log_func(LOG_CRIT, NULL, tpp_get_logbuf());
+			if (shelve_pkt(pkt, NULL, now + TPP_THROTTLE_RETRY) != 0) {
+				tpp_free_pkt(pkt);
+			}
+
+			/*
+			 * return -1, so transport does not send packet,
+			 * but do not delete packet
+			 */
+			return -1;
+		}
+
+		/* add an ack packet to the data packet if available */
+		if (ack_no == UNINITIALIZED_INT) {
+			ack_info_t *ack = tpp_deque(&strm->ack_queue);
+			if (ack) {
+				ack->strm_ack_node = NULL; /* since we dequeued from strm */
+
+				ack_no = ack->seq_no;
+				TPP_DBPRT(("Setting piggyback ack sd=%u, seq=%u", sd, ack_no));
+				data->ack_seq = htonl(ack_no);
+
+				/* since we dequeued the ack, also remove from global list */
+				if (ack->global_ack_node) {
+					tpp_que_del_elem(&global_ack_queue, ack->global_ack_node);
+					ack->global_ack_node = NULL;
+				}
+
+				free(ack);
+			}
+		}
+		/* Fall through below so we can encrypt data packet */
 	}
 
 	/*
@@ -4205,11 +4086,6 @@ leaf_pkt_postsend_handler(int tfd, tpp_packet_t *pkt, void *extra)
 	tpp_packet_t *shlvd_pkt = NULL;
 	stream_t *strm;
 
-	if (type == TPP_AUTH_CTX) {
-		tpp_free_pkt(pkt);
-		return 0;
-	}
-
 	if (type == TPP_ENCRYPTED_DATA) {
 		conn_auth_t *authdata = (conn_auth_t *)extra;
 
@@ -4230,6 +4106,11 @@ leaf_pkt_postsend_handler(int tfd, tpp_packet_t *pkt, void *extra)
 		data = (tpp_data_pkt_hdr_t *)(pkt->data + sizeof(int));
 		type = data->type;
 		len = *((int *)(pkt->data));
+	}
+
+	if (type == TPP_AUTH_CTX) {
+		tpp_free_pkt(pkt);
+		return 0;
 	}
 
 	len = ntohl(len) - sizeof(tpp_data_pkt_hdr_t);
@@ -4468,18 +4349,13 @@ leaf_pkt_handler(int tfd, void *data, int len, void *ctx, void *extra)
 	unsigned char type;
 	void *data_out = NULL;
 	size_t len_out = 0;
+	conn_auth_t *authdata = (conn_auth_t *)extra;
 
 	type = *((char *) data);
 	errno = 0;
 
-	if (type == TPP_AUTH_CTX) {
-		tpp_auth_pkt_hdr_t ahdr = {0};
-		size_t len_in = 0;
-		void *data_in = NULL;
-		int is_handshake_done = 0;
-		conn_auth_t *authdata = (conn_auth_t *)extra;
-		auth_def_t *authdef = NULL;
-		void *authctx = NULL;
+	if (type == TPP_ENCRYPTED_DATA) {
+		char *msgbuf = NULL;
 
 		if (authdata == NULL) {
 			snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tfd=%d, No auth data found", tfd);
@@ -4487,145 +4363,8 @@ leaf_pkt_handler(int tfd, void *data, int len, void *ctx, void *extra)
 			return -1;
 		}
 
-		memcpy(&ahdr, data, sizeof(tpp_auth_pkt_hdr_t));
-		len_in = (size_t)len - sizeof(tpp_auth_pkt_hdr_t);
-		data_in = calloc(1, len_in);
-		if (data_in == NULL) {
-			tpp_log_func(LOG_CRIT, __func__, "Out of memory allocating authdata credential");
-			return -1;
-		}
-		memcpy(data_in, (char *)data + sizeof(tpp_auth_pkt_hdr_t), len_in);
-
-		if (ahdr.for_encrypt == FOR_AUTH) {
-			authdef = authdata->authdef;
-			authctx = authdata->authctx;
-		} else {
-			authdef = authdata->encryptdef;
-			authctx = authdata->encryptctx;
-		}
-
-		if (authdef->process_handshake_data(authctx, data_in, len_in, &data_out, &len_out, &is_handshake_done) != 0) {
-			if (len_out > 0) {
-				tpp_log_func(LOG_CRIT, __func__, (char *)data_out);
-				free(data_out);
-			}
-			free(data_in);
-			return -1;
-		}
-
-		if (len_out > 0) {
-			tpp_chunk_t chunks[2] = {{0}};
-
-			chunks[0].data = &ahdr;
-			chunks[0].len = sizeof(tpp_auth_pkt_hdr_t);
-
-			chunks[1].data = data_out;
-			chunks[1].len = (int)len_out;
-
-			if (tpp_transport_vsend(tfd, chunks, 2) != 0) {
-				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_transport_vsend failed, err=%d", errno);
-				tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
-				free(data_out);
-				free(data_in);
-				return -1;
-			}
-			free(data_in);
-			free(data_out);
-		}
-
-		/*
-		 * We didn't send any auth handshake data
-		 * and auth handshake is not completed
-		 * so error out as we should send some auth handshake data
-		 * or auth handshake should be completed
-		 */
-		if (is_handshake_done == 0 && len_out == 0) {
-			tpp_log_func(LOG_CRIT, __func__, "Failed to establish auth context");
-			return -1;
-		}
-
-		if (is_handshake_done != 1)
-			return 0;
-
-		if (tpp_conf->auth_config->encrypt_mode == ENCRYPT_ALL && ahdr.for_encrypt == FOR_AUTH) {
-			if (strcmp(tpp_conf->auth_config->auth_method, tpp_conf->auth_config->encrypt_method) != 0) {
-				authdata = NULL;
-				authdef = get_auth(tpp_conf->auth_config->encrypt_method);
-				if (authdef == NULL) {
-					tpp_log_func(LOG_CRIT, __func__, "Failed to find authdef in post connect handler");
-					return -1;
-				}
-
-				authdef->set_config((const pbs_auth_config_t *)(tpp_conf->auth_config));
-
-				if (authdef->create_ctx(&authctx, AUTH_CLIENT, AUTH_SERVICE_CONN, tpp_transport_get_conn_hostname(tfd))) {
-					tpp_log_func(LOG_CRIT, __func__, "Failed to create client auth context");
-					return -1;
-				}
-
-				authdata->encryptctx = authctx;
-				authdata->encryptdef = authdef;
-				tpp_transport_set_conn_extra(tfd, authdata);
-
-				if (authdef->process_handshake_data(authctx, NULL, 0, &data_out, &len_out, &is_handshake_done) != 0) {
-					if (len_out > 0) {
-						tpp_log_func(LOG_CRIT, __func__, (char *)data_out);
-						free(data_out);
-					}
-					return -1;
-				}
-
-				if (len_out > 0) {
-					tpp_chunk_t chunks[2] = {{0}};
-
-					ahdr.type = TPP_AUTH_CTX;
-					ahdr.for_encrypt = FOR_ENCRYPT;
-					strcpy(ahdr.auth_type, authdef->name);
-
-					chunks[0].data = &ahdr;
-					chunks[0].len = sizeof(tpp_auth_pkt_hdr_t);
-
-					chunks[1].data = data_out;
-					chunks[1].len = len_out;
-
-					if (tpp_transport_vsend(tfd, chunks, 2) != 0) {
-						snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_transport_vsend failed, err=%d", errno);
-						tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
-						free(data_out);
-						return -1;
-					}
-					free(data_out);
-				}
-
-				/*
-				* We didn't send any auth handshake data
-				* and auth handshake is not completed
-				* so error out as we should send some auth handshake data
-				* or auth handshake should be completed
-				*/
-				if (is_handshake_done == 0 && len_out == 0) {
-					tpp_log_func(LOG_CRIT, __func__, "Auth handshake failed");
-					return -1;
-				}
-
-				if (is_handshake_done != 1)
-					return 0;
-			} else {
-				authdata->encryptctx = authdata->authctx;
-				authdata->encryptdef = authdata->authdef;
-				tpp_transport_set_conn_extra(tfd, authdata);
-			}
-		}
-
-		/* send TPP_CTL_JOIN msg to router */
-		return leaf_send_ctl_join(tfd, data, ctx);
-
-	} else if (type == TPP_ENCRYPTED_DATA) {
-		conn_auth_t *authdata = (conn_auth_t *)extra;
-		char *msgbuf = NULL;
-
 		if (authdata->encryptdef == NULL) {
-			tpp_log_func(LOG_CRIT, __func__, "Auth method associated with connetion doesn't support decryption of data");
+			tpp_log_func(LOG_CRIT, __func__, "connetion doesn't support decryption of data");
 			return -1;
 		}
 
@@ -4645,6 +4384,46 @@ leaf_pkt_handler(int tfd, void *data, int len, void *ctx, void *extra)
 
 		/* re-calculate type as data changed */
 		type = *((char *) data);
+	}
+
+	if (type == TPP_AUTH_CTX) {
+		tpp_auth_pkt_hdr_t ahdr = {0};
+		size_t len_in = 0;
+		void *data_in = NULL;
+		int rc = 0;
+
+		memcpy(&ahdr, data, sizeof(tpp_auth_pkt_hdr_t));
+		len_in = (size_t)len - sizeof(tpp_auth_pkt_hdr_t);
+		data_in = calloc(1, len_in);
+		if (data_in == NULL) {
+			tpp_log_func(LOG_CRIT, __func__, "Out of memory");
+			return -1;
+		}
+		memcpy(data_in, (char *)data + sizeof(tpp_auth_pkt_hdr_t), len_in);
+
+		rc = tpp_handle_auth_handshake(tfd, tfd, authdata, ahdr.for_encrypt, data_in, len_in);
+		if (rc != 1) {
+			free(data_in);
+			return rc;
+		}
+
+		free(data_in);
+
+		if (ahdr.for_encrypt == FOR_ENCRYPT && strcmp(authdata->config->auth_method, AUTH_RESVPORT_NAME) != 0) {
+			if (strcmp(authdata->config->auth_method, authdata->config->encrypt_method) != 0) {
+				rc = tpp_handle_auth_handshake(tfd, tfd, authdata, FOR_AUTH, NULL, 0);
+				if (rc != 1) {
+					return rc;
+				}
+			} else {
+				authdata->authctx = authdata->encryptctx;
+				authdata->authdef = authdata->encryptdef;
+				tpp_transport_set_conn_extra(tfd, authdata);
+			}
+		}
+
+		/* send TPP_CTL_JOIN msg to router */
+		return leaf_send_ctl_join(tfd, data, ctx);
 	}
 
 	/* analyze data and see what message it is
@@ -5067,6 +4846,8 @@ leaf_close_handler(int tfd, int error, void *c, void *extra)
 			authdata->encryptdef->destroy_ctx(authdata->encryptctx);
 		if (authdata->cleartext)
 			free(authdata->cleartext);
+		if (authdata->config)
+			free_auth_config(authdata->config);
 		/* DO NOT free authdef here, it will be done in unload_auths() */
 		free(authdata);
 		tpp_transport_set_conn_extra(tfd, NULL);

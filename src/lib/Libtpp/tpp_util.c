@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 
 /**
  * @file	tpp_util.c
@@ -338,7 +340,11 @@ set_tpp_config(void (*log_fn)(int, const char *, char *), struct pbs_config *pbs
 	tpp_conf->node_type = TPP_LEAF_NODE;
 	tpp_conf->numthreads = 1;
 
-	tpp_conf->auth_config = make_auth_config(pbs_conf->auth_method, pbs_conf->encrypt_method, pbs_conf->encrypt_mode, (void *)tpp_auth_logger);
+	tpp_conf->auth_config = make_auth_config(pbs_conf->auth_method,
+							pbs_conf->encrypt_method,
+							pbs_conf->pbs_exec_path,
+							pbs_conf->pbs_home_path,
+							(void *)tpp_auth_logger);
 	if (tpp_conf->auth_config == NULL) {
 		tpp_log_func(LOG_CRIT, __func__, "Out of memory allocating auth config");
 		return -1;
@@ -346,9 +352,7 @@ set_tpp_config(void (*log_fn)(int, const char *, char *), struct pbs_config *pbs
 
 	snprintf(log_buffer, TPP_LOGBUF_SZ, "TPP authentication method = %s", tpp_conf->auth_config->auth_method);
 	tpp_log_func(LOG_INFO, NULL, log_buffer);
-	if (tpp_conf->auth_config->encrypt_mode != ENCRYPT_DISABLE) {
-		snprintf(log_buffer, TPP_LOGBUF_SZ, "TPP encrypt mode = %d", tpp_conf->auth_config->encrypt_mode);
-		tpp_log_func(LOG_INFO, NULL, log_buffer);
+	if (tpp_conf->auth_config->encrypt_method[0] != '\0') {
 		snprintf(log_buffer, TPP_LOGBUF_SZ, "TPP encryption method = %s", tpp_conf->auth_config->encrypt_method);
 		tpp_log_func(LOG_INFO, NULL, log_buffer);
 	}
@@ -491,6 +495,155 @@ set_tpp_config(void (*log_fn)(int, const char *, char *), struct pbs_config *pbs
 		free(routers);
 
 	return 0;
+}
+
+/**
+ * @brief tpp_make_authdata - allocate conn_auth_t structure based given values
+ *
+ * @param[in] tpp_conf - pointer to tpp config structure
+ * @param[in] conn_type - one of AUTH_CLIENT or AUTH_SERVER
+ * @param[in] auth_method - auth method name
+ * @param[in] encrypt_method - encrypt method name
+ *
+ * @return conn_auth_t *
+ * @return !NULL - success
+ * @return NULL  - failure
+ */
+conn_auth_t *
+tpp_make_authdata(struct tpp_config *tpp_conf, int conn_type, char *auth_method, char *encrypt_method)
+{
+	conn_auth_t *authdata = NULL;
+
+	if ((authdata = (conn_auth_t *)calloc(1, sizeof(conn_auth_t))) == NULL) {
+		tpp_log_func(LOG_CRIT, __func__, "Out of memory");
+		return NULL;
+	}
+	authdata->conn_type = conn_type;
+	authdata->config = make_auth_config(auth_method,
+						encrypt_method,
+						tpp_conf->auth_config->pbs_exec_path,
+						tpp_conf->auth_config->pbs_home_path,
+						tpp_conf->auth_config->logfunc);
+	if (authdata->config == NULL) {
+		tpp_log_func(LOG_CRIT, __func__, "Out of memory");
+		return NULL;
+	}
+
+	return authdata;
+}
+
+/**
+ * @brief tpp_handle_auth_handshake - initiate handshake or process incoming handshake data
+ *
+ * @param[in] tfd - file descriptor
+ * @param[in] conn_fd - connection fd for sending data
+ * @param[in] authdata - pointer to conn auth data struct associated with tfd
+ * @param[in] for_encrypt - whether to handle incoming data for encrypt/decrypt or for authentication
+ * @param[in] data_in - incoming handshake data (if any)
+ * @param[in] len_in - length of data_in else 0
+ *
+ * @return int
+ * @return -1 - failure
+ * @return 0  - need handshake continuation
+ * @return 1  - handshake completed
+ */
+int
+tpp_handle_auth_handshake(int tfd, int conn_fd, conn_auth_t *authdata, int for_encrypt, void *data_in, size_t len_in)
+{
+	void *data_out = NULL;
+	size_t len_out = 0;
+	int is_handshake_done = 0;
+	void *authctx = NULL;
+	auth_def_t *authdef = NULL;
+
+	if (authdata == NULL) {
+		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tfd=%d, No auth data found", tfd);
+		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		return -1;
+	}
+
+	if (for_encrypt == FOR_AUTH) {
+		if (authdata->authdef == NULL) {
+			authdef = get_auth(authdata->config->auth_method);
+			if (authdef == NULL) {
+				tpp_log_func(LOG_CRIT, __func__, "Failed to find authdef");
+				return -1;
+			}
+			authdata->authdef = authdef;
+			authdef->set_config((const pbs_auth_config_t *)(authdata->config));
+			if (authdef->create_ctx(&(authdata->authctx), authdata->conn_type, AUTH_SERVICE_CONN, tpp_transport_get_conn_hostname(tfd))) {
+				tpp_log_func(LOG_CRIT, __func__, "Failed to create auth context");
+				return -1;
+			}
+
+		}
+		authdef = authdata->authdef;
+		authctx = authdata->authctx;
+	} else {
+		if (authdata->encryptdef == NULL) {
+			authdef = get_auth(authdata->config->encrypt_method);
+			if (authdef == NULL) {
+				tpp_log_func(LOG_CRIT, __func__, "Failed to find authdef");
+				return -1;
+			}
+			authdata->encryptdef = authdef;
+			authdef->set_config((const pbs_auth_config_t *)(authdata->config));
+			if (authdef->create_ctx(&(authdata->encryptctx), authdata->conn_type, AUTH_SERVICE_CONN, tpp_transport_get_conn_hostname(tfd))) {
+				tpp_log_func(LOG_CRIT, __func__, "Failed to create encrypt context");
+				return -1;
+			}
+
+		}
+		authdef = authdata->encryptdef;
+		authctx = authdata->encryptctx;
+	}
+	tpp_transport_set_conn_extra(tfd, authdata);
+
+	if (authdef->process_handshake_data(authctx, data_in, len_in, &data_out, &len_out, &is_handshake_done) != 0) {
+		if (len_out > 0) {
+			tpp_log_func(LOG_CRIT, __func__, (char *)data_out);
+			free(data_out);
+		}
+		return -1;
+	}
+
+	if (len_out > 0) {
+		tpp_auth_pkt_hdr_t ahdr = {0};
+		tpp_chunk_t chunks[2] = {{0}};
+
+		ahdr.type = TPP_AUTH_CTX;
+		ahdr.for_encrypt = for_encrypt;
+		strcpy(ahdr.auth_method, authdata->config->auth_method);
+		strcpy(ahdr.encrypt_method, authdata->config->encrypt_method);
+
+		chunks[0].data = &ahdr;
+		chunks[0].len = sizeof(tpp_auth_pkt_hdr_t);
+
+		chunks[1].data = data_out;
+		chunks[1].len = len_out;
+
+		if (tpp_transport_vsend(conn_fd, chunks, 2) != 0) {
+			snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_transport_vsend failed, err=%d", errno);
+			tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+			free(data_out);
+			return -1;
+		}
+		free(data_out);
+	}
+
+	/*
+	 * We didn't send any handshake data and handshake is not completed
+	 * so error out as we should send some handshake data
+	 * or handshake should be completed
+	 */
+	if (is_handshake_done == 0 && len_out == 0) {
+		tpp_log_func(LOG_CRIT, __func__, "Auth handshake failed");
+		return -1;
+	}
+
+	if (is_handshake_done != 1)
+		return 0;
+	return 1;
 }
 
 /**

@@ -3,37 +3,40 @@
 # Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 from tests.functional import *
 
 
@@ -476,7 +479,7 @@ class TestPbsResvAlter(TestFunctional):
 
         All the above operations are expected to be successful.
         """
-        offset = 20
+        offset = 60
         duration = 20
         shift = 10
         rid, start, end = self.submit_and_confirm_reservation(offset, duration)
@@ -542,7 +545,7 @@ class TestPbsResvAlter(TestFunctional):
         """
         duration = 20
         shift = 10
-        offset = 10
+        offset = 60
         rid, start, end = self.submit_and_confirm_reservation(offset, duration)
 
         new_start, new_end = self.alter_a_reservation(rid, start, end, shift,
@@ -599,7 +602,7 @@ class TestPbsResvAlter(TestFunctional):
 
         All the above operations are expected to be successful.
         """
-        offset = 30
+        offset = 60
         duration = 20
         shift = 10
         rid, start, end = self.submit_and_confirm_reservation(offset, duration)
@@ -769,7 +772,7 @@ class TestPbsResvAlter(TestFunctional):
 
         All the above operations are expected to be successful.
         """
-        duration = 20
+        duration = 30
         shift = 10
         offset = 10
         rid, start, end = self.submit_and_confirm_reservation(offset, duration,
@@ -822,7 +825,7 @@ class TestPbsResvAlter(TestFunctional):
         duration = 20
         shift = 10
         offset = 10
-        sleep = 25
+        sleep = 30
         rid, start, end = self.submit_and_confirm_reservation(offset, duration,
                                                               standing=True)
 
@@ -836,7 +839,7 @@ class TestPbsResvAlter(TestFunctional):
                                            shift, alter_e=True,
                                            confirm=False)[1]
 
-        self.check_resv_running(rid, duration, 0)
+        self.check_resv_running(rid, end - int(time.time()) + 1, True)
         self.server.expect(JOB, {'job_state': "R"}, id=jid)
 
         # Wait for the reservation occurrence to finish.
@@ -1520,7 +1523,6 @@ class TestPbsResvAlter(TestFunctional):
         Test that a failed ralter does not allow jobs to interfere with
         that reservation.
         """
-        self.skipTest('Skipped due to ralter reservation/job overlap bug')
         duration = 120
         offset1 = 30
         offset2 = 180
@@ -1547,9 +1549,10 @@ class TestPbsResvAlter(TestFunctional):
                            offset=t, id=rid1)
 
         self.alter_a_reservation(rid1, start1, end1, shift=300,
-                                 alter_e=True, whichMessage=3)
+                                 alter_e=True, sequence=2, whichMessage=3)
         self.server.expect(JOB, {'job_state': 'Q'}, id=jid)
 
+    @skipOnCpuSet
     def test_adv_resv_duration_before_start(self):
         """
         Test duration of reservation can be changed. In this case end
@@ -1567,7 +1570,7 @@ class TestPbsResvAlter(TestFunctional):
 
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
 
-        self.assertEqual(t_end, end+shift)
+        self.assertEqual(t_end, end + shift)
         self.assertEqual(t_start, start)
         self.assertEqual(t_duration, new_duration)
 
@@ -1582,10 +1585,11 @@ class TestPbsResvAlter(TestFunctional):
                                  a_duration=new_duration2, check_log=False)
 
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
-        self.assertEqual(t_end, temp_end+shift)
+        self.assertEqual(t_end, temp_end + shift)
         self.assertEqual(t_start, temp_start)
         self.assertEqual(t_duration, new_duration2)
 
+    @skipOnCpuSet
     def test_adv_resv_dur_and_endtime_before_start(self):
         """
         Test that duration and end time of reservation can be changed together.
@@ -1604,8 +1608,8 @@ class TestPbsResvAlter(TestFunctional):
 
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
 
-        self.assertEqual(t_end, end+shift)
-        self.assertEqual(t_start, t_end-t_duration)
+        self.assertEqual(t_end, end + shift)
+        self.assertEqual(t_start, t_end - t_duration)
         self.assertEqual(t_duration, new_duration)
 
         # Submit a job to the reservation and change its start time.
@@ -1618,10 +1622,11 @@ class TestPbsResvAlter(TestFunctional):
                                  alter_e=True, sequence=2,
                                  a_duration=new_duration2, check_log=False)
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
-        self.assertEqual(t_end, temp_end+shift)
-        self.assertEqual(t_start, t_end-t_duration)
+        self.assertEqual(t_end, temp_end + shift)
+        self.assertEqual(t_start, t_end - t_duration)
         self.assertEqual(t_duration, new_duration2)
 
+    @skipOnCpuSet
     def test_adv_resv_dur_and_starttime_before_start(self):
         """
         Test duration and starttime of reservation can be changed together.
@@ -1640,8 +1645,8 @@ class TestPbsResvAlter(TestFunctional):
 
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
 
-        self.assertEqual(t_end, t_start+t_duration)
-        self.assertEqual(t_start, start+shift)
+        self.assertEqual(t_end, t_start + t_duration)
+        self.assertEqual(t_start, start + shift)
         self.assertEqual(t_duration, new_duration)
 
         # Submit a job to the reservation and change its start time.
@@ -1654,8 +1659,8 @@ class TestPbsResvAlter(TestFunctional):
                                  alter_s=True, sequence=2,
                                  a_duration=new_duration2, check_log=False)
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
-        self.assertEqual(t_end, t_start+t_duration)
-        self.assertEqual(t_start, temp_start+shift)
+        self.assertEqual(t_end, t_start + t_duration)
+        self.assertEqual(t_start, temp_start + shift)
         self.assertEqual(t_duration, new_duration2)
 
     def test_adv_res_dur_after_start(self):
@@ -1679,7 +1684,8 @@ class TestPbsResvAlter(TestFunctional):
         self.assertEqual(t_duration, new_duration)
 
         time.sleep(5)
-        attr = {'reserve_duration': 5}
+        new_duration = int(time.time()) - int(t_start) - 1
+        attr = {'reserve_duration': new_duration}
         self.server.alterresv(rid, attr)
         self.server.log_match(rid + ";Reservation alter denied",
                               id=rid, interval=2)
@@ -1781,8 +1787,8 @@ class TestPbsResvAlter(TestFunctional):
 
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
         self.assertEqual(t_duration, new_duration)
-        self.assertEqual(t_end, end+shift)
-        self.assertEqual(t_start, t_end-t_duration)
+        self.assertEqual(t_end, end + shift)
+        self.assertEqual(t_start, t_end - t_duration)
 
         # Wait for the reservation to start running.
         self.check_resv_running(rid, offset - shift)
@@ -1817,8 +1823,8 @@ class TestPbsResvAlter(TestFunctional):
 
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
         self.assertEqual(t_duration, new_duration)
-        self.assertEqual(t_end, t_start+t_duration)
-        self.assertEqual(t_start, start+shift)
+        self.assertEqual(t_end, t_start + t_duration)
+        self.assertEqual(t_start, start + shift)
 
         # Wait for the reservation to start running.
         self.check_resv_running(rid, offset - shift)
@@ -1850,7 +1856,142 @@ class TestPbsResvAlter(TestFunctional):
         self.alter_a_reservation(rid, start, end, a_duration=new_duration,
                                  check_log=False, whichMessage=0)
 
+        attrs = {'reserve_state': (MATCH_RE, 'RESV_RUNNING|5')}
+        self.server.expect(RESV, attrs, id=rid)
+
         t_duration, t_start, t_end = self.get_resv_time_info(rid)
         self.assertEqual(int(t_start), start)
         self.assertEqual(int(t_duration), duration)
         self.assertEqual(int(t_end), end)
+
+    @skipOnCpuSet
+    def test_alter_empty_fail(self):
+        """
+        This test confirms that if a requested ralter fails due to the
+        reservation having running jobs, the attributes are kept the same
+        """
+        offset = 20
+        dur = 20
+        shift = 120
+
+        rid, start, end = self.submit_and_confirm_reservation(offset, dur)
+
+        jid = self.submit_job_to_resv(rid, user=TEST_USER)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid, offset=offset)
+
+        now = int(time.time())
+        new_start = self.bu.convert_seconds_to_datetime(now + shift)
+        new_end = self.bu.convert_seconds_to_datetime(now + shift + dur)
+
+        # This bug only shows if end time is changed before start time
+        ralter_cmd = [
+            os.path.join(
+                self.server.pbs_conf['PBS_EXEC'], 'bin', 'pbs_ralter'),
+            '-E', str(new_end),
+            '-R', str(new_start),
+            rid
+        ]
+        ret = self.du.run_cmd(self.server.hostname, ralter_cmd)
+        self.assertIn('pbs_ralter: Reservation not empty', ret['err'][0])
+
+        # Test that the reservation state is Running and not RESV_NONE
+        attrs = {'reserve_state': (MATCH_RE, 'RESV_RUNNING|5')}
+        self.server.expect(RESV, attrs, id=rid)
+
+        t_duration, t_start, t_end = self.get_resv_time_info(rid)
+        self.assertEqual(int(t_start), start)
+        self.assertEqual(int(t_duration), dur)
+        self.assertEqual(int(t_end), end)
+
+    def test_duration_in_hhmmss_format(self):
+        """
+        Test duration input can be in hh:mm:ss format
+        """
+        offset = 20
+        duration = 20
+        new_duration = "00:00:30"
+        new_duration_in_sec = 30
+        rid, start, end = self.submit_and_confirm_reservation(offset, duration)
+
+        new_end = end + 10
+
+        attr = {'reserve_duration': new_duration}
+        self.server.alterresv(rid, attr)
+
+        t_duration, t_start, t_end = self.get_resv_time_info(rid)
+        self.assertEqual(int(t_start), start)
+        self.assertEqual(int(t_duration), new_duration_in_sec)
+        self.assertEqual(int(t_end), new_end)
+
+    @skipOnCpuSet
+    def test_adv_resv_dur_and_endtime_with_running_jobs(self):
+        """
+        Test that duration and end time of reservation cannot be changed
+        together if there are running jobs inside it. This will fail
+        because start time cannot be changed when there are running
+        jobs in a reservation.
+        """
+
+        offset = 10
+        duration = 20
+        new_duration = 30
+        shift = 10
+        rid, start, end = self.submit_and_confirm_reservation(offset, duration)
+
+        self.check_resv_running(rid, offset)
+
+        jid = self.submit_job_to_resv(rid, user=TEST_USER)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid)
+
+        new_end = self.bu.convert_seconds_to_datetime(end + 30)
+        with self.assertRaises(PbsResvAlterError) as e:
+            attr = {'reserve_end': new_end,
+                    'reserve_duration': new_duration}
+            self.server.alterresv(rid, attr)
+        self.assertIn('pbs_ralter: Reservation not empty',
+                      e.exception.msg[0])
+
+        # Test that the reservation state is Running and not RESV_NONE
+        attrs = {'reserve_state': (MATCH_RE, 'RESV_RUNNING|5')}
+        self.server.expect(RESV, attrs, id=rid)
+
+        t_duration, t_start, t_end = self.get_resv_time_info(rid)
+
+        self.assertEqual(t_end, end)
+        self.assertEqual(t_start, start)
+        self.assertEqual(t_duration, duration)
+
+    @skipOnCpuSet
+    def test_standing_resv_dur_and_endtime_with_running_jobs(self):
+        """
+        Change duration and endtime of standing reservation with
+        running jobs in it. Verify that the alter fails and
+        starttime remains the same
+        """
+        offset = 10
+        duration = 20
+        new_duration = 30
+        shift = 15
+        rid, start, end = self.submit_and_confirm_reservation(offset,
+                                                              duration,
+                                                              standing=True)
+
+        jid = self.submit_job_to_resv(rid, user=TEST_USER)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid, offset=offset)
+
+        new_end = self.bu.convert_seconds_to_datetime(end + 30)
+        with self.assertRaises(PbsResvAlterError) as e:
+            attr = {'reserve_end': new_end,
+                    'reserve_duration': new_duration}
+            self.server.alterresv(rid, attr)
+        self.assertIn('pbs_ralter: Reservation not empty',
+                      e.exception.msg[0])
+
+        # Test that the reservation state is Running and not RESV_NONE
+        attrs = {'reserve_state': (MATCH_RE, 'RESV_RUNNING|5')}
+        self.server.expect(RESV, attrs, id=rid)
+
+        t_duration, t_start, t_end = self.get_resv_time_info(rid)
+        self.assertEqual(t_end, end)
+        self.assertEqual(t_start, start)
+        self.assertEqual(t_duration, duration)
