@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file    svr_jobfunc.c
  *
@@ -62,12 +64,6 @@
  *      state_char2int()   - returns the state from char form to int form.
  *		uniq_nameANDfile() - creates a unique filename and file for an object
  *		remove_deleted_resvs() - remove reservations marked RESV_FINISHED
- *		set_cpu_licenses_need()- set # of cpu licenses needed by a job
- *		allocate_cpu_licenses()- assign cpu licenses to a job
- *		deallocate_cpu_licenses()     - unassign cpu licenses from a job
- *		clear_and_populate_svr_unlicensedjobs() - empties then adds entries
- *												to svr_unlicensedjobs.
- *		relicense_svr_unlicensedjobs()- relicense jobs in svr_unlicensedjobs
  *      update_eligible_time() - calc eligible time and modify accrue_type
  *		determine_accruetype() - determines accruetype
  *		alter_eligibletime() - resets sampletime of job
@@ -169,7 +165,6 @@ extern char *msg_mombadmodify;
 extern struct server server;
 extern int  pbs_mom_port;
 extern pbs_list_head svr_alljobs;
-extern pbs_list_head svr_unlicensedjobs;
 extern char  *msg_badwait;		/* error message */
 extern char  *msg_daemonname;
 extern char  *msg_also_deleted_job_history;
@@ -3187,7 +3182,7 @@ Time4resvFinish(struct work_task *ptask)
 		DBPRT(("reached end of occurrence %d/%d\n", ridx, rcount))
 
 		/* When recovering past the last occurrence the standing reservation is purged
-		 * in a manner similar to an advance reservation 
+		 * in a manner similar to an advance reservation
 		 */
 		if (ridx < rcount) {
 			/*
@@ -3333,8 +3328,8 @@ Time4occurrenceFinish(resc_resv *presv)
 	if (presv->ri_qs.ri_substate == RESV_RUNNING && next < now)
 		occurrence_ended_early = 1;
 	while (occurrence_ended_early || dtend <= now) {
-		/* We may loop and skip several occurrences for different reasons, 
-		 * if an occurrence ended early, it can only be the one we are in 
+		/* We may loop and skip several occurrences for different reasons,
+		 * if an occurrence ended early, it can only be the one we are in
 		 */
 		occurrence_ended_early = 0;
 		/* get occurrence that is "j" numbers away from dtstart. */
@@ -3406,7 +3401,7 @@ Time4occurrenceFinish(resc_resv *presv)
 	rcount_adjusted = rcount - get_execvnodes_count(execvnodes);
 
 	/* The reservation index starts at 1 but the short_xc array at 0. Occurrence 1
-	 * is therefore given by array element 0. 
+	 * is therefore given by array element 0.
 	 */
 	newxc = strdup(short_xc[ridx - rcount_adjusted - 1]);
 
@@ -3428,7 +3423,7 @@ Time4occurrenceFinish(resc_resv *presv)
 
 	/* Reservation Nodes are freed and a -possibly- new set assigned */
 	free_resvNodes(presv);
-	/* set ri_vnodes_down to 0 because the previous occurrences downed nodes might 
+	/* set ri_vnodes_down to 0 because the previous occurrences downed nodes might
 	 * not exist in the following occurrence.  The new occurrence's ri_vnodes_down
 	 * will be set properly in set_nodes()
 	 */
@@ -3513,7 +3508,7 @@ Time4occurrenceFinish(resc_resv *presv)
 		state = RESV_CONFIRMED;
 
 	/* If the reservation already has a retry time set then its substate is
-	 * marked degraded.  If all degraded occurrences are in the past, the 
+	 * marked degraded.  If all degraded occurrences are in the past, the
 	 * scheduler will fix this on the next retry attempt.
 	 */
 	if (presv->ri_wattr[RESV_ATR_retry].at_flags & ATR_VFLAG_SET) {
@@ -3525,14 +3520,6 @@ Time4occurrenceFinish(resc_resv *presv)
 
 	if (sub == RESV_DEGRADED) {
 		DBPRT(("degraded_time of %s is %s", presv->ri_qs.ri_resvID, ctime(&presv->ri_degraded_time)))
-		/* If no jobs are running in this reservation, unset the scheduler name
-		 * so that the reservation can be confirmed by any scheduler
-		 */
-		if (presv->ri_qp->qu_njstate[JOB_STATE_RUNNING] + presv->ri_qp->qu_njstate[JOB_STATE_EXITING] == 0) {
-			resv_attr_def[(int)RESV_ATR_partition].at_free(&presv->ri_wattr[(int)RESV_ATR_partition]);
-			presv->rep_sched_count= 0;
-			presv->req_sched_count= 0;
-		}
 	}
 
 	/* Set the reservation state and substate */
@@ -4601,37 +4588,43 @@ start_end_dur_wall(void *pobj, int objtype)
 			swcode += 8;			/*have walltime*/
 		else if (!(prsc = add_resource_entry(pattr, rscdef)))
 			return (-1);
-	}
-	else {
-		swcode = 3;
+	} else {
+		if (presv->ri_alter_flags & RESV_DURATION_MODIFIED)
+			swcode += 4;
+		if (presv->ri_alter_flags & RESV_END_TIME_MODIFIED)
+			swcode += 2; /*calcualte start time*/
+		if (presv->ri_alter_flags & RESV_START_TIME_MODIFIED)
+			swcode += 1; /*calculate end time*/
+		if (presv->ri_alter_flags == RESV_START_TIME_MODIFIED || presv->ri_alter_flags == RESV_END_TIME_MODIFIED) {
+			swcode = 3;
+		}
 	}
 
 	atemp.at_flags = ATR_VFLAG_SET;
 	atemp.at_type = ATR_TYPE_LONG;
 	switch (swcode) {
 		case  3:	/*start, end*/
-			if ((((check_start) && (pstime->at_val.at_long < time_now)) && (pstate != RESV_BEING_ALTERED)) ||
+			if (((check_start && (pstime->at_val.at_long < time_now)) && (pstate != RESV_BEING_ALTERED)) ||
 				(petime->at_val.at_long <= pstime->at_val.at_long))
 				rc = -1;
 			else {
-
 				atemp.at_val.at_long = (petime->at_val.at_long -
 					pstime->at_val.at_long);
-
 				(void)pddef->at_set(pduration, &atemp, SET);
 				(void)rscdef->rs_set(&prsc->rs_value, &atemp, SET);
 			}
 			break;
 
+		case  4:
 		case  5:	/*start, duration*/
-			if (((check_start) && (pstime->at_val.at_long < time_now)) ||
+			if (((check_start && pstime->at_val.at_long < time_now) && (pstate != RESV_BEING_ALTERED)) ||
 				(pduration->at_val.at_long <= 0))
 				rc = -1;
 			else {
 				petime->at_flags |= ATR_VFLAG_SET |
 					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
 				petime->at_val.at_long = pstime->at_val.at_long +
-					presv->ri_qs.ri_duration;
+					pduration->at_val.at_long;
 			}
 			break;
 
@@ -4644,6 +4637,7 @@ start_end_dur_wall(void *pobj, int objtype)
 				rc = -1;
 			break;
 
+		case  6:
 		case  8:	/* end, duration */
 			if ((pduration->at_val.at_long <= 0) ||
 				(petime->at_val.at_long - pduration->at_val.at_long <
@@ -5797,7 +5791,7 @@ post_send_job_exec_update_req(struct work_task *pwt)
 	if (pwt == NULL)
 		return;
 
-	if (pwt->wt_aux2 != 1) /* not rpp */
+	if (pwt->wt_aux2 != PROT_TPP)
 		svr_disconnect(pwt->wt_event);  /* close connection to MOM */
 	mom_preq = pwt->wt_parm1;
 	mom_preq->rq_conn = mom_preq->rq_orgconn;  /* restore socket to client */

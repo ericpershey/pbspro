@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file	mom_main.c
  * @brief
@@ -99,7 +101,7 @@
 #include	"pbs_error.h"
 #include	"log.h"
 #include	"net_connect.h"
-#include	"rpp.h"
+#include	"tpp.h"
 #include	"dis.h"
 #include	"resmon.h"
 #include	"batch_request.h"
@@ -108,9 +110,6 @@
 #include	"libsec.h"
 #include	"pbs_ecl.h"
 #include	"pbs_internal.h"
-#if	defined(MOM_CPUSET)
-#include	"mom_vnode.h"
-#endif	/* MOM_CPUSET */
 #include	"avltree.h"
 #ifndef	WIN32
 #ifndef NAS /* localmod 113 */
@@ -141,6 +140,8 @@
 #endif
 #include	"pbs_undolr.h"
 
+/* Reducing tpp_request process for a minimum of 3 times to interleave other connections */
+#define MAX_TPP_LOOPS 3
 
 /*
  * Default "mutual exclusion" for job start/queue commit operations.  The
@@ -148,16 +149,8 @@
  * with a pointer to a shared mutex.
  */
 
-#if IRIX6_CPUSET == 1
-#include "pbs_mutex.h"
-#include "cpusets.h"
-
-static pbs_mutex        pbs_commit_mtx;
-volatile pbs_mutex      *pbs_commit_ptr = &pbs_commit_mtx;
-#endif
-
 /* Global Data Items */
-
+int mock_run = 0;
 enum hup_action	call_hup = HUP_CLEAR;
 static int      update_state_flag = 0;
 double		cputfactor = 1.00;
@@ -198,9 +191,6 @@ extern void	mom_vnlp_report(vnl_t *vnl, char *header);
 
 int		alien_attach = 0;		/* attach alien procs */
 int		alien_kill = 0;			/* kill alien procs */
-#if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
-char		*cpuset_error_action = "offline";
-#endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
 int		lockfds;
 float		max_load_val   = -1.0;
 int		max_poll_downtime_val = PBS_MAX_POLL_DOWNTIME;
@@ -475,9 +465,6 @@ static handler_ret_t	addclient(char *);
 static handler_ret_t	add_mom_action(char *);
 static handler_ret_t	config_verscheck(char *);
 static handler_ret_t	cputmult(char *);
-#if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
-static handler_ret_t	set_cpuset_error_action(char *);
-#endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
 static handler_ret_t	parse_config(char *);
 static handler_ret_t	prologalarm(char *);
 static handler_ret_t	set_joinjob_alarm(char *);
@@ -568,9 +555,6 @@ static struct	specials {
 	{ "clienthost",			addclient },
 	{ "configversion",		config_verscheck },
 	{ "cputmult",			cputmult },
-#if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
-	{ "cpuset_error_action",	set_cpuset_error_action },
-#endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
 	{ "enforce",			set_enforcement },
 	{ "ideal_load",			setidealload },
 	{ "jobdir_root",		set_jobdir_root },
@@ -1077,7 +1061,7 @@ die(int sig)
  * @brief
  *	Performs initialization steps like loading pbs.conf values,
  *	setting core limit size, running platform-specific initializations
- *	(e.g. cpusets initializations, topology data gathering),
+ *	(e.g. topology data gathering),
  *	running the exechost_startup hook, and
  *	checking that there are no bad combinations of sharing values
  *	across the vnodes.
@@ -1125,6 +1109,9 @@ initialize(void)
 	int	char_in_cname = 0;
 
 	(void)pbs_loadconf(0);
+	set_log_conf(pbs_conf.pbs_leaf_name, pbs_conf.pbs_mom_node_name,
+			pbs_conf.locallog, pbs_conf.syslogfac,
+			pbs_conf.syslogsvr, pbs_conf.pbs_log_highres_timestamp);
 
 	if (pbs_conf.pbs_core_limit) {
 		char *pc = pbs_conf.pbs_core_limit;
@@ -2244,49 +2231,6 @@ cputmult(char *value)
 		return HANDLER_FAIL;	/* error */
 	return HANDLER_SUCCESS;
 }
-
-#if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
-/**
- * @brief
- *	set the action to take when encountering
- *	CPU set errors.  value may be one of
- *
- *		"continue"	to log the errors and proceed normally
- *
- *		"offline"	in response to an error, the job's vnodes
- *				on this host will be marked offline;
- *				this is the default action
- *
- * @return      handler_ret_t
- * @retval      HANDLER_FAIL(0)         Failure
- * @retval      HANDLER_SUCCESS         Success
- *
- */
-
-static handler_ret_t
-set_cpuset_error_action(char *value)
-{
-	char		tok[80];
-	char		*action;
-
-	log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_DEBUG, __func__, value);
-
-	if ((value == 0) || (*value == '\0') || (strlen(value) >= sizeof(tok)))
-		return HANDLER_FAIL;
-
-	(void) TOKCPY(value, tok);
-
-	if (!strcmp(tok, "continue") || !strcmp(tok, "offline")) {
-		action = strdup(tok);
-		if (action != NULL) {
-			cpuset_error_action = action;
-			return HANDLER_SUCCESS;
-		}
-	}
-
-	return HANDLER_FAIL;
-}
-#endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
 
 /**
  * @brief
@@ -5099,17 +5043,6 @@ read_config(char *file)
 	if (addconfig_ret == HANDLER_FAIL)
 		return (1);
 	else {
-#if	defined(MOM_CPUSET)
-		/*
-		 *	If this isn't the first time we've read the additional
-		 *	configuration files, we may have undone any adjustments
-		 *	to various vnodes' resources_available.ncpus attributes.
-		 *	Now we resynch these attributes with the mom_vnodeinfo
-		 *	mvi_cpulist array of CPUs.
-		 */
-		cpu_raresync();
-#endif	/* MOM_CPUSET */
-
 		if (joinjob_alarm_time == -1)
 			update_joinjob_alarm_time = 1;
 		else
@@ -5710,7 +5643,6 @@ catch_hup(int sig)
 	sprintf(log_buffer, "caught signal %d", sig);
 	log_event(PBSEVENT_SYSTEM, 0,  LOG_INFO, "catch_hup", log_buffer);
 	call_hup = HUP_REAL;
-	rpp_dbprt = 1 - rpp_dbprt;	/* toggle debug prints for RPP */
 }
 
 /**
@@ -5769,7 +5701,7 @@ process_hup(void)
 	if (read_config(NULL) != 0) {
 		cleanup();
 		log_close(1);
-		rpp_shutdown();
+		tpp_shutdown();
 #ifdef	WIN32
 		ExitThread(1);
 #else
@@ -5790,13 +5722,6 @@ process_hup(void)
 	if (!real_hup)		/* no need to go on */
 		return;
 
-#if	MOM_CPUSET
-#if	(CPUSET_VERSION >= 4)
-	cpusets_initialize(2);		/* warm start recovery */
-#else
-	cpusets_initialize();
-#endif	/* CPUSET_VERSION >= 4 */
-#endif	/* MOM_CPUSET */
 
 #endif	/* MOM_BGL */
 }
@@ -5934,12 +5859,12 @@ bad_restrict(u_long ipadd)
 
 /**
  * @brief
- *	Process a request for the resource monitor.  The i/o
- *	will take place using DIS over a tcp fd or an rpp stream.
+ *	Process a request for the resource monitor. The i/o
+ *	will take place using DIS over a tcp fd or an tpp stream.
  *
  * @param[in] iochan - i/o channel to indicate stream or fd
  * @param[in] version - protocol version
- * @param[in] tcp - flag for tcp 0 or 1
+ * @param[in] prot - PROT_TCP or PROT_TPP
  *
  * @return int
  * @retval	0	Success
@@ -5948,7 +5873,7 @@ bad_restrict(u_long ipadd)
  */
 
 int
-rm_request(int iochan, int version, int tcp)
+rm_request(int iochan, int version, int prot)
 {
 	char			name[256];
 	static char		*output = NULL;
@@ -5962,7 +5887,6 @@ rm_request(int iochan, int version, int tcp)
 	u_long			ipadd = 0;
 	u_short			port = 0;
 	void			(*close_io)	(int) = NULL;
-	int			(*flush_io)	(int);
 
 	errno = 0;
 	if (!output) {
@@ -5974,7 +5898,7 @@ rm_request(int iochan, int version, int tcp)
 		output_size = BUFSIZ;
 	}
 	(void)memset(output, 0, output_size);
-	if (tcp) {
+	if (prot == PROT_TCP) {
 		conn_t *conn = get_conn(iochan);
 
 		if (!conn) {
@@ -5990,10 +5914,8 @@ rm_request(int iochan, int version, int tcp)
 		ipadd = conn->cn_addr;
 		port = conn->cn_port;
 		close_io = close_conn;
-		flush_io = dis_flush;
-	}
-	else {
-		addr = rpp_getaddr(iochan);
+	} else {
+		addr = tpp_getaddr(iochan);
 		if (addr == NULL) {
 			sprintf(log_buffer, "Sender unknown");
 			goto bad;
@@ -6001,8 +5923,7 @@ rm_request(int iochan, int version, int tcp)
 
 		ipadd = ntohl(addr->sin_addr.s_addr);
 		port = ntohs((unsigned short)addr->sin_port);
-		close_io = (void(*)(int))pfn_rpp_close;
-		flush_io = pfn_rpp_flush;
+		close_io = (void(*)(int))&tpp_close;
 	}
 	if (version != RM_PROTOCOL_VER) {
 		sprintf(log_buffer, "protocol version %d unknown", version);
@@ -6010,7 +5931,7 @@ rm_request(int iochan, int version, int tcp)
 	}
 
 	restrictrm = 0;
-	if (pbs_conf.pbs_use_tcp == 0 && ((port_care && (port >= IPPORT_RESERVED)) || (!addrfind(ipadd)))) {
+	if ((prot == PROT_TCP && port_care && (port >= IPPORT_RESERVED)) || !addrfind(ipadd)) {
 		if (bad_restrict(ipadd)) {
 			sprintf(log_buffer, "bad attempt to connect");
 			goto bad;
@@ -6144,7 +6065,7 @@ rm_request(int iochan, int version, int tcp)
 			if (len != 0) {
 				cleanup();
 				log_close(1);
-				rpp_shutdown();
+				tpp_shutdown();
 #ifdef	WIN32
 				ExitThread(1);
 #else
@@ -6169,11 +6090,11 @@ rm_request(int iochan, int version, int tcp)
 					dis_emsg[ret]);
 				log_err(-1, __func__, log_buffer);
 			}
-			flush_io(iochan);
+			dis_flush(iochan);
 			close_io(iochan);
 			cleanup();
 			log_close(1);
-			rpp_shutdown();
+			tpp_shutdown();
 #ifdef	WIN32
 			ExitThread(0);
 #else
@@ -6199,7 +6120,7 @@ rm_request(int iochan, int version, int tcp)
 			}
 			break;
 	}
-	if (flush_io(iochan) == -1) {
+	if (dis_flush(iochan) == -1) {
 		log_err(errno, __func__, "flush");
 		goto bad;
 	}
@@ -6220,9 +6141,8 @@ bad:
 	 ** buffer, then 'close_io' function pointer won't get a chance
 	 ** to be initialized. So, Initialize accordingly before use.
 	 */
-	if (close_io == NULL) {
-		close_io = (tcp) ?(close_conn):((void (*)(int))pfn_rpp_close);
-	}
+	if (close_io == NULL)
+		close_io = (prot == PROT_TCP) ? close_conn : (void (*)(int))&tpp_close;
 
 	close_io(iochan);
 	return -1;
@@ -6230,23 +6150,23 @@ bad:
 
 /**
  * @brief
- *	Read a RPP message from a stream, figure out if it is a
+ *	Read a message from an TPP stream, figure out if it is a
  *	Resource Monitor request or an InterMom message.
  *
- * @param[in] stream - rpp msg
+ * @param[in] stream - TPP stream
  *
  * @return Void
  *
  */
 void
-do_rpp(int stream)
+do_tpp(int stream)
 {
 	int			ret, proto, version;
 	void	im_request	(int stream, int version);
 	void	is_request	(int stream, int version);
 	void	im_eof		(int stream, int ret);
 
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 	proto = disrsi(stream, &ret);
 	if (ret != DIS_SUCCESS) {
 		im_eof(stream, ret);
@@ -6263,8 +6183,8 @@ do_rpp(int stream)
 	switch (proto) {
 		case	RM_PROTOCOL:
 			DBPRT(("%s: got a resource monitor request\n", __func__))
-			if (rm_request(stream, version, 0) == 0)
-				rpp_eom(stream);
+			if (rm_request(stream, version, PROT_TPP) == 0)
+				tpp_eom(stream);
 			break;
 
 		case	IM_PROTOCOL:
@@ -6279,7 +6199,7 @@ do_rpp(int stream)
 
 		default:
 			DBPRT(("%s: unknown request %d\n", __func__, proto))
-			rpp_close(stream);
+			tpp_close(stream);
 			break;
 	}
 }
@@ -6288,32 +6208,30 @@ do_rpp(int stream)
 
 /**
  * @brief
- *	wrapper function for do_rpp
+ *	wrapper function for do_tpp
  *
  * @param[in] fd - file descriptor
  *
  * @return Void
  *
  */
-#define MAX_RPP_LOOPS 3
-/* Reducing rpp request process for a minimum of 3 times to interleave other connections */
 void
-rpp_request(int fd)
+tpp_request(int fd)
 {
 	int	stream;
 	int	i;
-	/* To reduce rpp process storm reducing max do_rpp processing to 3 times */
-	for (i=0 ; i < MAX_RPP_LOOPS ; i++) {
-		if ((stream = rpp_poll()) == -1) {
+	/* To reduce tpp process storm reducing max do_tpp processing to MAX_TPP_LOOPS times */
+	for (i=0 ; i < MAX_TPP_LOOPS ; i++) {
+		if ((stream = tpp_poll()) == -1) {
 #ifdef	WIN32
 			if (errno != 10054)
 #endif
-				log_err(errno, __func__, "rpp_poll");
+				log_err(errno, __func__, "tpp_poll");
 			break;
 		}
 		if (stream == -2)
 			break;
-		do_rpp(stream);
+		do_tpp(stream);
 	}
 }
 
@@ -6364,7 +6282,7 @@ do_tcp(int fd)
 		case	RM_PROTOCOL:
 			DBPRT(("%s: got a resource monitor request\n", __func__))
 			pbs_tcp_timeout = 0;
-			ret = rm_request(fd, version, 1);
+			ret = rm_request(fd, version, PROT_TCP);
 			pbs_tcp_timeout = PBS_DIS_TCP_TIMEOUT_SHORT;
 			break;
 
@@ -6562,14 +6480,7 @@ finish_loop(time_t waittime)
 {
 #ifdef	WIN32
 	time_t	i;
-#endif
 
-	if (pbs_conf.pbs_use_tcp == 0) {
-		/* check for any extra rpp messages */
-		rpp_request(42);
-	}
-
-#ifdef	WIN32
 	/* wait for a request to process or exiting procs */
 	for (i = 0; i < waittime; i++) {
 		wait_action();
@@ -7576,7 +7487,7 @@ char	*prog;
 	printf("To register as a service: %s -R\n", prog);
 	printf("To unregister the service: %s -U\n", prog);
 	printf("To run as a service: %s <other options...>\n", prog);
-	printf("To output PBSpro version and exit: %s --version\n", prog);
+	printf("To output version and exit: %s --version\n", prog);
 	printf("================================================================================\n");
 
 }
@@ -8078,54 +7989,6 @@ badguy:
 #endif /* localmod 011 */
 }
 
-/**
- * @brief
- *	logs message when rpp fails
- *
- * @param[in] mess - msg to be logged
- *
- * @return	Void
- *
- */
-
-void
-log_rppfail(char *mess)
-{
-	log_event(PBSEVENT_DEBUG, LOG_DEBUG,
-		PBS_EVENTCLASS_SERVER, "rpp", mess);
-}
-
-/**
- * @brief
- *	This is the log handler for tpp implemented in the daemon. The pointer to
- *	this function is used by the Libtpp layer when it needs to log something to
- *	the daemon logs
- *
- * @param[in] level   - Logging level
- * @param[in] objname - Name of the object about which logging is being done
- * @param[in] messa   - The log message
- *
- * @return	Void
- *
- */
-static void
-log_tppmsg(int level, const char *objname, char *mess)
-{
-	char id[2*PBS_MAXHOSTNAME];
-	int thrd_index;
-	int etype = log_level_2_etype(level);
-
-	thrd_index = tpp_get_thrd_index();
-	if (thrd_index == -1)
-		snprintf(id, sizeof(id), "%s(Main Thread)", (objname != NULL) ? objname : msg_daemonname);
-	else
-		snprintf(id, sizeof(id), "%s(Thread %d)", (objname != NULL) ? objname : msg_daemonname, thrd_index);
-
-	log_event(etype, PBS_EVENTCLASS_TPP, level, id, mess);
-	DBPRT((mess));
-	DBPRT(("\n"));
-}
-
 /*
  * @brief
  *	Function called by the Libtpp layer when the network connection to
@@ -8142,7 +8005,8 @@ net_restore_handler(void *data)
 {
 	mom_net_up = 1;
 	mom_net_up_time = time(0);
-	log_tppmsg(LOG_INFO, msg_daemonname, "net restore handler called");
+	if (tpp_log_func)
+		tpp_log_func(LOG_INFO, msg_daemonname, "net restore handler called");
 	send_restart();
 }
 
@@ -8165,14 +8029,13 @@ net_down_handler(void *data)
 	hnodent	*np;
 	job		*pjob;
 
-	log_tppmsg(LOG_INFO, msg_daemonname, "net down handler called");
+	if (tpp_log_func)
+		tpp_log_func(LOG_INFO, msg_daemonname, "net down handler called");
 	if (server_stream >= 0) {
-		sprintf(log_buffer, "Closing existing server stream %d",
-			server_stream);
-		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
-			msg_daemonname, log_buffer);
-		rpp_flush(server_stream);
-		rpp_close(server_stream);
+		log_eventf(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE, msg_daemonname,
+				"Closing existing server stream %d", server_stream);
+		dis_flush(server_stream);
+		tpp_close(server_stream);
 		server_stream = -1;
 	}
 
@@ -8185,8 +8048,8 @@ net_down_handler(void *data)
 			num < pjob->ji_numnodes;
 			num++, np++) {
 			if (np->hn_stream >= 0) {
-				rpp_flush(np->hn_stream);
-				rpp_close(np->hn_stream);
+				dis_flush(np->hn_stream);
+				tpp_close(np->hn_stream);
 				np->hn_stream = -1;
 			}
 		}
@@ -8209,6 +8072,8 @@ main(int argc, char *argv[])
 #endif
 {
 	/* both Win32 and Unix */
+	int rc;
+	char *nodename;
 	struct tpp_config	tpp_conf;
 	int					errflg, c;
 	int					stalone = 0;
@@ -8218,9 +8083,7 @@ main(int argc, char *argv[])
 	unsigned int		serverport;
 	int					recover = 0;
 	time_t				time_state_update = 0;
-	int					tryport;
-	int					rppfd;				/* fd for rm and im comm */
-	int					privfd = -1;		/* fd for sending job info */
+	int					tppfd; /* fd for rm and im comm */
 	double				myla;
 	job					*nxpjob;
 	job					*pjob;
@@ -8336,6 +8199,10 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
+	set_log_conf(pbs_conf.pbs_leaf_name, pbs_conf.pbs_mom_node_name,
+			pbs_conf.locallog, pbs_conf.syslogfac,
+			pbs_conf.syslogsvr, pbs_conf.pbs_log_highres_timestamp);
+
 	if (!isAdminPrivilege(getlogin())) {
 		g_dwCurrentState = SERVICE_STOPPED;
 		ss.dwCurrentState = g_dwCurrentState;
@@ -8380,6 +8247,9 @@ main(int argc, char *argv[])
 	if (pbs_loadconf(0) == 0) {
 		return (1);
 	}
+	set_log_conf(pbs_conf.pbs_leaf_name, pbs_conf.pbs_mom_node_name,
+			pbs_conf.locallog, pbs_conf.syslogfac,
+			pbs_conf.syslogsvr, pbs_conf.pbs_log_highres_timestamp);
 #endif
 	pbsgroup = getgid();
 
@@ -8424,11 +8294,22 @@ main(int argc, char *argv[])
 	}
 
 	errflg = 0;
-	getopt_str = "d:c:M:NS:R:lL:a:xC:prs:n:Q:-:";
+	getopt_str = "d:c:M:mNS:R:lL:a:xC:prs:n:Q:-:";
 	while ((c = getopt(argc, argv, getopt_str)) != -1) {
 		switch (c) {
 			case 'N':	/* stand alone (win), no fork (others) */
 				stalone = 1;
+				break;
+			case 'm':
+#ifdef WIN32
+				fprintf(stderr, "-m option not supported for Windows\n");
+				g_dwCurrentState = SERVICE_STOPPED;
+				ss.dwCurrentState = g_dwCurrentState;
+				ss.dwWin32ExitCode = ERROR_INVALID_PARAMETER;
+				if (g_ssHandle != 0) SetServiceStatus(g_ssHandle, &ss);
+				return 1;
+#endif
+				mock_run = 1;
 				break;
 			case 'd':	/* directory */
 				if (pbs_conf.pbs_home_path != NULL)
@@ -9028,7 +8909,7 @@ main(int argc, char *argv[])
 
 	/*Initialize security library's internal data structures*/
 	if (load_auths(AUTH_SERVER)) {
-		log_err(-1, "pbsd_main", "Failed to load auth lib");
+		log_err(-1, __func__, "Failed to load auth lib");
 		exit(3);
 	}
 
@@ -9041,7 +8922,7 @@ main(int argc, char *argv[])
 		if ((csret = CS_server_init()) != CS_SUCCESS) {
 			sprintf(log_buffer,
 				"Problem initializing security library (%d)", csret);
-			log_err(-1, "pbsd_main", log_buffer);
+			log_err(-1, __func__, log_buffer);
 			exit(3);
 		}
 	}
@@ -9063,6 +8944,9 @@ main(int argc, char *argv[])
 #endif /* DEBUG */
 
 	mom_pid = (pid_t)getpid();
+	(void)lseek(lockfds, (off_t)0, SEEK_SET);
+	(void)sprintf(log_buffer, "%d\n", mom_pid);
+	(void)write(lockfds, log_buffer, strlen(log_buffer));
 
 #else /* ! WIN32 ------------------------------------------------------------*/
 
@@ -9265,7 +9149,7 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	rpp_fd = -1;
+	tpp_fd = -1;
 	if (init_network_add(sock_bind_mom, NULL, process_request) != 0) {
 
 		c = ERRORNO;
@@ -9307,91 +9191,47 @@ main(int argc, char *argv[])
 		return (3);
 	}
 
-	if (pbs_conf.pbs_use_tcp == 1) {
-		int rc;
-		char *nodename;
+	sprintf(log_buffer, "Out of memory");
+	if (pbs_conf.pbs_leaf_name) {
+		char *p;
+		nodename = strdup(pbs_conf.pbs_leaf_name);
 
-		sprintf(log_buffer, "Out of memory");
-		if (pbs_conf.pbs_leaf_name) {
-			char *p;
-			nodename = strdup(pbs_conf.pbs_leaf_name);
-
-			/* reset pbs_leaf_name to only the first leaf name with port */
-			p = strchr(pbs_conf.pbs_leaf_name, ','); /* keep only the first leaf name */
-			if (p)
-				*p = '\0';
-			p = strchr(pbs_conf.pbs_leaf_name, ':'); /* cut out the port */
-			if (p)
-				*p = '\0';
-		} else {
-			nodename = get_all_ips(mom_host, log_buffer, sizeof(log_buffer) - 1);
-		}
-		if (!nodename) {
-			log_err(-1, "pbsd_main", log_buffer);
-			fprintf(stderr, "%s\n", "Unable to determine TPP node name");
-			return (1);
-		}
-
-		/* set tcp function pointers */
-		set_tpp_funcs(log_tppmsg);
-		rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers);
-		free(nodename);
-
-		if (rc == -1) {
-			(void) sprintf(log_buffer, "Error setting TPP config");
-			log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-								LOG_ERR,msg_daemonname, log_buffer);
-			fprintf(stderr, "%s", log_buffer);
-			return (3);
-		}
-
-		tpp_set_app_net_handler(net_down_handler, net_restore_handler);
-
-		if ((rppfd = tpp_init(&tpp_conf)) == -1) {
-			(void) sprintf(log_buffer, "rpp_init failed");
-			log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-				LOG_ERR, msg_daemonname, log_buffer);
-			fprintf(stderr, "%s", log_buffer);
-			return (3);
-		}
+		/* reset pbs_leaf_name to only the first leaf name with port */
+		p = strchr(pbs_conf.pbs_leaf_name, ','); /* keep only the first leaf name */
+		if (p)
+			*p = '\0';
+		p = strchr(pbs_conf.pbs_leaf_name, ':'); /* cut out the port */
+		if (p)
+			*p = '\0';
 	} else {
-		/* set rpp function pointers */
-		set_rpp_funcs(log_rppfail);
+		nodename = get_all_ips(mom_host, log_buffer, sizeof(log_buffer) - 1);
+	}
+	if (!nodename) {
+		log_err(-1, __func__, log_buffer);
+		fprintf(stderr, "%s\n", "Unable to determine TPP node name");
+		return (1);
+	}
 
-		if ((rppfd = rpp_bind(pbs_rm_port)) == -1) {
-			log_err(errno, __func__, "rpp_bind");
-#ifdef	WIN32
-			g_dwCurrentState = SERVICE_STOPPED;
-			ss.dwCurrentState = g_dwCurrentState;
-			ss.dwWin32ExitCode = ERROR_NETWORK_BUSY;
-			if (g_ssHandle != 0) SetServiceStatus(g_ssHandle, &ss);
-#endif	/* WIN32 */
-			return (1);
-		}
+	/* set tpp config */
+	rc = set_tpp_config(NULL, &pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers);
+	free(nodename);
 
-		rpp_fd = -1;
-		tryport = IPPORT_RESERVED;
-		while (--tryport > 0) {
-			if ((privfd = rpp_bind(tryport)) != -1)
-				break;
-#ifdef	WIN32
-			errno = WSAGetLastError();
-			if ((errno != WSAEADDRINUSE) && (errno != WSAEADDRNOTAVAIL))
-#else
-			if ((errno != EADDRINUSE) && (errno != EADDRNOTAVAIL))
-#endif	/* WIN32 */
-				break;
-		}
-		if (privfd == -1) {
-			log_err(errno, __func__, "no privileged ports");
-#ifdef	WIN32
-			g_dwCurrentState = SERVICE_STOPPED;
-			ss.dwCurrentState = g_dwCurrentState;
-			ss.dwWin32ExitCode = ERROR_NETWORK_BUSY;
-			if (g_ssHandle != 0) SetServiceStatus(g_ssHandle, &ss);
-#endif	/* WIN32 */
-			return (1);
-		}
+	if (rc == -1) {
+		(void) sprintf(log_buffer, "Error setting TPP config");
+		log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
+							LOG_ERR,msg_daemonname, log_buffer);
+		fprintf(stderr, "%s", log_buffer);
+		return (3);
+	}
+
+	tpp_set_app_net_handler(net_down_handler, net_restore_handler);
+
+	if ((tppfd = tpp_init(&tpp_conf)) == -1) {
+		(void) sprintf(log_buffer, "tpp_init failed");
+		log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
+			LOG_ERR, msg_daemonname, log_buffer);
+		fprintf(stderr, "%s", log_buffer);
+		return (3);
 	}
 
 	servername = get_servername(&serverport);
@@ -9457,7 +9297,8 @@ main(int argc, char *argv[])
 	}
 
 #ifndef	WIN32
-	mom_nice();
+	if (!mock_run)
+		mom_nice();
 #endif
 	/*
 	 * Recover the hooks.
@@ -9578,9 +9419,7 @@ main(int argc, char *argv[])
 #ifndef	WIN32
 	initialize();		/* init RM code */
 #endif
-	(void)add_conn(rppfd, RppComm, (pbs_net_t)0, 0, NULL, rpp_request);
-	if (pbs_conf.pbs_use_tcp == 0)
-		(void)add_conn(privfd, RppComm, (pbs_net_t)0, 0, NULL, rpp_request);
+	(void)add_conn(tppfd, TppComm, (pbs_net_t)0, 0, NULL, tpp_request);
 
 	/* initialize machine dependent polling routines */
 	if ((c = mom_open_poll()) != PBSE_NONE) {
@@ -9684,15 +9523,6 @@ main(int argc, char *argv[])
 		PBS_MOM_SERVICE_NAME, mom_host, &hook_input,
 		NULL,  NULL, 0, 0);
 
-
-#if	MOM_CPUSET
-#if	(CPUSET_VERSION >= 4)
-	cpusets_initialize(recover);
-#else
-	cpusets_initialize();
-#endif	/* CPUSET_VERSION >= 4 */
-#endif	/* MOM_CPUSET */
-
 	/* record the fact that we are up and running */
 	(void)sprintf(log_buffer, msg_startup1, PBS_VERSION, recover);
 	log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN | PBSEVENT_FORCE,
@@ -9709,16 +9539,7 @@ main(int argc, char *argv[])
 	g_dwCurrentState = SERVICE_RUNNING;
 	ss.dwCurrentState = g_dwCurrentState;
 	if (g_ssHandle != 0) SetServiceStatus(g_ssHandle, &ss);
-#endif	/* WIN32 */
 
-	/*
-	 * TPP mode: don't send a restart at startup
-	 * we will send one when we connect to router
-	 */
-	if (pbs_conf.pbs_use_tcp == 0)
-		send_restart();
-
-#ifdef	WIN32
 	/* put here to minimize chance of hanging up or delaying mom startup */
 	initialize();
 #endif	/* WIN32 */
@@ -9869,7 +9690,7 @@ main(int argc, char *argv[])
 			 * no harm anyway.
 			 */
 			(void)kill_job(pjob, SIGKILL);
-			job_purge(pjob);
+			job_purge_mom(pjob);
 			++i;
 		}
 		if (i > 0)
@@ -9947,28 +9768,6 @@ main(int argc, char *argv[])
 		if ((pjob = (job *)GET_NEXT(svr_alljobs)) == NULL)
 			continue;
 
-		if (pbs_conf.pbs_use_tcp == 0)
-			(void)rpp_io(); /* drive io for RPP */
-#if 0
-		while (pjob != NULL) {
-			job	*njob = (job *)GET_NEXT(pjob->ji_alljobs);
-
-			/* see if MS polling has stopped */
-			DBPRT(("%s: polltime %ld\n", pjob->ji_qs.ji_jobid,
-				pjob->ji_polltime))
-			if (pjob->ji_polltime != 0 &&
-				time_now >= (pjob->ji_polltime +
-				MAX_CHECK_POLL_TIME + 20)) {
-				log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_JOB,
-					LOG_INFO, pjob->ji_qs.ji_jobid,
-					"polling stopped");
-				kill_job(pjob, SIGKILL);
-				mom_deljob(pjob);
-			}
-			pjob = njob;
-		}
-#endif	/* polling stopped check */
-
 		/* there are jobs so update status	 */
 		/* if we just got a sample, don't bother */
 		if (time_now > time_last_sample) {
@@ -9997,7 +9796,7 @@ main(int argc, char *argv[])
 					req_reject(PBSE_SISCOMM, 0, pjob->ji_preq);
 					pjob->ji_preq = NULL;
 				}
-				job_purge(pjob);
+				job_purge_mom(pjob);
 				dorestrict_user();
 				continue;
 			}
@@ -10014,9 +9813,6 @@ main(int argc, char *argv[])
 					continue;
 				}
 			}
-
-			if (pbs_conf.pbs_use_tcp == 0)
-				(void)rpp_io();
 
 			if (pjob->ji_qs.ji_substate != JOB_SUBSTATE_RUNNING)
 				continue;
@@ -10167,7 +9963,7 @@ main(int argc, char *argv[])
 							struct sockaddr_in *ap;
 							/* We always have a stream open to MS at node 0 */
 							i = pjob->ji_hosts[0].hn_stream;
-							if ((ap = rpp_getaddr(i)) == NULL) {
+							if ((ap = tpp_getaddr(i)) == NULL) {
 								log_joberr(-1, "over_limit_message",
 									"cannot write to job stderr because there is no stream to MS",
 									pjob->ji_qs.ji_jobid);
@@ -10222,12 +10018,12 @@ main(int argc, char *argv[])
 	(void)mom_close_poll();
 
 	net_close(-1);		/* close all network connections */
-	rpp_shutdown();
+	tpp_shutdown();
 
 	/* Have we any jobs that can be purged before we go away? */
 
 	while ((pjob = (job *)GET_NEXT(mom_deadjobs)) != NULL) {
-		job_purge(pjob);
+		job_purge_mom(pjob);
 	}
 
 	{
@@ -10236,7 +10032,7 @@ main(int argc, char *argv[])
 			/*had some problem closing the security library*/
 
 			sprintf(log_buffer, "problem closing security library (%d)", csret);
-			log_err(-1, "pbsd_main", log_buffer);
+			log_err(-1, __func__, log_buffer);
 		}
 	}
 
@@ -10843,7 +10639,7 @@ do_multinodebusy(job *pjob, int which)
 			im_compose(stream, pjob->ji_qs.ji_jobid,
 				pjob->ji_wattr[(int)JOB_ATR_Cookie].at_val.at_str,
 				IM_REQUEUE, TM_NULL_EVENT, TM_NULL_TASK, IM_OLD_PROTOCOL_VER);
-			rpp_flush(stream);
+			dis_flush(stream);
 		}
 	}
 }
@@ -10987,15 +10783,29 @@ mom_topology(void)
 
 		close(fd[0]);
 
-		if (hwloc_topology_init(&topology) == -1)
+		ret = hwloc_topology_init(&topology);
+		if (ret == 0)
+#if HWLOC_API_VERSION < 0x00020000
+			ret = hwloc_topology_set_flags(topology,
+					HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM |
+					HWLOC_TOPOLOGY_FLAG_IO_DEVICES);
+#else
+			ret = hwloc_topology_set_io_types_filter(topology,
+					HWLOC_TYPE_FILTER_KEEP_ALL);
+#endif
+		if (ret == 0)
+			ret = hwloc_topology_load(topology);
+		if (ret == 0)
+#if HWLOC_API_VERSION < 0x00020000
+			ret = hwloc_topology_export_xmlbuffer(topology,
+					&xmlbuf, &xmllen);
+#else
+			ret = hwloc_topology_export_xmlbuffer(topology,
+					&xmlbuf, &xmllen,
+					HWLOC_TOPOLOGY_EXPORT_XML_FLAG_V1);
+#endif
+		if (ret != 0)
 			ret = -1;
-		else if ((hwloc_topology_set_flags(topology,
-				HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM | HWLOC_TOPOLOGY_FLAG_IO_DEVICES)
-				== -1) || (hwloc_topology_load(topology) == -1)
-				|| (hwloc_topology_export_xmlbuffer(topology, &xmlbuf, &xmllen)
-						== -1)) {
-			ret = -1;
-		}
 
 		write(fd[1], &ret, (sizeof(ret)));
 		write(fd[1], &xmllen, (sizeof(xmllen)));

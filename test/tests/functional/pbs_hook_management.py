@@ -1,51 +1,50 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
+import datetime
 import os
-import time
 import socket
 import textwrap
-import datetime
+import time
+
 from tests.functional import *
-from tests.functional import MGR_CMD_SET
-from tests.functional import SERVER
-from tests.functional import ATTR_h
-from tests.functional import TEST_USER
-from tests.functional import Job
-from tests.functional import JOB
+from tests.functional import JOB, MGR_CMD_SET, SERVER, TEST_USER, ATTR_h, Job
 
 
 def get_hook_body(hook_msg):
@@ -146,7 +145,7 @@ class TestHookManagement(TestFunctional):
         hook_msg = 'running management hook_00'
         hook_body = get_hook_body(hook_msg)
         attrs = {'event': 'management', 'enabled': 'True'}
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name)
         ret = self.server.import_hook(hook_name, hook_body)
@@ -166,7 +165,7 @@ class TestHookManagement(TestFunctional):
         hook_msg = 'running management hook_01'
         hook_body = get_hook_body(hook_msg)
         attrs = {'event': 'management', 'enabled': 'True'}
-        start_time = int(time.time())
+        start_time = time.time()
         for hook_name in ['a1234', 'b1234', 'c1234']:
             self.logger.info("hook_name:%s" % hook_name)
             ret = self.server.create_hook(hook_name, attrs)
@@ -196,7 +195,7 @@ class TestHookManagement(TestFunctional):
         hook_msg_02 = 'running management hook_02 name:%s' % hook_name_02
         hook_body_02 = get_hook_body(hook_msg_02)
 
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name_00, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name_00)
         ret = self.server.create_hook(hook_name_01, attrs)
@@ -234,7 +233,7 @@ class TestHookManagement(TestFunctional):
         hook_msg = 'running management hook_str_00'
         hook_body = get_hook_body_str(hook_msg)
         attrs = {'event': 'management', 'enabled': 'True'}
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name)
         ret = self.server.import_hook(hook_name, hook_body)
@@ -265,7 +264,7 @@ class TestHookManagement(TestFunctional):
                       hook_name_02
         hook_body_02 = get_hook_body(hook_msg_02)
 
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name_00, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name_00)
         ret = self.server.create_hook(hook_name_01, attrs)
@@ -315,7 +314,7 @@ class TestHookManagement(TestFunctional):
                       hook_name_02
         hook_body_02 = get_hook_body(hook_msg_02)
 
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name_00, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name_00)
         ret = self.server.create_hook(hook_name_01, attrs)
@@ -380,7 +379,7 @@ class TestHookManagement(TestFunctional):
                       hook_name_02
         hook_body_02 = get_hook_body(hook_msg_02)
 
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name_00, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name_00)
         ret = self.server.create_hook(hook_name_01, attrs)
@@ -442,7 +441,7 @@ class TestHookManagement(TestFunctional):
 
         self.server.manager(MGR_CMD_SET, SERVER, {'log_events': 2047})
 
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name_00, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name_00)
 
@@ -480,7 +479,7 @@ class TestHookManagement(TestFunctional):
 
         self.server.manager(MGR_CMD_SET, SERVER, {'log_events': 2047})
 
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name_00, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name_00)
 
@@ -519,7 +518,7 @@ class TestHookManagement(TestFunctional):
 
         self.server.manager(MGR_CMD_SET, SERVER, {'log_events': 2047})
 
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name_00, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name_00)
 
@@ -592,7 +591,7 @@ class TestHookManagement(TestFunctional):
 
         self.server.manager(MGR_CMD_SET, SERVER, {'log_events': 2047})
 
-        start_time = int(time.time())
+        start_time = time.time()
         ret = self.server.create_hook(hook_name_00, attrs)
         self.assertEqual(ret, True, "Could not create hook %s" % hook_name_00)
 

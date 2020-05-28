@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /*
  * @file	req_rescq.c
  *
@@ -96,9 +98,9 @@ extern int cnvrt_local_move(job *, struct batch_request *);
 
 /**
  * @brief work task to delete reservation if there are no jobs in the reservation queue
- * 
+ *
  * @param[in] ptask - work task
- * 
+ *
  */
 void
 resv_idle_delete(struct work_task *ptask)
@@ -113,12 +115,12 @@ resv_idle_delete(struct work_task *ptask)
 
 	num_jobs = presv->ri_qp->qu_numjobs;
 	if (svr_chk_history_conf()) {
-		num_jobs -= (presv->ri_qp->qu_njstate[JOB_STATE_MOVED] + presv->ri_qp->qu_njstate[JOB_STATE_FINISHED] + 
+		num_jobs -= (presv->ri_qp->qu_njstate[JOB_STATE_MOVED] + presv->ri_qp->qu_njstate[JOB_STATE_FINISHED] +
 			presv->ri_qp->qu_njstate[JOB_STATE_EXPIRED]);
 	}
 
 	if (num_jobs == 0) {
-		log_eventf(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_DEBUG, presv->ri_qs.ri_resvID, 
+		log_eventf(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_DEBUG, presv->ri_qs.ri_resvID,
 			"Deleting reservation after being idle for %d seconds",
 			presv->ri_wattr[(int) RESV_ATR_del_idle_time].at_val.at_long);
 		gen_future_deleteResv(presv, 1);
@@ -137,7 +139,7 @@ set_idle_delete_task(resc_resv *presv)
 	long retry_time;
 	int num_jobs;
 
-	if (presv == NULL) 
+	if (presv == NULL)
 		return;
 
 	if (!(presv->ri_wattr[(int) RESV_ATR_del_idle_time].at_flags & ATR_VFLAG_SET))
@@ -301,7 +303,7 @@ remove_node_from_resv(resc_resv *presv, struct pbsnode *pnode)
 
 				resv_attr_def[(int)RESV_ATR_resv_nodes].at_free(&tmpatr);
 
-				/* Note: We do not want to set presv->ri_giveback to 0 here. 
+				/* Note: We do not want to set presv->ri_giveback to 0 here.
 				 * The resv_nodes may not be empty yet and there could
 				 * be server resources assigned - it will be handled later.
 				 */
@@ -354,7 +356,7 @@ remove_node_from_resv(resc_resv *presv, struct pbsnode *pnode)
 			break;
 		}
 	}
-	
+
 	free(tmp_buf);
 }
 
@@ -557,11 +559,9 @@ req_confirmresv(struct batch_request *preq)
 	is_being_altered = presv->ri_alter_flags;
 	is_confirmed = (presv->ri_qs.ri_substate == RESV_CONFIRMED) ? 1 : 0;
 
-	/* Check if preq is coming from scheduler */
-	/* Increment reply count if reservation is not already confirmed*/
-	if (!is_confirmed && !is_degraded && !is_being_altered)
-		presv->rep_sched_count++;
+	presv->rep_sched_count++;
 
+	/* Check if preq is coming from scheduler */
 	if (preq->rq_extend == NULL) {
 		req_reject(PBSE_resvFail, 0, preq);
 		return;
@@ -586,7 +586,7 @@ req_confirmresv(struct batch_request *preq)
 				log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_RESV, LOG_NOTICE, presv->ri_qs.ri_resvID, log_buffer);
 			}
 		} else {
-			if (presv->rep_sched_count >= presv->req_sched_count && !is_confirmed) {
+			if ((presv->rep_sched_count >= presv->req_sched_count) && !is_confirmed) {
 				/* Clients waiting on an interactive request must be
 				* notified of the failure to confirm
 				*/
@@ -1001,6 +1001,23 @@ resv_revert_alter_times(resc_resv *presv)
 		|= ATR_VFLAG_SET | ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
 		presv->ri_alter_etime = 0;
 	}
+	if (presv->ri_alter_flags & RESV_DURATION_MODIFIED) {
+		if (presv->ri_alter_etime != 0) {
+			presv->ri_qs.ri_etime = presv->ri_alter_etime;
+			presv->ri_wattr[RESV_ATR_end].at_val.at_long = presv->ri_alter_etime;
+			presv->ri_wattr[RESV_ATR_end].at_flags
+			|= ATR_VFLAG_SET | ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
+			presv->ri_alter_etime = 0;
+		}
+		if (presv->ri_alter_stime != 0) {
+			presv->ri_qs.ri_stime = presv->ri_alter_stime;
+			presv->ri_wattr[RESV_ATR_start].at_val.at_long = presv->ri_alter_stime;
+			presv->ri_wattr[RESV_ATR_start].at_flags
+			|= ATR_VFLAG_SET | ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
+			presv->ri_alter_stime = 0;
+		}
+	}
+
 	presv->ri_qs.ri_duration = presv->ri_qs.ri_etime - presv->ri_qs.ri_stime;
 	presv->ri_wattr[RESV_ATR_duration].at_val.at_long = presv->ri_qs.ri_duration;
 	presv->ri_wattr[RESV_ATR_duration].at_flags
@@ -1010,4 +1027,3 @@ resv_revert_alter_times(resc_resv *presv)
 	/* While requesting alter, substate was retained, so we use the same here. */
 	(void)resv_setResvState(presv, state, presv->ri_qs.ri_substate);
 }
-

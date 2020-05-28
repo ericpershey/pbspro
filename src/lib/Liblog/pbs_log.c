@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file	pbs_log.c
  * @brief
@@ -73,10 +75,11 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stddef.h>
+#include <stdarg.h>
 
 #include "log.h"
 #include "pbs_ifl.h"
-#include "pbs_internal.h"
+#include "libutil.h"
 #include "pbs_version.h"
 #if SYSLOG
 #include <syslog.h>
@@ -130,6 +133,34 @@ static char *class_names[] = {
 	"TPP"
 };
 
+static char pbs_leaf_name[PBS_MAXHOSTNAME + 1] = "N/A";
+static char pbs_mom_node_name[PBS_MAXHOSTNAME + 1] = "N/A";
+static unsigned int locallog = 0;
+static unsigned int syslogfac = 0;
+static unsigned int syslogsvr = 3;
+static unsigned int pbs_log_highres_timestamp = 0;
+
+void
+set_log_conf(char *leafname, char *nodename,
+		unsigned int islocallog, unsigned int sl_fac, unsigned int sl_svr,
+		unsigned int log_highres)
+{
+	if (leafname) {
+		strncpy(pbs_leaf_name, leafname, PBS_MAXHOSTNAME);
+		pbs_leaf_name[PBS_MAXHOSTNAME] = '\0';
+	}
+
+	if (nodename) {
+		strncpy(pbs_mom_node_name, nodename, PBS_MAXHOSTNAME);
+		pbs_mom_node_name[PBS_MAXHOSTNAME] = '\0';
+	}
+
+	locallog = islocallog;
+	syslogfac = sl_fac;
+	syslogsvr = sl_svr;
+	pbs_log_highres_timestamp = log_highres;
+}
+
 #ifdef WIN32
 /**
  * @brief
@@ -177,7 +208,7 @@ gettimeofday(struct timeval *tp, struct timezone *tzp)
  * @retval 0 - success
  */
 
-int 
+int
 set_msgdaemonname(char *ch)
 {
 	if(!(msg_daemonname = strdup(ch))) {
@@ -193,7 +224,7 @@ set_msgdaemonname(char *ch)
  * @return void
  */
 
-void 
+void
 set_logfile(FILE *fp)
 {
 	log_opened = 1;
@@ -280,7 +311,7 @@ log_mutex_lock()
 
 	if (pthread_mutex_lock(&log_mutex) != 0)
 		return -1;
-	
+
 	/* use &log_lock for non-null value */
 	log_lock = &log_lock;
 	pthread_setspecific(pbs_log_tls_key, log_lock);
@@ -308,13 +339,13 @@ log_mutex_unlock()
 	void *log_lock;
 	if ((log_lock = pthread_getspecific(pbs_log_tls_key)) == NULL)
 		return -1;
-	
+
 	if (pthread_mutex_unlock(&log_mutex) != 0)
 		return -1;
 
 	log_lock = NULL;
 	pthread_setspecific(pbs_log_tls_key, log_lock);
-	
+
 	return 0;
 }
 
@@ -402,8 +433,6 @@ log_add_debug_info()
 	char dest[LOG_BUF_SIZE] = {'\0'};
 	char temp[PBS_MAXHOSTNAME + 1] = {'\0'};
 	char host[PBS_MAXHOSTNAME + 1] = "N/A";
-	char leaf[PBS_MAXHOSTNAME + 1] = "N/A";
-	char node[PBS_MAXHOSTNAME + 1] = "N/A";
 
 	/* Set hostname */
 	if (!gethostname(temp, (sizeof(temp) - 1))) {
@@ -412,19 +441,35 @@ log_add_debug_info()
 			/* Overwrite if full hostname is available */
 			snprintf(host, sizeof(host), "%s", temp);
 	}
-	/* Set leaf node name */
-	if (pbs_conf.pbs_leaf_name)
-		snprintf(leaf, sizeof(leaf), "%s", pbs_conf.pbs_leaf_name);
-	/* Set mom node name */
-	if (pbs_conf.pbs_mom_node_name)
-		snprintf(node, sizeof(node), "%s", pbs_conf.pbs_mom_node_name);
 	/* Record to log */
 	snprintf(dest, sizeof(dest),
 		"hostname=%s;pbs_leaf_name=%s;pbs_mom_node_name=%s",
-		host, leaf, node);
+		host, pbs_leaf_name, pbs_mom_node_name);
 	log_record(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_INFO,
 		msg_daemonname, dest);
 	return;
+}
+
+/**
+ * @brief
+ *	Add supported authentication method to log
+ *
+ * @param[in]	supported_auth_methods - An array of supported authentication method
+ *
+ * @return void
+ *
+ */
+void
+log_supported_auth_methods(char **supported_auth_methods)
+{
+	if (supported_auth_methods) {
+		int i = 0;
+		while (supported_auth_methods[i]) {
+			log_eventf(PBSEVENT_FORCE, PBS_EVENTCLASS_SERVER, LOG_INFO, msg_daemonname,
+					"Supported authentication method: %s", supported_auth_methods[i]);
+			i++;
+		}
+	}
 }
 
 /**
@@ -539,7 +584,7 @@ log_open_main(char *filename, char *directory, int silent)
 	if (log_opened > 0)
 		return (-1);	/* already open */
 
-	if (pbs_conf.locallog != 0 || pbs_conf.syslogfac == 0) {
+	if (locallog != 0 || syslogfac == 0) {
 
 		/* open PBS local logging */
 
@@ -608,12 +653,12 @@ log_open_main(char *filename, char *directory, int silent)
 		}
 	}
 #if SYSLOG
-	if (syslogopen == 0 && pbs_conf.syslogfac > 0 && pbs_conf.syslogfac < 10) {
+	if (syslogopen == 0 && syslogfac > 0 && syslogfac < 10) {
 		/*
 		 * We do not assume that the log facilities are defined sequentially.
 		 * That is why we reference them each by name.
 		 */
-		switch (pbs_conf.syslogfac) {
+		switch (syslogfac) {
 			case 2:
 				syslogopen = LOG_LOCAL0;
 				break;
@@ -645,10 +690,10 @@ log_open_main(char *filename, char *directory, int silent)
 		}
 		openlog(msg_daemonname, LOG_NOWAIT, syslogopen);
 		DBPRT(("Syslog enabled, facility = %d\n", syslogopen))
-		if (pbs_conf.syslogsvr != 0) {
+		if (syslogsvr != 0) {
 			/* set min priority of what gets logged via syslog */
-			setlogmask(LOG_UPTO(pbs_conf.syslogsvr));
-			DBPRT(("Syslog mask set to 0x%x\n", pbs_conf.syslogsvr))
+			setlogmask(LOG_UPTO(syslogsvr));
+			DBPRT(("Syslog mask set to 0x%x\n", syslogsvr))
 		}
 	}
 #endif
@@ -680,9 +725,10 @@ log_err(int errnum, const char *routine, const char *text)
 
 #ifdef WIN32
 		LPVOID	lpMsgBuf;
-		int	err = GetLastError();
+		DWORD	err = GetLastError();
 		int		len;
 
+		snprintf(buf, LOG_BUF_SIZE, "Err(%lu): ", err);
 		FormatMessage(
 			FORMAT_MESSAGE_ALLOCATE_BUFFER |
 			FORMAT_MESSAGE_FROM_SYSTEM |
@@ -690,7 +736,7 @@ log_err(int errnum, const char *routine, const char *text)
 			NULL, err,
 			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 			(LPTSTR)&lpMsgBuf, 0, NULL);
-		strncpy(buf, lpMsgBuf, sizeof(buf));
+		strncat(buf, lpMsgBuf, LOG_BUF_SIZE - (int)strlen(buf) - 1);
 		LocalFree(lpMsgBuf);
 		buf[sizeof(buf)-1] = '\0';
 		len = strlen(buf);
@@ -726,6 +772,48 @@ log_err(int errnum, const char *routine, const char *text)
 
 /**
  * @brief
+ * 	log_errf - a combination of log_err() and printf()
+ *	The error is recorded to the pbs log file and to syslogd if it is
+ *	available.  If the error file has not been opened and if syslog is
+ *	not defined, then the console is opened.
+ *
+ * @param[in] errnum - error number
+ * @param[in] routine - error in which routine
+ * @param[in] fmt - format string
+ * @param[in] ... - arguments to format string * 
+ *
+ */
+
+void
+log_errf(int errnum, const char *routine, const char *fmt, ...)
+{
+	va_list args;
+	int len;
+	char logbuf[LOG_BUF_SIZE];
+	char *buf;
+
+	va_start(args, fmt);
+
+	len = vsnprintf(logbuf, sizeof(logbuf), fmt, args);
+
+	if (len >= sizeof(logbuf)) {
+		buf = pbs_asprintf_format(len, fmt, args);
+		if (buf == NULL) {
+			va_end(args);
+			return;
+		}
+	} else
+		buf = logbuf;
+
+	log_err(errnum, routine, buf);
+
+	if (len >= sizeof(logbuf))
+		free(buf);
+	va_end(args);
+}
+
+/**
+ * @brief
  * 	log_joberr- log an internal, job-related error
  *	The error is recorded to the pbs log file and to syslogd if it is
  *	available.  If the error file has not been opened and if syslog is
@@ -751,9 +839,9 @@ log_joberr(int errnum, const char *routine, const char *text, const char *pjid)
 
 #ifdef WIN32
 		LPVOID	lpMsgBuf;
-		int	err = GetLastError();
+		DWORD	err = GetLastError();
 		int		len;
-
+		snprintf(buf, LOG_BUF_SIZE, "Err(%lu): ", err);
 		FormatMessage(
 			FORMAT_MESSAGE_ALLOCATE_BUFFER |
 			FORMAT_MESSAGE_FROM_SYSTEM |
@@ -761,7 +849,7 @@ log_joberr(int errnum, const char *routine, const char *text, const char *pjid)
 			NULL, err,
 			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 			(LPTSTR)&lpMsgBuf, 0, NULL);
-		strncpy(buf, lpMsgBuf, sizeof(buf));
+		strncat(buf, lpMsgBuf, LOG_BUF_SIZE - (int)strlen(buf) - 1);
 		LocalFree(lpMsgBuf);
 		buf[sizeof(buf)-1] = '\0';
 		len = strlen(buf);
@@ -889,7 +977,7 @@ log_record(int eventtype, int objclass, int sev, const char *objname, const char
 	if (gettimeofday(&tp, NULL) != -1) {
 		now = tp.tv_sec;
 
-		if (pbs_conf.pbs_log_highres_timestamp)
+		if (pbs_log_highres_timestamp)
 			snprintf(microsec_buf, sizeof(microsec_buf), ".%06ld", (long)tp.tv_usec);
 	}
 
@@ -920,7 +1008,7 @@ log_record(int eventtype, int objclass, int sev, const char *objname, const char
 		goto sigunblock;
 	}
 
-	if (pbs_conf.locallog != 0 || pbs_conf.syslogfac == 0) {
+	if (locallog != 0 || syslogfac == 0) {
 		rc = fprintf(logfile,
 			     "%02d/%02d/%04d %02d:%02d:%02d%s;%04x;%s;%s;%s;%s\n",
 			     ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_year + 1900,

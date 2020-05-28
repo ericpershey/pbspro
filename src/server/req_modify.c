@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file    req_modify.c
  *
@@ -111,7 +113,7 @@ post_modify_req(struct work_task *pwt)
 {
 	struct batch_request *preq;
 
-	if (pwt->wt_aux2 != 1) /* not rpp */
+	if (pwt->wt_aux2 != PROT_TPP)
 		svr_disconnect(pwt->wt_event);  /* close connection to MOM */
 	preq = pwt->wt_parm1;
 	preq->rq_conn = preq->rq_orgconn;  /* restore socket to client */
@@ -741,6 +743,7 @@ req_modifyReservation(struct batch_request *preq)
 	extern char	*msg_stdg_resv_occr_conflict;
 	resc_resv	*presv;
 	int num_jobs;
+	long new_end_time = 0;
 
 	if (preq == NULL)
 		return;
@@ -785,6 +788,8 @@ req_modifyReservation(struct batch_request *preq)
 	resc_access_perm_save = resc_access_perm;
 	psatl = (svrattrl *)GET_NEXT(preq->rq_ind.rq_modify.rq_attr);
 	presv->ri_alter_flags = 0;
+	presv->ri_alter_state = presv->ri_wattr[RESV_ATR_state].at_val.at_long;
+
 	while (psatl) {
 		long temp = 0;
 		char *end = NULL;
@@ -820,13 +825,13 @@ req_modifyReservation(struct batch_request *preq)
 			case RESV_ATR_start:
 				if ((presv->ri_wattr[RESV_ATR_state].at_val.at_long != RESV_RUNNING) || !num_jobs) {
 					temp = strtol(psatl->al_value, &end, 10);
-					if ((temp > time(NULL)) &&
-						(temp != presv->ri_wattr[RESV_ATR_start].at_val.at_long)) {
+					if (temp > time(NULL)) {
 						if (!is_standing || (temp < next_occr_start)) {
 							send_to_scheduler = RESV_START_TIME_MODIFIED;
 							presv->ri_alter_stime = presv->ri_wattr[RESV_ATR_start].at_val.at_long;
 							presv->ri_alter_flags |= RESV_START_TIME_MODIFIED;
 						} else {
+							resv_revert_alter_times(presv);
 							snprintf(log_buffer, sizeof(log_buffer), "%s", msg_stdg_resv_occr_conflict);
 							log_event(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_INFO,
 								preq->rq_ind.rq_modify.rq_objname, log_buffer);
@@ -834,34 +839,39 @@ req_modifyReservation(struct batch_request *preq)
 							return;
 						}
 					} else {
+						resv_revert_alter_times(presv);
 						req_reject(PBSE_BADTSPEC, 0, preq);
 						return;
 					}
 				} else {
+					resv_revert_alter_times(presv);
 					if (num_jobs)
 						req_reject(PBSE_RESV_NOT_EMPTY, 0, preq);
 					else
 						req_reject(PBSE_BADTSPEC, 0, preq);
 					return;
 				}
+
 				break;
 			case RESV_ATR_end:
 				temp = strtol(psatl->al_value, &end, 10);
-				if (temp == presv->ri_wattr[RESV_ATR_end].at_val.at_long) {
-					req_reject(PBSE_BADTSPEC, 0, preq);
-					return;
-				}
 				if (!is_standing || temp < next_occr_start) {
 					send_to_scheduler = RESV_END_TIME_MODIFIED;
 					presv->ri_alter_etime = presv->ri_wattr[RESV_ATR_end].at_val.at_long;
 					presv->ri_alter_flags |= RESV_END_TIME_MODIFIED;
 				} else {
+					resv_revert_alter_times(presv);
 					snprintf(log_buffer, sizeof(log_buffer), "%s", msg_stdg_resv_occr_conflict);
 					log_event(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_INFO,
 						preq->rq_ind.rq_modify.rq_objname, log_buffer);
 					req_reject(PBSE_STDG_RESV_OCCR_CONFLICT, 0, preq);
 					return;
 				}
+
+				break;
+			case RESV_ATR_duration:
+				send_to_scheduler = RESV_DURATION_MODIFIED;
+				presv->ri_alter_flags |= RESV_DURATION_MODIFIED;
 				break;
 			default:
 				break;
@@ -878,10 +888,45 @@ req_modifyReservation(struct batch_request *preq)
 
 		psatl = (svrattrl *)GET_NEXT(psatl->al_link);
 	}
+
+
+	if (presv->ri_wattr[RESV_ATR_state].at_val.at_long == RESV_RUNNING && num_jobs) {
+		if ((presv->ri_alter_flags & RESV_DURATION_MODIFIED) && (presv->ri_alter_flags & RESV_END_TIME_MODIFIED)) {
+			resv_revert_alter_times(presv);
+			req_reject(PBSE_RESV_NOT_EMPTY, 0, preq);
+			return;
+		}
+	}
 	resc_access_perm = resc_access_perm_save; /* restore perm */
 
+	new_end_time = presv->ri_wattr[RESV_ATR_start].at_val.at_long + presv->ri_wattr[RESV_ATR_duration].at_val.at_long;
+
+	if ((presv->ri_alter_flags & RESV_DURATION_MODIFIED) && presv->ri_alter_etime == 0) {
+		if (!is_standing || new_end_time < next_occr_start) {
+			presv->ri_alter_etime = presv->ri_wattr[RESV_ATR_end].at_val.at_long;
+		} else {
+			log_event(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_INFO,
+				preq->rq_ind.rq_modify.rq_objname, msg_stdg_resv_occr_conflict);
+			req_reject(PBSE_STDG_RESV_OCCR_CONFLICT, 0, preq);
+			resv_revert_alter_times(presv);
+			return;
+		}
+	}
+
+	if ((presv->ri_alter_flags & RESV_DURATION_MODIFIED) && presv->ri_alter_stime == 0) {
+		if (!is_standing || new_end_time < next_occr_start) {
+			presv->ri_alter_stime = presv->ri_wattr[RESV_ATR_start].at_val.at_long;
+		} else {
+			log_event(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_INFO,
+				preq->rq_ind.rq_modify.rq_objname, msg_stdg_resv_occr_conflict);
+			req_reject(PBSE_STDG_RESV_OCCR_CONFLICT, 0, preq);
+			resv_revert_alter_times(presv);
+			return;
+		}
+	}
+
+
 	if (send_to_scheduler) {
-		presv->ri_alter_state = presv->ri_wattr[RESV_ATR_state].at_val.at_long;
 		resv_setResvState(presv, RESV_BEING_ALTERED, presv->ri_qs.ri_substate);
 		/*"start", "end","duration", and "wall"; derive and check */
 		if (start_end_dur_wall(presv, RESC_RESV_OBJECT)) {
@@ -931,11 +976,8 @@ req_modifyReservation(struct batch_request *preq)
 		}
 	}
 
-	if (send_to_scheduler) {
-		presv->rep_sched_count = 0;
-		presv->req_sched_count = 0;
+	if (send_to_scheduler)
 		notify_scheds_about_resv(SCH_SCHEDULE_RESV_RECONFIRM, presv);
-	}
 
 	(void)sprintf(log_buffer, "Attempting to modify reservation");
 	if (presv->ri_alter_flags & RESV_START_TIME_MODIFIED) {
@@ -1050,4 +1092,3 @@ modify_resv_attr(resc_resv *presv, svrattrl *plist, int perm, int *bad)
 
 	return (0);
 }
-

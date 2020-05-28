@@ -2,39 +2,41 @@
  * Copyright (C) 1994-2020 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 
 #ifndef WIN32
 #include <stdio.h>
@@ -46,9 +48,8 @@
 #include <pthread.h>
 #include <dlfcn.h>
 #include <grp.h>
-#include "auth.h"
+#include "libauth.h"
 #include "pbs_ifl.h"
-#include "log.h"
 
 static pthread_once_t munge_init_once = PTHREAD_ONCE_INIT;
 
@@ -71,8 +72,8 @@ static void (*logger)(int type, int objclass, int severity, const char *objname,
 #define MUNGE_LOG_DBG(m) __MUNGE_LOGGER(PBSEVENT_DEBUG|PBSEVENT_FORCE, PBS_EVENTCLASS_SERVER, LOG_DEBUG, m)
 
 static void init_munge(void);
-static char * munge_get_auth_data();
-static int munge_validate_auth_data(void *auth_data);
+static char *munge_get_auth_data(char *, size_t);
+static int munge_validate_auth_data(void *, char *, size_t);
 
 /**
  * @brief
@@ -140,13 +141,16 @@ err:
  * @brief
  *	munge_get_auth_data - Call Munge encode API's to get the authentication data for the current user
  *
+ * @param[in] ebuf - buffer to hold error msg if any
+ * @param[in] ebufsz - size of ebuf
+ *
  * @return char *
  * @retval !NULL - success
  * @retval  NULL - failure
  *
  */
 static char *
-munge_get_auth_data(void)
+munge_get_auth_data(char *ebuf, size_t ebufsz)
 {
 	char *cred = NULL;
 	uid_t myrealuid;
@@ -154,12 +158,21 @@ munge_get_auth_data(void)
 	struct group *grp;
 	char payload[PBS_MAXUSER + PBS_MAXGRPN + 1] = { '\0' };
 	int munge_err = 0;
-	char ebuf[LOG_BUF_SIZE];
+
+	/*
+	 * ebuf passed to this function is initialized with nulls all through
+	 * and ebufsz value passed is sizeof(ebuf) - 1
+	 * So, we don't need to null terminate the last byte in the below
+	 * all snprintf
+	 *
+	 * see pbs_auth_process_handshake_data()
+	 */
 
 	if (munge_dlhandle == NULL) {
 		pthread_once(&munge_init_once, init_munge);
 		if (munge_encode == NULL) {
-			MUNGE_LOG_ERR("Munge lib not loaded");
+			snprintf(ebuf, ebufsz, "Failed to load munge lib");
+			MUNGE_LOG_ERR(ebuf);
 			goto err;
 		}
 	}
@@ -167,14 +180,14 @@ munge_get_auth_data(void)
 	myrealuid = getuid();
 	pwent = getpwuid(myrealuid);
 	if (pwent == NULL) {
-		snprintf(ebuf, sizeof(ebuf) - 1, "Failed to obtain user-info for uid = %d", myrealuid);
+		snprintf(ebuf, ebufsz, "Failed to obtain user-info for uid = %d", myrealuid);
 		MUNGE_LOG_ERR(ebuf);
 		goto err;
 	}
 
 	grp = getgrgid(pwent->pw_gid);
 	if (grp == NULL) {
-		snprintf(ebuf, sizeof(ebuf) - 1, "Failed to obtain group-info for gid=%d", pwent->pw_gid);
+		snprintf(ebuf, ebufsz, "Failed to obtain group-info for gid=%d", pwent->pw_gid);
 		MUNGE_LOG_ERR(ebuf);
 		goto err;
 	}
@@ -183,7 +196,7 @@ munge_get_auth_data(void)
 
 	munge_err = munge_encode(&cred, NULL, payload, strlen(payload));
 	if (munge_err != 0) {
-		snprintf(ebuf, sizeof(ebuf) - 1, "MUNGE user-authentication on encode failed with `%s`", munge_strerror(munge_err));
+		snprintf(ebuf, ebufsz, "MUNGE user-authentication on encode failed with `%s`", munge_strerror(munge_err));
 		MUNGE_LOG_ERR(ebuf);
 		goto err;
 	}
@@ -200,6 +213,8 @@ err:
  *	munge_validate_auth_data - validate given munge authentication data
  *
  * @param[in] auth_data - auth data to be verified
+ * @param[in] ebuf - buffer to hold error msg if any
+ * @param[in] ebufsz - size of ebuf
  *
  * @return int
  * @retval 0 - Success
@@ -207,7 +222,7 @@ err:
  *
  */
 static int
-munge_validate_auth_data(void *auth_data)
+munge_validate_auth_data(void *auth_data, char *ebuf, size_t ebufsz)
 {
 	uid_t uid;
 	gid_t gid;
@@ -218,31 +233,40 @@ munge_validate_auth_data(void *auth_data)
 	int munge_err = 0;
 	char *p;
 	int rc = -1;
-	char ebuf[LOG_BUF_SIZE];
+
+	/*
+	 * ebuf passed to this function is initialized with nulls all through
+	 * and ebufsz value passed is sizeof(ebuf) - 1
+	 * So, we don't need to null terminate the last byte in the below
+	 * all snprintf
+	 *
+	 * see pbs_auth_process_handshake_data()
+	 */
 
 	if (munge_dlhandle == NULL) {
 		pthread_once(&munge_init_once, init_munge);
 		if (munge_decode == NULL) {
-			MUNGE_LOG_ERR("Munge lib not loaded");
+			snprintf(ebuf, ebufsz, "Failed to load munge lib");
+			MUNGE_LOG_ERR(ebuf);
 			goto err;
 		}
 	}
 
 	munge_err = munge_decode(auth_data, NULL, &recv_payload, &recv_len, &uid, &gid);
 	if (munge_err != 0) {
-		snprintf(ebuf, sizeof(ebuf) - 1, "MUNGE user-authentication on decode failed with `%s`", munge_strerror(munge_err));
+		snprintf(ebuf, ebufsz, "MUNGE user-authentication on decode failed with `%s`", munge_strerror(munge_err));
 		MUNGE_LOG_ERR(ebuf);
 		goto err;
 	}
 
 	if ((pwent = getpwuid(uid)) == NULL) {
-		snprintf(ebuf, sizeof(ebuf) - 1, "Failed to obtain user-info for uid = %d", uid);
+		snprintf(ebuf, ebufsz, "Failed to obtain user-info for uid = %d", uid);
 		MUNGE_LOG_ERR(ebuf);
 		goto err;
 	}
 
 	if ((grp = getgrgid(pwent->pw_gid)) == NULL) {
-		snprintf(ebuf, sizeof(ebuf) - 1, "Failed to obtain group-info for gid=%d", gid);
+		snprintf(ebuf, ebufsz, "Failed to obtain group-info for gid=%d", gid);
 		MUNGE_LOG_ERR(ebuf);
 		goto err;
 	}
@@ -251,8 +275,10 @@ munge_validate_auth_data(void *auth_data)
 
 	if (p && (strncmp(pwent->pw_name, p, PBS_MAXUSER) == 0)) /* inline with current pbs_iff we compare with username only */
 		rc = 0;
-	else
-		MUNGE_LOG_ERR("User credentials do not match");
+	else {
+		snprintf(ebuf, ebufsz, "User credentials do not match");
+		MUNGE_LOG_ERR(ebuf);
+	}
 
 err:
 	if (recv_payload)
@@ -356,6 +382,7 @@ int
 pbs_auth_process_handshake_data(void *ctx, void *data_in, size_t len_in, void **data_out, size_t *len_out, int *is_handshake_done)
 {
 	int rc = -1;
+	char ebuf[LOG_BUF_SIZE] = {'\0'};
 
 	*len_out = 0;
 	*data_out = NULL;
@@ -364,24 +391,35 @@ pbs_auth_process_handshake_data(void *ctx, void *data_in, size_t len_in, void **
 	pthread_once(&munge_init_once, init_munge);
 
 	if (munge_dlhandle == NULL) {
+		*data_out = strdup("Munge lib is not loaded");
+		if (*data_out != NULL)
+			*len_out = strlen(*data_out);
 		return 1;
 	}
 
 	if (len_in > 0) {
 		char *data = (char *)data_in;
 		/* enforce null char at given length of data */
-		data[len_in] = '\0';
-		rc = munge_validate_auth_data(data);
+		data[len_in - 1] = '\0';
+		rc = munge_validate_auth_data(data, ebuf, sizeof(ebuf) - 1);
 		if (rc == 0) {
 			*is_handshake_done = 1;
 			return 0;
+		} else if (ebuf[0] != '\0') {
+			*data_out = strdup(ebuf);
+			if (*data_out != NULL)
+				*len_out = strlen(ebuf);
 		}
 	} else {
-		*data_out = (void *)munge_get_auth_data();
+		*data_out = (void *)munge_get_auth_data(ebuf, sizeof(ebuf) - 1);
 		if (*data_out) {
-			*len_out = strlen((char *)*data_out);
+			*len_out = strlen((char *)*data_out) + 1; /* +1 to include null char also in data_out */
 			*is_handshake_done = 1;
 			return 0;
+		} else if (ebuf[0] != '\0') {
+			*data_out = strdup(ebuf);
+			if (*data_out != NULL)
+				*len_out = strlen(ebuf);
 		}
 	}
 

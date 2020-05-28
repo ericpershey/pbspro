@@ -1,42 +1,45 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2020 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
+import re
 
 from tests.functional import *
-import re
 
 
 class Test_user_reliability(TestFunctional):
@@ -44,6 +47,7 @@ class Test_user_reliability(TestFunctional):
     """
     This test suite is for testing the user reliability workflow feature.
     """
+
     def test_create_resv_from_job_using_runjob_hook(self):
         """
         This test is for creating a reservation out of a job using runjob hook.
@@ -109,10 +113,15 @@ j.create_resv_from_job=1
             s_nodect_before = '0'
             s_ncpus_before = '0'
 
-        a = {ATTR_W: 'create_resv_from_job=1'}
+        now = time.time()
+
+        a = {ATTR_W: 'create_resv_from_job=True'}
         job = Job(TEST_USER, a)
         jid = self.server.submit(job)
         self.server.expect(JOB, {ATTR_state: 'R'}, jid)
+
+        self.server.log_match("Reject reply code=15095", starttime=now,
+                              interval=2, max_attempts=10, existence=False)
 
         a = {ATTR_job: jid}
         rid = self.server.status(RESV, a)[0]['id'].split(".")[0]
@@ -132,6 +141,12 @@ j.create_resv_from_job=1
 
         self.assertEqual(s_ncpus_before, s_ncpus_after)
         self.assertEqual(s_nodect_before, s_nodect_after)
+
+        a = {ATTR_W: 'create_resv_from_job=False'}
+        job = Job(TEST_USER, a)
+        jid = self.server.submit(job)
+        self.server.expect(JOB, {ATTR_state: 'R'}, jid)
+        self.assertFalse(self.server.status(RESV))
 
     def test_create_resv_from_job_using_rsub(self):
         """
@@ -179,12 +194,11 @@ j.create_resv_from_job=1
         This test confirms that a reservation cannot be created out of an
         array job.
         """
+
         j = Job(TEST_USER)
         j.set_attributes({ATTR_J: '1-3'})
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'B'}, jid)
-        self.server.expect(JOB, {'job_state=R': 3}, count=True,
-                           id=jid, extend='t')
 
         subjobs = self.server.status(JOB, id=jid, extend='t')
         jids1 = subjobs[1]['id']
@@ -226,3 +240,28 @@ j.create_resv_from_job=1
             self.assertTrue(msg in e.msg[0])
         else:
             self.fail("Error message not as expected")
+
+    def test_flatuid_false(self):
+        """
+        This test confirms that a reservation can be created out of a job
+        even when flatuid is set to False.
+        """
+        self.server.manager(MGR_CMD_SET, SERVER, {'flatuid': False})
+        self.test_create_resv_from_job_using_qsub()
+
+    def test_set_attr_when_job_running(self):
+        """
+        This test confirms that create_resv_from_job is not allowed to be
+        altered when the job is already running.
+        """
+        j = Job(TEST_USER)
+        jid = self.server.submit(j)
+        self.server.expect(JOB, {'job_state': 'R'}, jid)
+
+        msg = "attribute allowed to be modified"
+        with self.assertRaises(PbsAlterError, msg=msg) as c:
+            self.server.alterjob(jid, {ATTR_W: 'create_resv_from_job=1'})
+
+        msg = "qalter: Cannot modify attribute while job running  "
+        msg += "create_resv_from_job"
+        self.assertIn(msg, c.exception.msg[0])
