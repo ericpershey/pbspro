@@ -4344,8 +4344,23 @@ int server_process_hooks(int rq_type, char *rq_user, char *rq_host, hook *phook,
 	/* let rc pass through */
 	if (rc == 0) {
 		hook_perf_stat_start(perf_label, "run_code", 0);
+		/*
+		FIXME: collect start of python code
+		send out walltime, cputime, the function call "pbs_python_run_code_in_namespace"
+		process id(pid) and write it out to a csv.
+		Somewhere you will need to create the csv with a header of
+		func, walltime, cputime, pid
+		see misc_utils.c:
+			p_stat->walltime = get_walltime();
+			p_stat->cputime = get_cputime();
+		*/
 		rc = pbs_python_run_code_in_namespace(&svr_interp_data, phook->script, 0);
+		/*
+		FIXME: collect end of python code
+		.. what if we don't get back here!
+		*/
 		hook_perf_stat_stop(perf_label, "run_code", 0);
+
 	}
 
 	if (fp_debug != NULL) {
