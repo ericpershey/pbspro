@@ -109,6 +109,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <assert.h>
+#include <time.h>
 
 #include <memory.h>
 #include <fcntl.h>
@@ -3925,9 +3926,33 @@ process_hooks(struct batch_request *preq, char *hook_msg, size_t msg_len,
 			num_run++;
 			continue;
 		}
+		perf_timing *perf_t = alloc_perf_timing(phook->hook_name);
+		get_perf_timing(perf_t , "start");
+		int line = __LINE__ + 2;
+
 		rc = server_process_hooks(preq->rq_type, preq->rq_user, preq->rq_host, phook,
 				hook_event, pjob, &req_ptr, hook_msg, msg_len, pyinter_func,
 				&num_run, &event_initialized);
+
+		get_perf_timing(perf_t, "end");
+		FILE *fd;
+		time_t now;
+ 		time(&now);
+  		struct tm *local = localtime(&now);
+  		int day = local->tm_mday;
+  		int month = local->tm_mon + 1;
+  		int year = local->tm_year + 1900;
+  		char csv_file[32];
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		if (ftell(fd) == 0) {
+			fprintf(fd, "func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%d,%f,%f,%f,%f,%u\n", perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+		free(perf_t);
+
 		if ((rc == 0) || (rc == -1))
 			return (rc);
 	}
@@ -4354,11 +4379,34 @@ int server_process_hooks(int rq_type, char *rq_user, char *rq_host, hook *phook,
 			p_stat->walltime = get_walltime();
 			p_stat->cputime = get_cputime();
 		*/
+		perf_timing *perf_t = alloc_perf_timing(phook->hook_name);
+		get_perf_timing(perf_t , "start");
+		int line = __LINE__ + 2;
+
 		rc = pbs_python_run_code_in_namespace(&svr_interp_data, phook->script, 0);
 		/*
 		FIXME: collect end of python code
 		.. what if we don't get back here!
 		*/
+		get_perf_timing(perf_t, "end");
+		FILE *fd;
+		time_t now;
+ 		time(&now);
+  		struct tm *local = localtime(&now);
+  		int day = local->tm_mday;
+  		int month = local->tm_mon + 1;
+  		int year = local->tm_year + 1900;
+  		char csv_file[32];
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		if (ftell(fd) == 0) {
+			fprintf(fd, "func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%d,%f,%f,%f,%f,%u\n", perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+		free(perf_t);
+
 		hook_perf_stat_stop(perf_label, "run_code", 0);
 
 	}
@@ -6939,10 +6987,33 @@ run_periodic_hook(struct work_task *ptask)
 		/* set vnodes and reservation list to hook input parameter */
 		req_ptr.vns_list = (pbs_list_head *)get_vnode_list();
 		req_ptr.resv_list = (pbs_list_head *)get_resv_list();
+		perf_timing *perf_t = alloc_perf_timing(phook->hook_name);
+		get_perf_timing(perf_t , "start");
+		int line = __LINE__ + 2;
 
 		ret = server_process_hooks(PBS_BATCH_HookPeriodic, NULL, NULL, phook,
 					HOOK_EVENT_PERIODIC, NULL, &req_ptr, hook_msg,
 					sizeof(hook_msg), pbs_python_set_interrupt, &num_run, &event_initialized);
+
+		get_perf_timing(perf_t, "end");
+		FILE *fd;
+		time_t now;
+ 		time(&now);
+  		struct tm *local = localtime(&now);
+  		int day = local->tm_mday;
+  		int month = local->tm_mon + 1;
+  		int year = local->tm_year + 1900;
+  		char csv_file[32];
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		if (ftell(fd) == 0) {
+			fprintf(fd, "func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%d,%f,%f,%f,%f,%u\n", perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+		free(perf_t);
+
 		if (ret == 0)
 			log_event(PBSE_HOOKERROR, PBS_EVENTCLASS_HOOK, LOG_ERR, __func__, hook_msg);
 
