@@ -6052,9 +6052,34 @@ execute_python_prov_script(hook  *phook,
 
 	/* let rc pass through */
 	hook_perf_stat_start(perf_label, HOOK_PERF_RUN_CODE, 0);
+
+	perf_timing *perf_t = alloc_perf_timing("pbs_python_run_code_in_namespace");
+	get_perf_timing(perf_t , "start");
+	int line = __LINE__ + 2;
+
 	rc = pbs_python_run_code_in_namespace(&svr_interp_data,
 		phook->script,
 		&exit_code);
+	
+	get_perf_timing(perf_t, "end");
+	FILE *fd;
+	time_t now;
+ 	time(&now);
+  	struct tm *local = localtime(&now);
+  	int day = local->tm_mday;
+    int month = local->tm_mon + 1;
+  	int year = local->tm_year + 1900;
+    char csv_file[32];
+  	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+	fd = fopen(csv_file, "a");
+	if (ftell(fd) == 0) {
+        fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+	}
+	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+	fclose(fd);
+	free(perf_t);
+
 	hook_perf_stat_stop(perf_label, HOOK_PERF_RUN_CODE, 0);
 
 	/* go back to server's private directory */

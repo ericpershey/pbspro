@@ -79,6 +79,7 @@
 #include "pbs_ecl.h"
 #include "placementsets.h"
 #include "pbs_reliable.h"
+#include "libutil.h"
 
 
 /* -----                        GLOBALS                        -----    */
@@ -5254,11 +5255,66 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 		char *line;
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK, LOG_INFO, __func__,
 			"Restarting Python interpreter to reduce mem usage");
+		perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_shutdown_interpreter");
+		get_perf_timing(perf_t , "start");
+		int lineno = __LINE__ + 2;		
+
 		pbs_python_ext_shutdown_interpreter(&svr_interp_data);
+
+		get_perf_timing(perf_t, "end");
+		FILE *fd;
+		time_t now;
+ 		time(&now);
+  		struct tm *local = localtime(&now);
+  		int day = local->tm_mday;
+  		int month = local->tm_mon + 1;
+  		int year = local->tm_year + 1900;
+  		char csv_file[32];
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		if (ftell(fd) == 0) {
+			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+		free(perf_t);
+
+		perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
+		get_perf_timing(perf_t , "start");
+		lineno = __LINE__ + 2;
+
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			log_err(PBSE_INTERNAL, __func__, "Failed to restart Python interpreter");
+			
+			get_perf_timing(perf_t, "end");
+ 			time(&now);
+  			local = localtime(&now);
+  			day = local->tm_mday;
+  			month = local->tm_mon + 1;
+			year = local->tm_year + 1900;
+			memset(csv_file, 0, sizeof csv_file);
+  			sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+			fd = fopen(csv_file, "a");
+			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+			fclose(fd);
+
 			goto event_set_exit;
 		}
+		get_perf_timing(perf_t, "end");
+		time(&now);
+		local = localtime(&now);
+		day = local->tm_mday;
+		month = local->tm_mon + 1;
+		year = local->tm_year + 1900;
+		memset(csv_file, 0, sizeof csv_file);
+		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+
 		/* Reset counters for the next interpreter restart. */
 		hook_counter = 0;
 		object_counter = 0;

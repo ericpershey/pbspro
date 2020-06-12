@@ -174,6 +174,7 @@
 #include	"provision.h"
 #include 	"pbs_sched.h"
 #include	"svrfunc.h"
+#include 	"libutil.h"
 
 #if !defined(H_ERRNO_DECLARED) && !defined(WIN32)
 extern int h_errno;
@@ -3232,13 +3233,61 @@ setup_pnames(char *namestr)
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
 			LOG_INFO, "setup_pnames",
 			"Restarting Python interpreter as resourcedef file has changed.");
+
+		perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_shutdown_interpreter");
+		get_perf_timing(perf_t , "start");
+		int line = __LINE__ + 2;
+		
 		pbs_python_ext_shutdown_interpreter(&svr_interp_data);
+
+		get_perf_timing(perf_t, "end");
+		FILE *fd;
+		time_t now;
+ 		time(&now);
+  		struct tm *local = localtime(&now);
+  		int day = local->tm_mday;
+  		int month = local->tm_mon + 1;
+  		int year = local->tm_year + 1900;
+  		char csv_file[32];
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+
+		perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
+		get_perf_timing(perf_t , "start");
+		line = __LINE__ + 2;		
+
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			log_err(PBSE_INTERNAL, __func__, "Failed to restart Python interpreter");
 			free(workcopy);
 			free(newbuffer);
+
+			get_perf_timing(perf_t, "end");
+ 			time(&now);
+  			local = localtime(&now);
+  			day = local->tm_mday;
+  			month = local->tm_mon + 1;
+			year = local->tm_year + 1900;
+			memset(csv_file, 0, sizeof csv_file);
+  			sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+			fd = fopen(csv_file, "a");
+			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+			fclose(fd);
 			return 1;
 		}
+
+		get_perf_timing(perf_t, "end");
+ 		time(&now);
+  		local = localtime(&now);
+  		day = local->tm_mday;
+  		month = local->tm_mon + 1;
+		year = local->tm_year + 1900;
+		memset(csv_file, 0, sizeof csv_file);
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
 
 		send_rescdef(1);
 	}
@@ -3947,11 +3996,62 @@ update2_to_vnode(vnal_t *pvnal, int new, mominfo_t *pmom, int *madenew, int from
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
 			LOG_INFO, "update2_to_vnode",
 			"Restarting Python interpreter as resourcedef file has changed.");
+		perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_shutdown_interpreter");
+		get_perf_timing(perf_t , "start");
+		int line = __LINE__ + 2;
+
 		pbs_python_ext_shutdown_interpreter(&svr_interp_data);
+
+		get_perf_timing(perf_t, "end");
+		FILE *fd;
+		time_t now;
+		time(&now);
+		struct tm *local = localtime(&now);
+		int day = local->tm_mday;
+		int month = local->tm_mon + 1;
+		int year = local->tm_year + 1900;
+		char csv_file[32];
+		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		if (ftell(fd) == 0) {
+			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+		free(perf_t);
+
+		perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
+		get_perf_timing(perf_t , "start");
+		line = __LINE__ + 2;
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			log_err(PBSE_INTERNAL, __func__, "Failed to restart Python interpreter");
+			get_perf_timing(perf_t, "end");
+			time(&now);
+			local = localtime(&now);
+			day = local->tm_mday;
+			month = local->tm_mon + 1;
+			year = local->tm_year + 1900;
+			memset(csv_file, 0, sizeof csv_file);
+			sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+			fd = fopen(csv_file, "a");
+			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+			fclose(fd);
 			return PBSE_INTERNAL;
 		}
+		get_perf_timing(perf_t, "end");
+		time(&now);
+		local = localtime(&now);
+		day = local->tm_mday;
+		month = local->tm_mon + 1;
+		year = local->tm_year + 1900;
+		memset(csv_file, 0, sizeof csv_file);
+		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
 
 		send_rescdef(1);
 	}

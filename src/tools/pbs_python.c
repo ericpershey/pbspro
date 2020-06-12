@@ -2823,10 +2823,53 @@ main(int argc, char *argv[], char *envp[])
 			(struct python_script **) &py_script);
 
 		hook_perf_stat_start(perf_label, HOOK_PERF_START_PYTHON, 0);
+		perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
+		get_perf_timing(perf_t , "start");
+		int line = __LINE__ + 2;
+
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			fprintf(stderr, "Failed to start Python interpreter");
+			get_perf_timing(perf_t, "end");
+			FILE *fd;
+			time_t now;
+ 			time(&now);
+  			struct tm *local = localtime(&now);
+  			int day = local->tm_mday;
+  			int month = local->tm_mon + 1;
+  			int year = local->tm_year + 1900;
+  			char csv_file[32];
+  			sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+			fd = fopen(csv_file, "a");
+			if (ftell(fd) == 0) {
+				fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+			}
+			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+			fclose(fd);
+			free(perf_t);
+			
 			exit(1);
 		}
+
+		get_perf_timing(perf_t, "end");
+		FILE *fd;
+		time_t now;
+ 		time(&now);
+  		struct tm *local = localtime(&now);
+  		int day = local->tm_mday;
+  		int month = local->tm_mon + 1;
+  		int year = local->tm_year + 1900;
+  		char csv_file[32];
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		if (ftell(fd) == 0) {
+			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+		free(perf_t);
+
 		hook_perf_stat_stop(perf_label, HOOK_PERF_START_PYTHON, 0);
 		hook_input_param_init(&req_params);
 		switch (hook_event) {
@@ -3150,8 +3193,31 @@ main(int argc, char *argv[], char *envp[])
 			PyMem_RawFree(tmp_argv[0]);
 		} else {
 			hook_perf_stat_start(perf_label, HOOK_PERF_RUN_CODE, 0);
+			perf_timing *perf_t = alloc_perf_timing("pbs_python_run_code_in_namespace");
+			get_perf_timing(perf_t , "start");
+			int line = __LINE__ + 2;
+
 			rc=pbs_python_run_code_in_namespace(&svr_interp_data,
 				py_script, 0);
+
+			get_perf_timing(perf_t, "end");
+			FILE *fd;
+			time_t now;
+ 			time(&now);
+  			struct tm *local = localtime(&now);
+  			int day = local->tm_mday;
+    		int month = local->tm_mon + 1;
+  			int year = local->tm_year + 1900;
+    		char csv_file[32];
+  			sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+			fd = fopen(csv_file, "a");
+			if (ftell(fd) == 0) {
+        		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+			}
+			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+			fclose(fd);
+			free(perf_t);	
 			hook_perf_stat_stop(perf_label, HOOK_PERF_RUN_CODE, 0);
 		}
 		set_alarm(0, pbs_python_set_interrupt);
@@ -3563,7 +3629,27 @@ pbs_python_end:
 		if ((fp_server_out != NULL) && (fp_server_out != stdout))
 			fclose(fp_server_out);
 
+		perf_t = alloc_perf_timing("pbs_python_ext_shutdown_interpreter");
+		get_perf_timing(perf_t , "start");
+		line = __LINE__ + 2;
+
 		pbs_python_ext_shutdown_interpreter(&svr_interp_data);
+
+		get_perf_timing(perf_t, "end");
+ 		time(&now);local = localtime(&now);
+  		day = local->tm_mday;
+  		month = local->tm_mon + 1;
+  		year = local->tm_year + 1900;
+  		memset(csv_file, 0, sizeof csv_file);
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		if (ftell(fd) == 0) {
+			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+		free(perf_t);
 
 		free_attrlist(&event_vnode);
 		CLEAR_HEAD(event_vnode);

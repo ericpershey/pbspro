@@ -146,6 +146,7 @@
 #include "pbs_sched.h"
 #include "dis.h"
 #include "acct.h"
+#include "libutil.h"
 
 /* External functions */
 extern void disable_svr_prov();
@@ -1072,8 +1073,31 @@ py_compile_and_run(char *input_file_path, char *hook_msg, size_t msg_len,
 		rc = pbs_python_check_and_compile_script(&svr_interp_data,
 			py_test_script);
 	} else {
+		perf_timing *perf_t = alloc_perf_timing("pbs_python_run_code_in_namespace");
+		get_perf_timing(perf_t , "start");
+		int line = __LINE__ + 2;
+
 		rc = pbs_python_run_code_in_namespace(&svr_interp_data,
 			py_test_script, 0);
+		
+		get_perf_timing(perf_t, "end");
+		FILE *fd;
+		time_t now;
+ 		time(&now);
+  		struct tm *local = localtime(&now);
+  		int day = local->tm_mday;
+    	int month = local->tm_mon + 1;
+  		int year = local->tm_year + 1900;
+    	char csv_file[32];
+  		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+		fd = fopen(csv_file, "a");
+		if (ftell(fd) == 0) {
+        	fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+		free(perf_t);	
 	}
 	/* free py_script immediately, as it was used only for */
 	/* test compile */
@@ -3933,7 +3957,7 @@ process_hooks(struct batch_request *preq, char *hook_msg, size_t msg_len,
 			num_run++;
 			continue;
 		}
-		perf_timing *perf_t = alloc_perf_timing(phook->hook_name);
+		perf_timing *perf_t = alloc_perf_timing("server_process_hooks");
 		get_perf_timing(perf_t , "start");
 		int line = __LINE__ + 2;
 
@@ -3953,9 +3977,9 @@ process_hooks(struct batch_request *preq, char *hook_msg, size_t msg_len,
   		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
 		fd = fopen(csv_file, "a");
 		if (ftell(fd) == 0) {
-			fprintf(fd, "func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 		}
-		fprintf(fd,"%s,%d,%f,%f,%f,%f,%u\n", perf_t->func_name, line, perf_t->time_start,
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
 			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 		fclose(fd);
 		free(perf_t);
@@ -4386,7 +4410,7 @@ int server_process_hooks(int rq_type, char *rq_user, char *rq_host, hook *phook,
 			p_stat->walltime = get_walltime();
 			p_stat->cputime = get_cputime();
 		*/
-		perf_timing *perf_t = alloc_perf_timing(phook->hook_name);
+		perf_timing *perf_t = alloc_perf_timing("pbs_python_run_code_in_namespace");
 		get_perf_timing(perf_t , "start");
 		int line = __LINE__ + 2;
 
@@ -4407,9 +4431,9 @@ int server_process_hooks(int rq_type, char *rq_user, char *rq_host, hook *phook,
   		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
 		fd = fopen(csv_file, "a");
 		if (ftell(fd) == 0) {
-			fprintf(fd, "func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 		}
-		fprintf(fd,"%s,%d,%f,%f,%f,%f,%u\n", perf_t->func_name, line, perf_t->time_start,
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
 			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 		fclose(fd);
 		free(perf_t);
@@ -7006,7 +7030,7 @@ run_periodic_hook(struct work_task *ptask)
 		/* set vnodes and reservation list to hook input parameter */
 		req_ptr.vns_list = (pbs_list_head *)get_vnode_list();
 		req_ptr.resv_list = (pbs_list_head *)get_resv_list();
-		perf_timing *perf_t = alloc_perf_timing(phook->hook_name);
+		perf_timing *perf_t = alloc_perf_timing("server_process_hooks");
 		get_perf_timing(perf_t , "start");
 		int line = __LINE__ + 2;
 
@@ -7026,9 +7050,9 @@ run_periodic_hook(struct work_task *ptask)
   		sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
 		fd = fopen(csv_file, "a");
 		if (ftell(fd) == 0) {
-			fprintf(fd, "func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 		}
-		fprintf(fd,"%s,%d,%f,%f,%f,%f,%u\n", perf_t->func_name, line, perf_t->time_start,
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
 			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 		fclose(fd);
 		free(perf_t);
