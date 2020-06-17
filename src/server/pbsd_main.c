@@ -1631,7 +1631,7 @@ try_db_again:
 
 	perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
 	get_perf_timing(perf_t , "start");
-	int line = __LINE__ + 2;
+	int lineno = __LINE__ + 2;
 	
 	if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 		log_err(-1, msg_daemonname, "Failed to start Python interpreter");
@@ -1654,7 +1654,7 @@ try_db_again:
 	if (ftell(fd) == 0) {
 		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 	}
-	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 	fclose(fd);
 	free(perf_t);
@@ -1673,7 +1673,7 @@ try_db_again:
 	}
 	perf_t = alloc_perf_timing("process_hooks");
 	get_perf_timing(perf_t , "start");
-	line = __LINE__ + 2;
+	lineno = __LINE__ + 2;
 
 	process_hooks(periodic_req, hook_msg, sizeof(hook_msg), pbs_python_set_interrupt);
 
@@ -1686,9 +1686,10 @@ try_db_again:
 	memset(csv_file, 0, sizeof csv_file);
   	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
 	fd = fopen(csv_file, "a");
-	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 	fclose(fd);
+	free(perf_t);
 	/*
 	 * Make the scheduler (re)-read the configuration
 	 * and fairshare usage.
@@ -1920,7 +1921,7 @@ try_db_again:
 
 	perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
 	get_perf_timing(perf_t , "start");
-	line = __LINE__ + 2;
+	lineno = __LINE__ + 2;
 	/* Shut down interpreter now before closing network connections */
 	pbs_python_ext_shutdown_interpreter(&svr_interp_data); /* stop python if started */
 	get_perf_timing(perf_t, "end");
@@ -1932,9 +1933,10 @@ try_db_again:
 	memset(csv_file, 0, sizeof csv_file);
 	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
 	fd = fopen(csv_file, "a");
-	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 	fclose(fd);
+	free(perf_t);
 	
 	shutdown_ack();
 	net_close(-1);		/* close all network connections */

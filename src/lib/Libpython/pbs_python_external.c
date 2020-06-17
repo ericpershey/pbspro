@@ -273,7 +273,7 @@ ERROR_EXIT:
 	if (interp_data->interp_started) {
 		perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_shutdown_interpreter");
 		get_perf_timing(perf_t , "start");
-		int line = __LINE__ + 2;
+		int lineno = __LINE__ + 2;
 
 		pbs_python_ext_shutdown_interpreter(interp_data);
 
@@ -291,7 +291,7 @@ ERROR_EXIT:
 		if (ftell(fd) == 0) {
 			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 		}
-		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 		fclose(fd);
 		free(perf_t);
@@ -342,7 +342,31 @@ pbs_python_ext_shutdown_interpreter(struct python_interpreter_data *interp_data)
 			/* before finalize clear global python objects */
 			pbs_python_event_unset();  /* clear Python event object */
 			pbs_python_unload_python_types(interp_data);
+
+			perf_timing *perf_t = alloc_perf_timing("Py_Finalize");
+			get_perf_timing(perf_t , "start");
+			int lineno = __LINE__ + 2;
+
 			Py_Finalize();
+			
+			get_perf_timing(perf_t, "end");
+			FILE *fd;
+			time_t now;
+			time(&now);
+			struct tm *local = localtime(&now);
+			int day = local->tm_mday;
+			int month = local->tm_mon + 1;
+			int year = local->tm_year + 1900;
+			char csv_file[32];
+			sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+			fd = fopen(csv_file, "a");
+			if (ftell(fd) == 0) {
+				fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+			}
+			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+			fclose(fd);
+			free(perf_t);
 		}
 		interp_data->destroy_interpreter_data(interp_data);
 		/* reset so that we do not have a problem */

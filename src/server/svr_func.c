@@ -6055,7 +6055,7 @@ execute_python_prov_script(hook  *phook,
 
 	perf_timing *perf_t = alloc_perf_timing("pbs_python_run_code_in_namespace");
 	get_perf_timing(perf_t , "start");
-	int line = __LINE__ + 2;
+	int lineno = __LINE__ + 2;
 
 	rc = pbs_python_run_code_in_namespace(&svr_interp_data,
 		phook->script,
@@ -6075,7 +6075,7 @@ execute_python_prov_script(hook  *phook,
 	if (ftell(fd) == 0) {
         fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 	}
-	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 	fclose(fd);
 	free(perf_t);

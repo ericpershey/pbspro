@@ -2825,7 +2825,7 @@ main(int argc, char *argv[], char *envp[])
 		hook_perf_stat_start(perf_label, HOOK_PERF_START_PYTHON, 0);
 		perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
 		get_perf_timing(perf_t , "start");
-		int line = __LINE__ + 2;
+		int lineno = __LINE__ + 2;
 
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			fprintf(stderr, "Failed to start Python interpreter");
@@ -2843,7 +2843,7 @@ main(int argc, char *argv[], char *envp[])
 			if (ftell(fd) == 0) {
 				fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 			}
-			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 			fclose(fd);
 			free(perf_t);
@@ -2865,7 +2865,7 @@ main(int argc, char *argv[], char *envp[])
 		if (ftell(fd) == 0) {
 			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 		}
-		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 		fclose(fd);
 		free(perf_t);
@@ -3195,7 +3195,7 @@ main(int argc, char *argv[], char *envp[])
 			hook_perf_stat_start(perf_label, HOOK_PERF_RUN_CODE, 0);
 			perf_timing *perf_t = alloc_perf_timing("pbs_python_run_code_in_namespace");
 			get_perf_timing(perf_t , "start");
-			int line = __LINE__ + 2;
+			int lineno = __LINE__ + 2;
 
 			rc=pbs_python_run_code_in_namespace(&svr_interp_data,
 				py_script, 0);
@@ -3214,7 +3214,7 @@ main(int argc, char *argv[], char *envp[])
 			if (ftell(fd) == 0) {
         		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 			}
-			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 			fclose(fd);
 			free(perf_t);	
@@ -3631,7 +3631,7 @@ pbs_python_end:
 
 		perf_t = alloc_perf_timing("pbs_python_ext_shutdown_interpreter");
 		get_perf_timing(perf_t , "start");
-		line = __LINE__ + 2;
+		lineno = __LINE__ + 2;
 
 		pbs_python_ext_shutdown_interpreter(&svr_interp_data);
 
@@ -3646,7 +3646,7 @@ pbs_python_end:
 		if (ftell(fd) == 0) {
 			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 		}
-		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, line, perf_t->time_start,
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
 			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 		fclose(fd);
 		free(perf_t);
