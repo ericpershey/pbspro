@@ -423,12 +423,14 @@ job_alloc(void)
 
 #ifndef PBS_MOM
 	/* start accruing time from the time job was created */
-	pj->ji_wattr[(int)JOB_ATR_sample_starttime].at_val.at_long = (long) time_now;
-	pj->ji_wattr[(int)JOB_ATR_eligible_time].at_val.at_long = 0;
+	pj->ji_wattr[JOB_ATR_sample_starttime].at_val.at_long = (long) time_now;
+	pj->ji_wattr[JOB_ATR_sample_starttime].at_flags |= ATR_VFLAG_SET;
+	pj->ji_wattr[JOB_ATR_eligible_time].at_val.at_long = 0;
+	pj->ji_wattr[JOB_ATR_eligible_time].at_flags |= ATR_VFLAG_SET;
 
 	/* if eligible_time_enable is not true, then job does not accrue eligible time */
 	if ((server.sv_attr[SRV_ATR_EligibleTimeEnable].at_flags & ATR_VFLAG_SET) &&
-		server.sv_attr[SRV_ATR_EligibleTimeEnable].at_val.at_long == 1) {
+	    server.sv_attr[SRV_ATR_EligibleTimeEnable].at_val.at_long == TRUE) {
 		int elig_val;
 
 		elig_val = determine_accruetype(pj);
@@ -517,8 +519,11 @@ job_free(job *pj)
 			if ((pj->ji_wattr[JOB_ATR_euser].at_val.at_str) &&
 				(pwdp = getpwnam(pj->ji_wattr[JOB_ATR_euser].at_val.at_str))) {
 				if (pwdp->pw_userlogin != INVALID_HANDLE_VALUE) {
-					if (impersonate_user(pwdp->pw_userlogin) == 0)
+					if (impersonate_user(pwdp->pw_userlogin) == 0) {
+						sprintf(log_buffer, "Failed to ImpersonateLoggedOnUser user: %s", pwdp->pw_name);
+						log_joberr(-1, __func__, log_buffer, pj->ji_qs.ji_jobid);
 						return;
+					}
 				}
 				/* p+14 is the string after HomeDirectory= */
 				unmap_unc_path(p+14);
