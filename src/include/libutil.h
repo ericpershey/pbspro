@@ -47,6 +47,7 @@ extern "C" {
 #include <time.h>
 #include <stdio.h>
 #include <netinet/in.h>
+#include <sys/types.h>
 
 /* misc_utils specific */
 
@@ -107,6 +108,19 @@ struct map {
 	int val;
 	struct map *next;
 };
+
+typedef struct {
+	char func_name[64];
+	double time_start;
+	double time_end;
+	double time_start_cputime;
+	double time_end_cputime;
+	pid_t pid;
+} perf_timing;
+
+perf_timing *alloc_perf_timing(char *func_name);
+
+void get_perf_timing(perf_timing *perf_t, char *phase);
 
 /* Compress a delimited string into a dictionary compressed representation */
 char *condense_execvnode_seq(char *);

@@ -1786,6 +1786,33 @@ perf_stat_stop(char *instance)
 	return (stat_summary);
 }
 
+perf_timing * 
+alloc_perf_timing(char *func_name)
+{
+	perf_timing *perf_t = malloc(sizeof(*perf_t));
+	strncpy(perf_t->func_name, func_name, 64-1);
+	perf_t->time_start = 0;
+	perf_t->time_end = 0;
+	perf_t->time_start_cputime = 0;
+	perf_t->time_end_cputime = 0;
+	perf_t->pid = getpid();
+	return perf_t;
+}
+
+void 
+get_perf_timing(perf_timing *perf_t, char *phase)
+{
+	if (strcmp("start", phase) == 0) {
+		perf_t->time_start = get_walltime();
+		perf_t->time_start_cputime = get_cputime();
+	} else if (strcmp("end", phase) == 0) {
+		perf_t->time_end = get_walltime();
+		perf_t->time_end_cputime = get_cputime();
+	} else {
+		// error something ??
+	}
+}
+
 /**
  * @brief
  *	creates an empty file in /tmp/ and saves timestamp of that file
