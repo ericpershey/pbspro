@@ -189,7 +189,30 @@ pbs_python_ext_start_interpreter(struct python_interpreter_data *interp_data)
 	 * we want signals to propagate to the executing
 	 * Python script to be able to interrupt it
 	 */
+	// perf_timing *perf_t = alloc_perf_timing("Py_InitializeEx");
+	// get_perf_timing(perf_t , "start");
+	// int lineno = __LINE__ + 2;
+
 	Py_InitializeEx(1);
+
+	// get_perf_timing(perf_t, "end");
+	// FILE *fd;
+	// time_t now;
+ 	// time(&now);
+  	// struct tm *local = localtime(&now);
+  	// int day = local->tm_mday;
+  	// int month = local->tm_mon + 1;
+  	// int year = local->tm_year + 1900;
+  	// char csv_file[32];
+  	// sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+	// fd = fopen(csv_file, "a");
+	// if (ftell(fd) == 0) {
+	// 	fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+	// }
+	// fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+	// 	perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+	// fclose(fd);
+	// free(perf_t);
 
 	if (Py_IsInitialized()) {
 		char *msgbuf;
@@ -230,6 +253,9 @@ pbs_python_ext_start_interpreter(struct python_interpreter_data *interp_data)
 		goto ERROR_EXIT;
 	}
 
+	// perf_t = alloc_perf_timing("pbs_python_load_python_types");
+	// get_perf_timing(perf_t , "start");
+	// lineno = __LINE__ + 2;
 	/*
 	 * At this point it is safe to load the available server types from
 	 * the python modules. since the syspath is setup correctly
@@ -238,6 +264,19 @@ pbs_python_ext_start_interpreter(struct python_interpreter_data *interp_data)
 		log_err(-1, __func__, "could not load python types into the interpreter");
 		goto ERROR_EXIT;
 	}
+	// get_perf_timing(perf_t, "end");
+ 	// time(&now);
+  	// local = localtime(&now);
+  	// day = local->tm_mday;
+  	// month = local->tm_mon + 1;
+	// year = local->tm_year + 1900;
+	// memset(csv_file, 0, sizeof csv_file);
+  	// sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+	// fd = fopen(csv_file, "a");
+	// fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+	// 	perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+	// fclose(fd);
+	// free(perf_t);
 
 	interp_data->pbs_python_types_loaded = 1; /* just in case */
 
@@ -343,30 +382,30 @@ pbs_python_ext_shutdown_interpreter(struct python_interpreter_data *interp_data)
 			pbs_python_event_unset();  /* clear Python event object */
 			pbs_python_unload_python_types(interp_data);
 
-			perf_timing *perf_t = alloc_perf_timing("Py_Finalize");
-			get_perf_timing(perf_t , "start");
-			int lineno = __LINE__ + 2;
+			// perf_timing *perf_t = alloc_perf_timing("Py_Finalize");
+			// get_perf_timing(perf_t , "start");
+			// int lineno = __LINE__ + 2;
 
 			Py_Finalize();
 			
-			get_perf_timing(perf_t, "end");
-			FILE *fd;
-			time_t now;
-			time(&now);
-			struct tm *local = localtime(&now);
-			int day = local->tm_mday;
-			int month = local->tm_mon + 1;
-			int year = local->tm_year + 1900;
-			char csv_file[32];
-			sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
-			fd = fopen(csv_file, "a");
-			if (ftell(fd) == 0) {
-				fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
-			}
-			fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
-				perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
-			fclose(fd);
-			free(perf_t);
+			// get_perf_timing(perf_t, "end");
+			// FILE *fd;
+			// time_t now;
+			// time(&now);
+			// struct tm *local = localtime(&now);
+			// int day = local->tm_mday;
+			// int month = local->tm_mon + 1;
+			// int year = local->tm_year + 1900;
+			// char csv_file[32];
+			// sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+			// fd = fopen(csv_file, "a");
+			// if (ftell(fd) == 0) {
+			// 	fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+			// }
+			// fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+			// 	perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+			// fclose(fd);
+			// free(perf_t);
 		}
 		interp_data->destroy_interpreter_data(interp_data);
 		/* reset so that we do not have a problem */
@@ -795,16 +834,56 @@ pbs_python_run_code_in_namespace(struct python_interpreter_data *interp_data,
 		}
 	}
 
-	/* make new namespace dictionary, NOTE new reference */
+	/* make new namespace dictionary, NOTE new reference */	
+	perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_namespace_init");
+	get_perf_timing(perf_t , "start");
+	int lineno = __LINE__ + 2;
 
 	if (!(pdict = (PyObject *)pbs_python_ext_namespace_init(interp_data))) {
 		log_err(-1, __func__, "while calling pbs_python_ext_namespace_init");
 		return -1;
 	}
+	get_perf_timing(perf_t, "end");
+	FILE *fd;
+	time_t now;
+	time(&now);
+	struct tm *local = localtime(&now);
+	int day = local->tm_mday;
+	int month = local->tm_mon + 1;
+	int year = local->tm_year + 1900;
+	char csv_file[32];
+	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+	fd = fopen(csv_file, "a");
+	if (ftell(fd) == 0) {
+		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+	}
+	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+	fclose(fd);
+	free(perf_t);
+	
+
+	perf_t = alloc_perf_timing("pbs_python_setup_namespace_dict");
+	get_perf_timing(perf_t , "start");
+	lineno = __LINE__ + 2;
 	if ((pbs_python_setup_namespace_dict(pdict) == -1)) {
 		Py_CLEAR(pdict);
 		return -1;
 	}
+
+	get_perf_timing(perf_t, "end");
+ 	time(&now);
+	local = localtime(&now);
+  	day = local->tm_mday;
+  	month = local->tm_mon + 1;
+	year = local->tm_year + 1900;
+	memset(csv_file, 0, sizeof csv_file);
+  	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+	fd = fopen(csv_file, "a");
+	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
+		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+	fclose(fd);
+	free(perf_t);
 
 	/* clear previous global/local dictionary */
 	if (py_script->global_dict) {
