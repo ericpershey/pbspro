@@ -1629,9 +1629,7 @@ try_db_again:
 	if ((pc=strchr(svr_interp_data.local_host_name, '.')) != NULL)
 		*pc = '\0';
 
-	perf_timing *perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
-	get_perf_timing(perf_t , "start");
-	int lineno = __LINE__ + 2;
+	perf_timing *perf_t = start_perf_timing("pbs_python_ext_start_interpreter");
 	
 	if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 		log_err(-1, msg_daemonname, "Failed to start Python interpreter");
@@ -1640,24 +1638,8 @@ try_db_again:
 		return (1);
 	}
 
-	get_perf_timing(perf_t, "end");
-	FILE *fd;
-	time_t now;
- 	time(&now);
-  	struct tm *local = localtime(&now);
-  	int day = local->tm_mday;
-  	int month = local->tm_mon + 1;
-  	int year = local->tm_year + 1900;
-  	char csv_file[32];
-  	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
-	fd = fopen(csv_file, "a");
-	if (ftell(fd) == 0) {
-		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
-	}
-	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
-		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
-	fclose(fd);
-	free(perf_t);
+	end_perf_timing(perf_t, __LINE__ -7, __FILE__);
+
 	/* check and enable the prov attributes */
 	set_srv_prov_attributes();
 
@@ -1671,25 +1653,11 @@ try_db_again:
 		free(keep_daemon_name);
 		return (1);
 	}
-	perf_t = alloc_perf_timing("process_hooks");
-	get_perf_timing(perf_t , "start");
-	lineno = __LINE__ + 2;
+	perf_t = start_perf_timing("pbs_python_ext_start_interpreter");
 
 	process_hooks(periodic_req, hook_msg, sizeof(hook_msg), pbs_python_set_interrupt);
 
-	get_perf_timing(perf_t, "end");
- 	time(&now);
-  	local = localtime(&now);
-  	day = local->tm_mday;
-  	month = local->tm_mon + 1;
-	year = local->tm_year + 1900;
-	memset(csv_file, 0, sizeof csv_file);
-  	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
-	fd = fopen(csv_file, "a");
-	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
-		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
-	fclose(fd);
-	free(perf_t);
+	end_perf_timing(perf_t, __LINE__ -2, __FILE__);
 	/*
 	 * Make the scheduler (re)-read the configuration
 	 * and fairshare usage.
@@ -1919,24 +1887,12 @@ try_db_again:
 	}
 #endif
 
-	perf_t = alloc_perf_timing("pbs_python_ext_start_interpreter");
-	get_perf_timing(perf_t , "start");
-	lineno = __LINE__ + 2;
+	perf_t = start_perf_timing("pbs_python_ext_shutdown_interpreter");
+
 	/* Shut down interpreter now before closing network connections */
 	pbs_python_ext_shutdown_interpreter(&svr_interp_data); /* stop python if started */
-	get_perf_timing(perf_t, "end");
-	time(&now);
-	local = localtime(&now);
-	day = local->tm_mday;
-	month = local->tm_mon + 1;
-	year = local->tm_year + 1900;
-	memset(csv_file, 0, sizeof csv_file);
-	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
-	fd = fopen(csv_file, "a");
-	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", __FILE__, perf_t->func_name, lineno, perf_t->time_start,
-		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
-	fclose(fd);
-	free(perf_t);
+	
+	end_perf_timing(perf_t, __LINE__ -2, __FILE__);
 	
 	shutdown_ack();
 	net_close(-1);		/* close all network connections */

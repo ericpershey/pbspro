@@ -1813,6 +1813,39 @@ get_perf_timing(perf_timing *perf_t, char *phase)
 	}
 }
 
+perf_timing *
+start_perf_timing(char *func_name)
+{
+	perf_timing *perf_t = alloc_perf_timing(func_name);
+	perf_t->time_start = get_walltime();
+	perf_t->time_start_cputime = get_cputime();
+	return perf_t;
+}
+
+void
+end_perf_timing(perf_timing* perf_t, int lineno, char *file_name) {
+	perf_t->time_end = get_walltime();
+	perf_t->time_end_cputime = get_cputime();
+	FILE *fd;
+	time_t now;
+ 	time(&now);
+  	struct tm *local = localtime(&now);
+  	int day = local->tm_mday;
+  	int month = local->tm_mon + 1;
+  	int year = local->tm_year + 1900;
+  	char csv_file[32];
+  	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+	fd = fopen(csv_file, "a");
+	if (ftell(fd) == 0) {
+		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+	}
+	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", file_name, perf_t->func_name, lineno, perf_t->time_start,
+		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+	fclose(fd);
+	free(perf_t);
+}
+
+
 /**
  * @brief
  *	creates an empty file in /tmp/ and saves timestamp of that file
