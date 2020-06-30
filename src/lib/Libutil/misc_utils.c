@@ -1799,19 +1799,6 @@ alloc_perf_timing(char *func_name)
 	return perf_t;
 }
 
-void 
-get_perf_timing(perf_timing *perf_t, char *phase)
-{
-	if (strcmp("start", phase) == 0) {
-		perf_t->time_start = get_walltime();
-		perf_t->time_start_cputime = get_cputime();
-	} else if (strcmp("end", phase) == 0) {
-		perf_t->time_end = get_walltime();
-		perf_t->time_end_cputime = get_cputime();
-	} else {
-		// error something ??
-	}
-}
 
 perf_timing *
 start_perf_timing(char *func_name)
@@ -1833,8 +1820,9 @@ end_perf_timing(perf_timing* perf_t, int lineno, char *file_name) {
   	int day = local->tm_mday;
   	int month = local->tm_mon + 1;
   	int year = local->tm_year + 1900;
-  	char csv_file[32];
-  	sprintf(csv_file, "/tmp/%d%02d%02d-perf-server.csv", year, month, day);
+  	char csv_file[41];
+	snprintf(csv_file, 40, "%s/%d%02d%02d-perf.csv", pbs_conf.pbs_home_path, year, month, day);
+	csv_file[40] = '\0';
 	fd = fopen(csv_file, "a");
 	if (ftell(fd) == 0) {
 		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");

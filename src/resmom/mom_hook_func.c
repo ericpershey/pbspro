@@ -3984,9 +3984,15 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 			snprintf(perf_label, sizeof(perf_label), "hook_%s_%s_%d", hook_event_as_string(hook_event), phook->hook_name, getpid());
 
 		hook_perf_stat_start(perf_label, "mom_process_hooks", 1);
+
+		perf_timing* perf_t = start_perf_timing("run_hook");
+
 		rc = run_hook(phook, hook_event, hook_input,
 			req_user, req_host, php->parent_wait, (void *)post_run_hook,
 			hook_infile, hook_outfile, hook_datafile, MAXPATHLEN+1, php);
+
+		end_perf_timing(perf_t, __LINE__ - 4, __FILE__);
+
 		hook_perf_stat_stop(perf_label, "mom_process_hooks", 1);
 
 		if (last_phook != NULL) {

@@ -120,8 +120,6 @@ typedef struct {
 
 perf_timing *alloc_perf_timing(char *func_name);
 
-void get_perf_timing(perf_timing *perf_t, char *phase);
-
 perf_timing *start_perf_timing(char *func_name);
 
 void end_perf_timing(perf_timing* perf_t, int lineno, char *file_name);
