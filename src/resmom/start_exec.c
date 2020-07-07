@@ -4348,7 +4348,7 @@ finish_exec(job *pjob)
 	hook_output.progname = &progname;
 	CLEAR_HEAD(argv_list);
 	hook_output.argv = &argv_list;
-
+	perf_timing *perf_t = start_perf_timing("mom_process_hooks");
 	switch (mom_process_hooks(HOOK_EVENT_EXECJOB_LAUNCH,
 			PBS_MOM_SERVICE_NAME,
 			mom_host, &hook_input, &hook_output,
@@ -4356,6 +4356,7 @@ finish_exec(job *pjob)
 	{
 
 		case 0:	/* explicit reject */
+			end_perf_timing(perf_t, __LINE__ - 7, __FILE__);
 			free(progname);
 			free_attrlist(&argv_list);
 			free_str_array(hook_output.env);
@@ -4370,6 +4371,7 @@ finish_exec(job *pjob)
 					JOB_EXEC_FAILHOOK_DELETE, &sjr);
 			}
 		case 1:   /* explicit accept */
+			end_perf_timing(perf_t, __LINE__ - 23, __FILE__);
 			if (progname != NULL)
 				the_progname = progname;
 
@@ -4431,8 +4433,10 @@ finish_exec(job *pjob)
 
 			break;
 		case 2:	  /* no hook script executed - go ahead and accept event */
+			end_perf_timing(perf_t, __LINE__ - 84, __FILE__);
 			break;
 		default:
+			end_perf_timing(perf_t, __LINE__ - 87, __FILE__);
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
 				LOG_INFO, "",
 				"execjob_launch hook event: accept req by default");
@@ -5005,6 +5009,7 @@ start_process(task *ptask, char **argv, char **envp, bool nodemux)
 	CLEAR_HEAD(argv_list);
 	hook_output.argv = &argv_list;
 
+	perf_timing *perf_t = start_perf_timing("mom_process_hooks");
 	switch (mom_process_hooks(HOOK_EVENT_EXECJOB_LAUNCH,
 			PBS_MOM_SERVICE_NAME,
 			mom_host, &hook_input, &hook_output,
@@ -5012,12 +5017,14 @@ start_process(task *ptask, char **argv, char **envp, bool nodemux)
 	{
 
 		case 0:	/* explicit reject */
+			end_perf_timing(perf_t, __LINE__ - 7, __FILE__);
 			free(progname);
 			free_attrlist(&argv_list);
 			free_str_array(hook_output.env);
 			starter_return(kid_write, kid_read,
 					JOB_EXEC_FAILHOOK_DELETE, &sjr);
 		case 1:   /* explicit accept */
+			end_perf_timing(perf_t, __LINE__ - 14, __FILE__);
 			if (progname != NULL)
 				the_progname = progname;
 
@@ -5070,8 +5077,10 @@ start_process(task *ptask, char **argv, char **envp, bool nodemux)
 
 			break;
 		case 2:	  /* no hook script executed - go ahead and accept event */
+			end_perf_timing(perf_t, __LINE__ - 67, __FILE__);
 			break;
 		default:
+			end_perf_timing(perf_t, __LINE__ - 70, __FILE__);
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
 				LOG_INFO, "",
 				"execjob_launch hook event: accept req by default");
@@ -6209,16 +6218,19 @@ start_exec(job *pjob)
 			hook_output.reject_errcode = &hook_errcode;
 			hook_output.last_phook = &last_phook;
 			hook_output.fail_action = &hook_fail_action;
-
+			perf_timing *perf_t = start_perf_timing("mom_process_hooks");
 			switch ((hook_rc = mom_process_hooks(HOOK_EVENT_EXECJOB_BEGIN,
 					PBS_MOM_SERVICE_NAME, mom_host,
 					&hook_input, &hook_output,
 					hook_msg, sizeof(hook_msg), 1))) {
 				case 1:   	/* explicit accept */
+					end_perf_timing(perf_t, __LINE__ - 5, __FILE__);
 					break;
 				case 2:	/* no hook script executed - go ahead and accept event*/
+					end_perf_timing(perf_t, __LINE__ - 8, __FILE__);
 					break;
 				default:
+					end_perf_timing(perf_t, __LINE__ - 11, __FILE__);
 					/* a value of '0' means explicit reject encountered. */
 					if (hook_rc != 0) {
 						/*

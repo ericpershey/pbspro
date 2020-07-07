@@ -822,14 +822,18 @@ is_request(int stream, int version)
 	if (ret != DIS_SUCCESS)
 		goto err;
 
+	perf_timing *perf_t;
 	switch (command) {
 
 		case IS_NULL:
+			perf_t = start_perf_timing("request_IS_NULL");
 			if ((ret = process_rpp_values(stream)) != 0)
 				goto err;
+			end_perf_timing(perf_t, __LINE__ - 3, __FILE__);
 			break;
 
 		case IS_REPLYHELLO:	/* servers return greeting to IS_HELLOSVR */
+			perf_t = start_perf_timing("request_IS_REPLYHELLO");
 			DBPRT(("%s: IS_REPLYHELLO, state=0x%x stream=%d\n", __func__,
 				internal_state, stream))
 			time_delta_hellosvr(MOM_DELTA_RESET);
@@ -878,15 +882,19 @@ is_request(int stream, int version)
 			/* to be freed later when server acks the request. */
 			vnlp_from_hook = NULL;
 			mom_recvd_ip_cluster_addrs = 1;
+			end_perf_timing(perf_t, __LINE__ - 49, __FILE__);
 			break;
 
 		case IS_CLUSTER_ADDRS:
+			perf_t = start_perf_timing("request_IS_CLUSTER_ADDRS");
 			ret = process_cluster_addrs(stream);
 			if (ret != 0 && ret != DIS_EOD)
 				goto err;
+			end_perf_timing(perf_t, __LINE__ - 4, __FILE__);
 			break;
 
 		case IS_BADOBIT:
+			perf_t = start_perf_timing("request_IS_BADOBIT");
 			DBPRT(("%s: IS_BADOBIT\n", __func__))
 			jobid = disrst(stream, &ret);
 			if (ret != DIS_SUCCESS)
@@ -911,9 +919,11 @@ is_request(int stream, int version)
 			}
 			free(jobid);
 			jobid = NULL;
+			end_perf_timing(perf_t, __LINE__ - 15, __FILE__);
 			break;
 
 		case IS_ACKOBIT:
+			perf_t = start_perf_timing("request_IS_ACKOBIT");
 			DBPRT(("%s: IS_ACKOBIT\n", __func__))
 			jobid = disrst(stream, &ret);
 			if (ret != DIS_SUCCESS)
@@ -924,14 +934,18 @@ is_request(int stream, int version)
 			set_job_toexited(jobid);
 			free(jobid);
 			jobid = NULL;
+			end_perf_timing(perf_t, __LINE__ - 11, __FILE__);
 			break;
 
 		case IS_SHUTDOWN:
+			perf_t = start_perf_timing("request_IS_SHUTDOWN");
 			DBPRT(("%s: IS_SHUTDOWN\n", __func__))
 			mom_run_state = 0;
+			end_perf_timing(perf_t, __LINE__ - 3, __FILE__);
 			break;
 
 		case IS_DISCARD_JOB:
+			perf_t = start_perf_timing("request_IS_DISCARD_JOB");
 			jobid = disrst(stream, &ret);
 			if (ret != DIS_SUCCESS)
 				goto err;
@@ -980,7 +994,6 @@ is_request(int stream, int version)
 							goto err;
 					}
 					*(phook_output->reject_errcode) = 0;
-
 					if (mom_process_hooks(HOOK_EVENT_EXECJOB_END,
 						PBS_MOM_SERVICE_NAME, mom_host,
 						phook_input, phook_output, NULL, 0, 1) == HOOK_RUNNING_IN_BACKGROUND) {
@@ -1014,18 +1027,21 @@ is_request(int stream, int version)
 			if ((ret=diswsi(server_stream, n)) != DIS_SUCCESS)
 				goto err;
 			dis_flush(server_stream);
+			end_perf_timing(perf_t, __LINE__ - 83, __FILE__);
 			break;
 
 		case IS_CMD:
+			perf_t = start_perf_timing("request_IS_CMD");
 			DBPRT(("%s: IS_CMD\n", __func__))
 			process_IS_CMD(stream);
+			end_perf_timing(perf_t, __LINE__ - 3, __FILE__);
 			break;
 
 		case IS_HOOK_ACTION_ACK:
 			/* the Server is sending an acknowledgement that it received */
 			/* and processed an IS_HOOK_JOB_ACTION request for a job.    */
 			/* The Server will send one such per job		     */
-
+			perf_t = start_perf_timing("request_IS_HOOK_ACTION_ACK");
 			hktype = disrsi(stream, &ret);
 			if (ret != DIS_SUCCESS)
 				goto err;
@@ -1076,11 +1092,14 @@ is_request(int stream, int version)
 			}
 			free(jobid);
 			jobid = NULL;
+			end_perf_timing(perf_t, __LINE__ - 51, __FILE__);
 			break;
 
 		default:
+			perf_t = start_perf_timing("request_default");
 			sprintf(log_buffer, "unknown command %d sent", command);
 			log_err(-1, __func__, log_buffer);
+			end_perf_timing(perf_t, __LINE__ - 3, __FILE__);
 			goto err;
 	}
 

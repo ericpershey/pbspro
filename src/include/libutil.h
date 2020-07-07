@@ -122,6 +122,8 @@ perf_timing *alloc_perf_timing(char *func_name);
 
 perf_timing *start_perf_timing(char *func_name);
 
+void init_perf_timing(char *file_name);
+
 void end_perf_timing(perf_timing* perf_t, int lineno, char *file_name);
 
 /* Compress a delimited string into a dictionary compressed representation */

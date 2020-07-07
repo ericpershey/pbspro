@@ -88,6 +88,7 @@
 #include <grp.h>
 #include <time.h>
 #include <sys/time.h>
+
 #else
 #include <sddl.h>
 #endif
@@ -1786,6 +1787,25 @@ perf_stat_stop(char *instance)
 	return (stat_summary);
 }
 
+static char *perf_file = "/tmp/pbsperf.log";
+static int perf_timing_pbs_loadconf(int);
+static int (*perf_timing_orig_pfn_pbs_loadconf)(int) = NULL;
+
+void
+init_perf_timing(char *file_name) {
+
+	perf_file = file_name;
+	FILE *fd;
+	mode_t old_mask;
+	old_mask = umask(0);
+	fd = fopen(perf_file, "a");
+	umask(old_mask);
+	fclose(fd);
+
+	// perf_timing_orig_pfn_pbs_loadconf = pfn_pbs_loadconf;
+	// pfn_pbs_loadconf = perf_timing_pbs_loadconf;
+}
+
 perf_timing * 
 alloc_perf_timing(char *func_name)
 {
@@ -1798,7 +1818,6 @@ alloc_perf_timing(char *func_name)
 	perf_t->pid = getpid();
 	return perf_t;
 }
-
 
 perf_timing *
 start_perf_timing(char *func_name)
@@ -1820,10 +1839,7 @@ end_perf_timing(perf_timing* perf_t, int lineno, char *file_name) {
   	int day = local->tm_mday;
   	int month = local->tm_mon + 1;
   	int year = local->tm_year + 1900;
-  	char csv_file[41];
-	snprintf(csv_file, 40, "%s/%d%02d%02d-perf.csv", pbs_conf.pbs_home_path, year, month, day);
-	csv_file[40] = '\0';
-	fd = fopen(csv_file, "a");
+	fd = fopen(perf_file, "a");
 	if (ftell(fd) == 0) {
 		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
 	}
@@ -1831,6 +1847,15 @@ end_perf_timing(perf_timing* perf_t, int lineno, char *file_name) {
 		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
 	fclose(fd);
 	free(perf_t);
+}
+
+static int
+perf_timing_pbs_loadconf(const int reload)
+{
+    perf_timing * pt = start_perf_timing("pbs_loadconf");
+    int rc = (*perf_timing_orig_pfn_pbs_loadconf)(reload);
+    end_perf_timing(pt, __LINE__ - 1, __FILE__);
+    return rc;
 }
 
 
