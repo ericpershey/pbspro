@@ -302,10 +302,7 @@ pbs_holdjob(int c, char *jobid, char *holdtype, char *extend) {
 int
 pbs_loadconf(int reload)
 {
-	perf_timing * perf_t = start_perf_timing("pbs_loadconf");
-	int temp = (*pfn_pbs_loadconf)(reload);
-	end_perf_timing(perf_t, __LINE__ - 4, __FILE__);
-	return temp;
+	return (*pfn_pbs_loadconf)(reload);
 }
 
 /**
@@ -776,7 +773,7 @@ pbs_get_attributes_in_error(int connect) {
  *
  */
 char *
-pbs_submit(int c, struct attropl  *attrib, char *script, char *destination, char *extend) {
+pbs_submit(int c, struct attropl *attrib, char *script, char *destination, char *extend) {
 	return (*pfn_pbs_submit)(c, attrib, script, destination, extend);
 }
 

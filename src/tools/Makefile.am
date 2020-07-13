@@ -108,6 +108,7 @@ pbs_probe_CPPFLAGS = \
 	@PYTHON_INCLUDES@
 pbs_probe_LDADD = \
 	${common_libs} \
+	@libz_lib@ \
 	@PYTHON_LDFLAGS@ \
 	@PYTHON_LIBS@
 pbs_probe_SOURCES = pbs_probe.c

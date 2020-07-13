@@ -5244,23 +5244,16 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 	}
 
 	hook_counter++;
-	FILE *fdo;
-	fdo = fopen("/tmp/restart.log", "a");
-	fprintf(fdo, "Hooks: %d, Max hooks: %d. Objects: %d, Max Objects: %d\n", hook_counter, max_hooks, object_counter, max_objects);
 	restart_python = 0;
 	if (hook_counter >= max_hooks) {
-		fprintf(fdo, "%s\n", "Hook threshhold reached");
 		restart_python = 1;
 	}
 	if (object_counter >= max_objects) {
-		fprintf(fdo, "%s\n", "Object threshhold reached");
 		restart_python = 1;
 	}
 	if ((time(NULL) - previous_restart) < min_restart_interval) {
-		fprintf(fdo, "Restart prevented. time since last restart: %ld, min interval is %ld\n", (time(NULL) - previous_restart), min_restart_interval);
 		restart_python = 0;
 	}
-	fclose(fdo);
 	if (restart_python) {
 		char *line;
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK, LOG_INFO, __func__,

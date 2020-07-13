@@ -93,12 +93,15 @@ __pbs_default()
 	/* initialize the thread context data, if not already initialized */
 	if (pbs_client_thread_init_thread_context() != 0)
 		return NULL;
-
+	perf_timing *perf_t = start_perf_timing("pbs_client_thread_get_context_data");
 	p =  pbs_client_thread_get_context_data();
-
-	if (pbs_loadconf(0) == 0)
+	end_perf_timing(perf_t, __LINE__ - 1, __FILE__);
+	perf_t = start_perf_timing("pbs_loadconf");
+	if (pbs_loadconf(0) == 0) {
+		end_perf_timing(perf_t, __LINE__ - 1, __FILE__);
 		return NULL;
-
+	}
+	end_perf_timing(perf_t, __LINE__ - 3, __FILE__);
 	if (p->th_pbs_defserver[0] == '\0') {
 		/* The check for PBS_DEFAULT is done in pbs_loadconf() */
 		if (pbs_conf.pbs_primary && pbs_conf.pbs_secondary) {
@@ -296,9 +299,13 @@ __pbs_connect_extend(char *server, char *extend_data)
 	if (pbs_client_thread_init_thread_context() != 0)
 		return -1;
 
-	if (pbs_loadconf(0) == 0)
+	perf_timing *perf_t = start_perf_timing("pbs_loadconf");
+	if (pbs_loadconf(0) == 0) {
 		return -1;
-
+		end_perf_timing(perf_t, __LINE__ - 2, __FILE__);
+	}
+	end_perf_timing(perf_t, __LINE__ - 4, __FILE__);		
+	perf_t = start_perf_timing("pbs_connect_extend minus loadconf");
 	/* get server host and port	*/
 
 	server = PBS_get_server(server, server_name, &server_port);
@@ -481,7 +488,7 @@ __pbs_connect_extend(char *server, char *extend_data)
 		pbs_errno = PBSE_SYSTEM;
 		return -1;
 	}
-
+	end_perf_timing(perf_t, 308, __FILE__);
 	return sock;
 }
 
