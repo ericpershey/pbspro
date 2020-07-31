@@ -2254,7 +2254,6 @@ argv_list_to_str(pbs_list_head *argv_list)
 int
 main(int argc, char *argv[], char *envp[])
 {
-	init_perf_timing("/tmp/pbs_python.log");
 #ifndef WIN32
 	char dirname[MAXPATHLEN + 1];
 	int  env_len = 0;

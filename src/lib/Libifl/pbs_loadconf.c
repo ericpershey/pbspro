@@ -313,7 +313,6 @@ __pbs_loadconf(int reload)
 		(void)pbs_client_thread_unlock_conf();
 		return 0;
 	}
-
 	/*
 	 * If there are service port definitions available, use them
 	 * as the defaults. They may be overridden later by the config
@@ -341,6 +340,7 @@ __pbs_loadconf(int reload)
 		PBS_DATA_SERVICE_NAME, "tcp",
 		pbs_conf.pbs_data_service_port);
 #else
+	perf_timing *perf_t = start_perf_timing("getservent");
 	/* Non-Windows uses getservent() for better performance. */
 	while ((servent = getservent()) != NULL) {
 		if (strcmp(servent->s_proto, "tcp") != 0)
@@ -360,6 +360,7 @@ __pbs_loadconf(int reload)
 			}
 		}
 	}
+	end_perf_timing(perf_t, __LINE__ - 26, __FILE__);
 	endservent();
 #endif
 
@@ -610,7 +611,6 @@ __pbs_loadconf(int reload)
 		pbs_loadconf_buf = NULL;
 		pbs_loadconf_len = 0;
 	}
-
 	/*
 	 * Next, check the environment variables and set values accordingly
 	 * overriding those that were set in the configuration file.
@@ -814,7 +814,6 @@ __pbs_loadconf(int reload)
 		if (sscanf(gvalue, "%u", &uvalue) == 1)
 			pbs_conf.pbs_sched_threads = uvalue;
 	}
-
 #ifdef WIN32
 	if ((gvalue = getenv(PBS_CONF_REMOTE_VIEWER)) != NULL) {
 		free(pbs_conf.pbs_conf_remote_viewer);
@@ -895,7 +894,6 @@ __pbs_loadconf(int reload)
 			goto err;
 		}
 	}
-
 	free(pbs_conf.iff_path);
 	/* strlen("/sbin/pbs_iff") + '\0' == 13 + 1 == 14 */
 	if ((pbs_conf.iff_path =
@@ -1003,7 +1001,6 @@ __pbs_loadconf(int reload)
 			}
 		}
 	}
-
 	pbs_conf.loaded = 1;
 
 	if (pbs_client_thread_unlock_conf() != 0)

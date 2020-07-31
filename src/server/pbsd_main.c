@@ -735,7 +735,6 @@ tcp_pre_process(conn_t *conn)
 int
 main(int argc, char **argv)
 {
-	init_perf_timing("/tmp/pbsd_main.log");
 	char *nodename = NULL;
 	int			are_primary;
 	int			c, rc;
