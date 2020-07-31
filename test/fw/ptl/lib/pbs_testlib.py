@@ -249,7 +249,7 @@ class PtlConfig(object):
             'PTL_SUDO_CMD': 'sudo -H',
             'PTL_RSH_CMD': 'ssh',
             'PTL_CP_CMD': 'scp -p',
-            'PTL_MAX_ATTEMPTS': 60,
+            'PTL_MAX_ATTEMPTS': 180,
             'PTL_ATTEMPT_INTERVAL': 0.5,
             'PTL_UPDATE_ATTRIBUTES': True,
         }
@@ -4059,9 +4059,13 @@ class PBSService(PBSObject):
             rv = self.logutils.match_msg(lines, msg, allmatch=allmatch,
                                          regexp=regexp, starttime=starttime,
                                          endtime=endtime)
-            if rv is None and not existence:
-                self.logger.log(level, infomsg + attemptmsg + '... OK')
-                break
+            if not existence:
+                if rv:
+                    _msg = infomsg + ' - but exists'
+                    raise PtlLogMatchError(rc=1, rv=False, msg=_msg)
+                else:
+                    self.logger.log(level, infomsg + attemptmsg + '... OK')
+                    break
             if rv:
                 self.logger.log(level, infomsg + '... OK')
                 break
@@ -4084,7 +4088,7 @@ class PBSService(PBSObject):
             lines.close()
         except:
             pass
-        if (rv is None and existence) or (rv is not None and not existence):
+        if (rv is None and existence):
             _msg = infomsg + attemptmsg
             raise PtlLogMatchError(rc=1, rv=False, msg=_msg)
         return rv
@@ -10920,7 +10924,6 @@ class Scheduler(PBSService):
                             "fairshare_enforce_no_shares",
                             "strict_ordering",
                             "resource_unset_infinite",
-                            "sync_time",
                             "unknown_shares",
                             "dedicated_prefix",
                             "load_balancing",
@@ -11490,7 +11493,8 @@ class Scheduler(PBSService):
                                starttime=reconfig_time)
                 self.log_match("Error reading line", max_attempts=2,
                                starttime=reconfig_time, existence=False)
-            except PtlLogMatchError:
+            except PtlLogMatchError as log_error:
+                self.logger.error(log_error.msg)
                 _msg = 'Error in validating sched_config changes'
                 raise PbsSchedConfigError(rc=1, rv=False,
                                           msg=_msg)
@@ -11514,10 +11518,13 @@ class Scheduler(PBSService):
         if apply:
             try:
                 self.apply_config(validate=validate)
-            except PbsSchedConfigError:
+            except PbsSchedConfigError as sched_error:
+                _msg = sched_error.msg
+                self.logger.error(_msg)
                 for k in confs:
                     del self.sched_config[k]
                 self.apply_config(validate=validate)
+                raise PbsSchedConfigError(rc=1, rv=False, msg=_msg)
         return True
 
     def add_server_dyn_res(self, custom_resource, script_body=None,
@@ -14043,8 +14050,7 @@ class MoM(PBSService):
             if dirname is None:
                 dirname = self.pbs_conf['PBS_HOME']
             tmp_file = self.du.create_temp_file(prefix=prefix, suffix=suffix,
-                                                body=script_body,
-                                                hostname=host)
+                                                body=script_body)
 
             res_file = os.path.join(dirname, tmp_file.split(os.path.sep)[-1])
             self.du.run_copy(host, src=tmp_file, dest=res_file, sudo=True,
@@ -14072,6 +14078,14 @@ class MoM(PBSService):
         file = os.path.join(os.sep, 'proc', 'mounts')
         mounts = self.du.cat(self.hostname, file)['out']
         pat = 'cgroup /sys/fs/cgroup'
+        enablemem = False
+        for line in mounts:
+            entries = line.split()
+            if entries[2] != 'cgroup':
+                continue
+            flags = entries[3].split(',')
+            if 'memory' in flags:
+                enablemem = True
         if str(mounts).count(pat) >= 6 and str(mounts).count('cpuset') >= 2:
             pbs_conf_val = self.du.parse_pbs_config(self.hostname)
             f1 = os.path.join(pbs_conf_val['PBS_EXEC'], 'lib',
@@ -14080,8 +14094,13 @@ class MoM(PBSService):
             # set vnode_per_numa_node = true, use_hyperthreads = true
             with open(f1, "r") as cfg:
                 cfg_dict = json.load(cfg)
-            cfg_dict['vnode_per_numa_node'] = 'true'
-            cfg_dict['use_hyperthreads'] = 'true'
+            cfg_dict['vnode_per_numa_node'] = True
+            cfg_dict['use_hyperthreads'] = True
+
+            # if the memory subsystem is not mounted, do not enable mem
+            # in the cgroups config otherwise PTL tests will fail.
+            # This matches what is documented for cgroups and mem.
+            cfg_dict['cgroup']['memory']['enabled'] = enablemem
             _, path = tempfile.mkstemp(prefix="cfg", suffix=".json")
             with open(path, "w") as cfg1:
                 json.dump(cfg_dict, cfg1, indent=4)
