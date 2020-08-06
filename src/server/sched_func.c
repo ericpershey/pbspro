@@ -71,6 +71,7 @@
 #include "server.h"
 #include <server_limits.h>
 #include "svrfunc.h"
+#include "libutil.h"
 
 extern struct server server;
 

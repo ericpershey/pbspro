@@ -89,6 +89,7 @@
 #include "pbs_license.h"
 #include "resource.h"
 #include "pbs_sched.h"
+#include "libutil.h"
 
 
 /* Global Data Items: */

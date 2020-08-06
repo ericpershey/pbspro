@@ -6162,34 +6162,27 @@ do_tpp(int stream)
 		im_eof(stream, ret);
 		return;
 	}
-	perf_timing *perf_t;
 	switch (proto) {
 		case	RM_PROTOCOL:
 			DBPRT(("%s: got a resource monitor request\n", __func__))
-			perf_t = start_perf_timing("rm_request");
 
 			if (rm_request(stream, version, PROT_TPP) == 0)
 				tpp_eom(stream);
 			
-			end_perf_timing(perf_t, __LINE__ - 3, __FILE__);
 			break;
 
 		case	IM_PROTOCOL:
 			DBPRT(("%s: got an internal task manager request\n", __func__))
-			perf_t = start_perf_timing("im_request");
 
 			im_request(stream, version);
 
-			end_perf_timing(perf_t, __LINE__ - 2, __FILE__);
 			break;
 
 		case	IS_PROTOCOL:
 			DBPRT(("%s: got an inter-server request\n", __func__))
-			perf_t = start_perf_timing("is_request");
 
 			is_request(stream, version);
 
-			end_perf_timing(perf_t, __LINE__ - 2, __FILE__);
 			break;
 
 		default:

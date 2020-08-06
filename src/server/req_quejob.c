@@ -68,6 +68,7 @@
 #include <sys/time.h>
 #endif
 
+#include "libutil.h"
 #include "libpbs.h"
 #include "server_limits.h"
 #include "list_link.h"

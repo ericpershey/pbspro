@@ -67,6 +67,7 @@
 #include "svrfunc.h"
 #include "acct.h"
 #include <sys/time.h>
+#include "libutil.h"
 
 
 /* External data */

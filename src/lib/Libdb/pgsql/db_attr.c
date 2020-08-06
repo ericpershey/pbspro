@@ -50,6 +50,7 @@
 #include "pbs_db.h"
 #include "db_postgres.h"
 #include "assert.h"
+#include "libutil.h"
 
 /*
  * initially allocate some space to buffer, anything more will be

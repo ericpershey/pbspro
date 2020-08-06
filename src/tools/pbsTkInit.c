@@ -61,6 +61,7 @@
 #include	"pbs_ifl.h"
 #include	"pbs_internal.h"
 #include	"log.h"
+#include	"libutil.h"
 
 
 char	log_buffer[LOG_BUF_SIZE];

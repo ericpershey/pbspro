@@ -86,6 +86,7 @@
 #include "cmds.h"
 #include "pbs_license.h"
 #include "pbs_idx.h"
+#include "libutil.h"
 #if !defined(H_ERRNO_DECLARED)
 extern int h_errno;
 #endif

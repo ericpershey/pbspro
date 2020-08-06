@@ -63,6 +63,7 @@
 #include "acct.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
+#include "libutil.h"
 
 extern void post_signal_req(struct work_task *);
 struct preempt_ordering *svr_get_preempt_order(job *pjob, pbs_sched *psched);

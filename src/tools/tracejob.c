@@ -75,6 +75,7 @@
 #include "log.h"
 #include "tracejob.h"
 
+#include "libutil.h"
 
 /* path from pbs home to the log files:
  index in mid_path must match with enum field in header */

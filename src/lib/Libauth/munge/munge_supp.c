@@ -50,6 +50,7 @@
 #include <grp.h>
 #include "libauth.h"
 #include "pbs_ifl.h"
+#include "libutil.h"
 
 static pthread_once_t munge_init_once = PTHREAD_ONCE_INIT;
 

@@ -80,6 +80,7 @@
 #include "resource.h"
 #include "resource_resv.h"
 #include "simulate.h"
+#include "libutil.h"
 
 #ifdef NAS
 

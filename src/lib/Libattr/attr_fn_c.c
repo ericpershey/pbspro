@@ -50,6 +50,7 @@
 #include "pbs_ifl.h"
 #include "list_link.h"
 #include "attribute.h"
+#include "libutil.h"
 #include "pbs_error.h"
 
 

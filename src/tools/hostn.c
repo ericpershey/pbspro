@@ -62,6 +62,7 @@
 #include <arpa/inet.h>
 #include "cmds.h"
 #include "pbs_version.h"
+#include "libutil.h"
 
 #if !defined(H_ERRNO_DECLARED)
 extern int h_errno;

@@ -340,7 +340,6 @@ __pbs_loadconf(int reload)
 		PBS_DATA_SERVICE_NAME, "tcp",
 		pbs_conf.pbs_data_service_port);
 #else
-	perf_timing *perf_t = start_perf_timing("getservent");
 	/* Non-Windows uses getservent() for better performance. */
 	while ((servent = getservent()) != NULL) {
 		if (strcmp(servent->s_proto, "tcp") != 0)
@@ -360,7 +359,6 @@ __pbs_loadconf(int reload)
 			}
 		}
 	}
-	end_perf_timing(perf_t, __LINE__ - 26, __FILE__);
 	endservent();
 #endif
 

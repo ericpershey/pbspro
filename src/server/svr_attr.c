@@ -46,6 +46,7 @@
 #include "svrfunc.h"
 #include "pbs_error.h"
 #include "pbs_python.h"
+#include "libutil.h"
 /*
  * BLUE GENE only
  * check_for_bgl_nodes - disallow node_group_enable if there are bgl nodes

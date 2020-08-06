@@ -77,6 +77,7 @@
 #include <attribute.h>
 #include <pbs_error.h>
 #include <Long.h>
+#include "libutil.h"
 
 extern int  comp_size(struct attribute *, struct attribute *);
 extern void from_size(struct size_value *, char *);

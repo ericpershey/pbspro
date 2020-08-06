@@ -74,6 +74,7 @@
 #include "reservation.h"
 #include "server.h"
 #include "tpp.h"
+#include "libutil.h"
 
 
 /* External Functions Called */

@@ -72,6 +72,7 @@
 #include "pbs_nodes.h"
 #include "svrfunc.h"
 #include "net_connect.h"
+#include "libutil.h"
 
 
 /* Private Function local to this file */

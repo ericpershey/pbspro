@@ -51,6 +51,7 @@
 
 #include <pbs_config.h>
 #include <pbs_python_private.h>
+#include "libutil.h"
 
 /* GLOBALS */
 

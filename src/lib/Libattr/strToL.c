@@ -43,6 +43,7 @@
 #include <errno.h>
 #include "Long.h"
 #include "Long_.h"
+#include "libutil.h"
 
 #undef strToL
 #undef strTouL

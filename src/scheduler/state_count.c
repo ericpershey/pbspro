@@ -62,6 +62,7 @@
 #include "state_count.h"
 #include "constant.h"
 #include "misc.h"
+#include "libutil.h"
 
 /**
  * @brief

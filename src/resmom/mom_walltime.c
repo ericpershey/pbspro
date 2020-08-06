@@ -45,6 +45,7 @@
 #include "attribute.h"
 #include "resource.h"
 #include "pbs_assert.h"
+#include "libutil.h"
 
 time_t			time_now = 0;
 double			wallfactor = 1.00;

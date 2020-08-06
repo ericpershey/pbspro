@@ -70,6 +70,7 @@
 #include "pbs_sched.h"
 #include "queue.h"
 #include "pbs_share.h"
+#include "libutil.h"
 
 
 /* Global Data */

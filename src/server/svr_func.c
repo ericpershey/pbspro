@@ -5970,14 +5970,10 @@ execute_python_prov_script(hook  *phook,
 	/* let rc pass through */
 	hook_perf_stat_start(perf_label, HOOK_PERF_RUN_CODE, 0);
 
-	perf_timing *perf_t = start_perf_timing("pbs_python_run_code_in_namespace");
-
 	rc = pbs_python_run_code_in_namespace(&svr_interp_data,
 		phook->script,
 		&exit_code);
 	
-	end_perf_timing(perf_t, __LINE__ -4, __FILE__);
-
 	hook_perf_stat_stop(perf_label, HOOK_PERF_RUN_CODE, 0);
 
 	/* go back to server's private directory */

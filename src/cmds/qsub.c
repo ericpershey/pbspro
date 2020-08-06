@@ -5639,8 +5639,6 @@ main(int argc, char **argv, char **envp) /* qsub */
 	int daemon_up = 0;
 	char **argv_cpy; /* copy argv for getopt */
 	int i;
-
-	init_perf_timing("/tmp/qsub.log");
 	/* Set signal handlers */
 	set_sig_handlers();
 

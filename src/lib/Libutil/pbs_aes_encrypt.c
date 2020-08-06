@@ -43,6 +43,7 @@
 #include <memory.h>
 #include <string.h>
 #include <stdlib.h>
+#include "libutil.h"
 
 #include <openssl/evp.h>
 #include <openssl/aes.h>

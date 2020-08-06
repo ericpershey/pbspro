@@ -74,6 +74,7 @@
 #include "pbs_license.h"
 #include "work_task.h"
 #include "job.h"
+#include "libutil.h"
 
 char *pbs_licensing_license_location  = NULL;
 long pbs_min_licenses		= PBS_MIN_LICENSING_LICENSES;

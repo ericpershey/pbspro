@@ -1935,14 +1935,12 @@ delay_query(void)
 	}
 	LocalFree(win_sid);
 #else
-	perf_timing *perf_t = start_perf_timing("usleep");
 	snprintf(filename, sizeof(filename), "%s/.pbs_last_query_%d", TMP_DIR, usid);
 	if(stat(filename, &buf) == 0) {
 		if(((time(NULL)*1000) - (buf.st_mtime * 1000)) < 10) {
 			usleep(200000);
 		}
 	}
-	end_perf_timing(perf_t, __LINE__ - 4, __FILE__);
 #endif /* WIN32 */
 	atexit(create_query_file);
 }

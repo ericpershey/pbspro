@@ -71,6 +71,7 @@
 #include "queue.h"
 #include "sched_cmds.h"
 #include "pbs_sched.h"
+#include "libutil.h"
 
 #ifdef WIN32
 #include <direct.h>

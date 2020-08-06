@@ -88,6 +88,7 @@
 #include "dis.h"
 #include "libsec.h"
 #include "pbs_db.h"
+#include "libutil.h"
 
 
 /* used internal to this file only */

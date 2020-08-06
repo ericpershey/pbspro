@@ -85,7 +85,7 @@
 #include "server_limits.h"
 #include "server.h"
 #include "job.h"
-
+#include "libutil.h"
 
 
 struct resource_cost {

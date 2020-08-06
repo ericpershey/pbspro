@@ -74,6 +74,7 @@
 #include "sched_cmds.h"
 #include "pbs_sched.h"
 #include "acct.h"
+#include "libutil.h"
 
 
 /* Private Function local to this file */

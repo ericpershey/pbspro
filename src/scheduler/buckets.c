@@ -57,6 +57,7 @@
 #include "sort.h"
 #include "node_partition.h"
 #include "check.h"
+#include "libutil.h"
 
 /* bucket_bitpool constructor */
 bucket_bitpool *

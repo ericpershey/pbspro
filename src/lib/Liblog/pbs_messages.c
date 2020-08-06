@@ -41,6 +41,7 @@
 
 #include "portability.h"
 #include "pbs_error.h"
+#include "libutil.h"
 
 #include <stdlib.h>
 

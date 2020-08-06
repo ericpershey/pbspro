@@ -77,6 +77,7 @@
 #include "reservation.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
+#include "libutil.h"
 #include <memory.h>
 
 

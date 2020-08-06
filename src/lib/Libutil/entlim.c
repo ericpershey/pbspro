@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "libutil.h"
 #include "pbs_entlim.h"
 #ifdef WIN32
 #include <windows.h>

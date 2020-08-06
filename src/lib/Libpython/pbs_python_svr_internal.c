@@ -5256,24 +5256,14 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 		char *line;
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK, LOG_INFO, __func__,
 			"Restarting Python interpreter to reduce mem usage");
-		perf_timing *perf_t = start_perf_timing("pbs_python_ext_shutdown_interpreter");
-
 		pbs_python_ext_shutdown_interpreter(&svr_interp_data);
-
-		end_perf_timing(perf_t, __LINE__ -2, __FILE__);
-
-		perf_t = start_perf_timing("pbs_python_ext_start_interpreter");
 
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			log_err(PBSE_INTERNAL, __func__, "Failed to restart Python interpreter");
 			
-			end_perf_timing(perf_t, __LINE__ -3, __FILE__);
-
 			goto event_set_exit;
 		}
 		
-		end_perf_timing(perf_t, __LINE__ -8, __FILE__);
-
 		/* Reset counters for the next interpreter restart. */
 		hook_counter = 0;
 		object_counter = 0;

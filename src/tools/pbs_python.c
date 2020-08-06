@@ -2866,17 +2866,11 @@ main(int argc, char *argv[], char *envp[])
 
 		hook_perf_stat_start(perf_label, HOOK_PERF_START_PYTHON, 0);
 
-		perf_timing *perf_t = start_perf_timing("pbs_python_ext_start_interpreter");
-
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			fprintf(stderr, "Failed to start Python interpreter");
-			
-			end_perf_timing(perf_t, __LINE__ -4, __FILE__);
-			
+						
 			exit(1);
 		}
-
-		end_perf_timing(perf_t, __LINE__ -8, __FILE__);
 
 		hook_perf_stat_stop(perf_label, HOOK_PERF_START_PYTHON, 0);
 		hook_input_param_init(&req_params);
@@ -3201,12 +3195,8 @@ main(int argc, char *argv[], char *envp[])
 			PyMem_RawFree(tmp_argv[0]);
 		} else {
 			hook_perf_stat_start(perf_label, HOOK_PERF_RUN_CODE, 0);
-			perf_timing *perf_t = start_perf_timing("pbs_python_run_code_in_namespace");
-
 			rc=pbs_python_run_code_in_namespace(&svr_interp_data,
 				py_script, 0);
-
-			end_perf_timing(perf_t, __LINE__ -3, __FILE__);
 
 			hook_perf_stat_stop(perf_label, HOOK_PERF_RUN_CODE, 0);
 		}
@@ -3619,11 +3609,7 @@ pbs_python_end:
 		if ((fp_server_out != NULL) && (fp_server_out != stdout))
 			fclose(fp_server_out);
 
-		perf_t = start_perf_timing("pbs_python_ext_shutdown_interpreter");
-
 		pbs_python_ext_shutdown_interpreter(&svr_interp_data);
-
-		end_perf_timing(perf_t, __LINE__ -2, __FILE__);
 
 		free_attrlist(&event_vnode);
 		CLEAR_HEAD(event_vnode);

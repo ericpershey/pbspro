@@ -56,6 +56,7 @@
 #include "resource.h"
 #include "pbs_error.h"
 #include "pbs_entlim.h"
+#include "libutil.h"
 
 
 /**

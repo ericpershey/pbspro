@@ -63,6 +63,7 @@
 #include "pbs_error.h"
 #include "pbs_sched.h"
 #include "server.h"
+#include "libutil.h"
 
 /* Functions */
 #ifdef PYTHON
@@ -242,12 +243,8 @@ pbs_python_event_set(unsigned int hook_event, char *req_user,
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_SERVER, LOG_DEBUG,
 			"_pbs_python_event_set", "retrying call");
 			
-		perf_timing *perf_t = start_perf_timing("retrying _pbs_python_event_set(");
-
 		rc = _pbs_python_event_set(hook_event, req_user, req_host,
 			req_params, perf_label);
-
-		end_perf_timing(perf_t, __LINE__ -3, __FILE__);
 	}
 	return (rc);
 #else

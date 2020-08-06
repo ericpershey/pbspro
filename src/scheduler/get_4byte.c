@@ -56,6 +56,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include "libutil.h"
 
 #if defined(FD_SET_IN_SYS_SELECT_H)
 #include <sys/select.h>

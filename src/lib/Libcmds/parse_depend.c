@@ -44,6 +44,7 @@
 
 #include "pbs_ifl.h"
 #include "cmds.h"
+#include "libutil.h"
 
 
 static char *deptypes[] = {

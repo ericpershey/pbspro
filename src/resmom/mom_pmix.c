@@ -42,6 +42,7 @@
  */
 
 #include <pbs_config.h>
+#include "libutil.h"
 
 #ifdef PMIX
 

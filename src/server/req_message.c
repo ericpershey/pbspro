@@ -70,6 +70,7 @@
 #include "pbs_nodes.h"
 #include "svrfunc.h"
 #include "acct.h"
+#include "libutil.h"
 
 /* Private Function local to this file */
 

@@ -82,7 +82,7 @@
 #include "hook.h"
 #include "pbs_sched.h"
 #include "acct.h"
-
+#include "libutil.h"
 
 #define	RETRY	3	/* number of times to retry network move */
 

@@ -43,6 +43,7 @@
 
 #include "data_types.h"
 #include "range.h"
+#include "libutil.h"
 
 /* to make references happy */
 int pbs_rm_port;

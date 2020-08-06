@@ -56,6 +56,7 @@
 #include "work_task.h"
 #include "pbs_error.h"
 #include "log.h"
+#include "libutil.h"
 
 #include <stdlib.h>
 

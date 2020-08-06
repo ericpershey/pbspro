@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "libutil.h"
 #include "pbs_bitmap.h"
 
 #define BYTES_TO_BITS(x) ((x) * 8)

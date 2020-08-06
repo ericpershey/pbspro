@@ -49,6 +49,7 @@
  */
 
 #include <pbs_config.h>
+#include "libutil.h"
 
 /* --- BEGIN PYTHON DEPENDENCIES --- */
 
@@ -189,11 +190,7 @@ pbs_python_ext_start_interpreter(struct python_interpreter_data *interp_data)
 	 * we want signals to propagate to the executing
 	 * Python script to be able to interrupt it
 	 */
-	// perf_timing *perf_t = start_perf_timing("Py_InitializeEx");
-
 	Py_InitializeEx(1);
-
-	// end_perf_timing(perf_t, __LINE__ -2, __FILE__);
 
 	if (Py_IsInitialized()) {
 		char *msgbuf;
@@ -234,8 +231,6 @@ pbs_python_ext_start_interpreter(struct python_interpreter_data *interp_data)
 		goto ERROR_EXIT;
 	}
 
-	// perf_timing *perf_t = start_perf_timing("pbs_python_load_python_types");
-
 	/*
 	 * At this point it is safe to load the available server types from
 	 * the python modules. since the syspath is setup correctly
@@ -244,8 +239,6 @@ pbs_python_ext_start_interpreter(struct python_interpreter_data *interp_data)
 		log_err(-1, __func__, "could not load python types into the interpreter");
 		goto ERROR_EXIT;
 	}
-
-	// end_perf_timing(perf_t, __LINE__ -5, __FILE__);
 
 	interp_data->pbs_python_types_loaded = 1; /* just in case */
 
@@ -329,11 +322,7 @@ pbs_python_ext_shutdown_interpreter(struct python_interpreter_data *interp_data)
 			pbs_python_event_unset();  /* clear Python event object */
 			pbs_python_unload_python_types(interp_data);
 
-			perf_timing *perf_t = start_perf_timing("Py_Finalize");
-
 			Py_Finalize();
-			
-			end_perf_timing(perf_t, __LINE__ -2, __FILE__);
 		}
 		interp_data->destroy_interpreter_data(interp_data);
 		/* reset so that we do not have a problem */
@@ -762,24 +751,16 @@ pbs_python_run_code_in_namespace(struct python_interpreter_data *interp_data,
 		}
 	}
 
-	perf_timing *perf_t = start_perf_timing("pbs_python_ext_namespace_init");
-
 	/* make new namespace dictionary, NOTE new reference */
 	if (!(pdict = (PyObject *)pbs_python_ext_namespace_init(interp_data))) {
 		log_err(-1, __func__, "while calling pbs_python_ext_namespace_init");
 		return -1;
 	}
-	
-	end_perf_timing(perf_t, __LINE__ -5, __FILE__);
-	
-	perf_t = start_perf_timing("pbs_python_setup_namespace_dict");
-
+		
 	if ((pbs_python_setup_namespace_dict(pdict) == -1)) {
 		Py_CLEAR(pdict);
 		return -1;
 	}
-
-	end_perf_timing(perf_t, __LINE__ -5, __FILE__);
 
 	/* clear previous global/local dictionary */
 	if (py_script->global_dict) {

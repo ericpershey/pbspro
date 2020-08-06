@@ -69,6 +69,7 @@
 #include "pbs_nodes.h"
 #include "svrfunc.h"
 #include "pbs_db.h"
+#include "libutil.h"
 
 
 #ifndef PBS_MOM

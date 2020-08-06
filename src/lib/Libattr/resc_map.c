@@ -52,6 +52,7 @@
 #include "attribute.h"
 #include "resource.h"
 #include "pbs_error.h"
+#include "libutil.h"
 
 
 /**

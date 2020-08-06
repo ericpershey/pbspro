@@ -53,6 +53,7 @@
 #include <krb5.h>
 #include "pbs_ifl.h"
 #include "libauth.h"
+#include "libutil.h"
 
 #if defined(KRB5_HEIMDAL)
 #define PBS_GSS_MECH_OID GSS_KRB5_MECHANISM

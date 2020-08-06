@@ -50,6 +50,7 @@
 #include "cmds.h"
 #include "pbs_ifl.h"
 
+#include "libutil.h"
 
 /**
  * @brief

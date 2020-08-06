@@ -62,6 +62,7 @@
 #include "cmds.h"
 #include "portability.h"
 #include "log.h"
+#include "libutil.h"
 
 
 char    log_buffer[LOG_BUF_SIZE];

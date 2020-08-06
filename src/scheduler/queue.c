@@ -45,6 +45,7 @@
 #include "constant.h"
 #include "log.h"
 #include "queue.h"
+#include "libutil.h"
 
 
 /**

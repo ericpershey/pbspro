@@ -55,6 +55,7 @@
 #include "log.h"
 #include "libutil.h"
 #include "pbs_ifl.h"
+#include "libutil.h"
 
 
 #ifndef	S_ISLNK

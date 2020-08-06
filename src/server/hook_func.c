@@ -1061,12 +1061,8 @@ py_compile_and_run(char *input_file_path, char *hook_msg, size_t msg_len,
 		rc = pbs_python_check_and_compile_script(&svr_interp_data,
 			py_test_script);
 	} else {
-		perf_timing *perf_t = start_perf_timing("pbs_python_run_code_in_namespace");
-
 		rc = pbs_python_run_code_in_namespace(&svr_interp_data,
 			py_test_script, 0);
-		
-		end_perf_timing(perf_t, __LINE__ -3, __FILE__);
 	}
 	/* free py_script immediately, as it was used only for */
 	/* test compile */
@@ -3914,13 +3910,9 @@ process_hooks(struct batch_request *preq, char *hook_msg, size_t msg_len,
 			num_run++;
 			continue;
 		}
-		perf_timing *perf_t = start_perf_timing("server_process_hooks");
-
 		rc = server_process_hooks(preq->rq_type, preq->rq_user, preq->rq_host, phook,
 				hook_event, pjob, &req_ptr, hook_msg, msg_len, pyinter_func,
 				&num_run, &event_initialized);
-
-		end_perf_timing(perf_t, __LINE__ -4, __FILE__);
 
 		if ((rc == 0) || (rc == -1))
 			return (rc);
@@ -4066,12 +4058,8 @@ int server_process_hooks(int rq_type, char *rq_user, char *rq_host, hook *phook,
 	/* optimization here - create an event object only if there's */
 	/* at least one enabled hook */
 	if (!(*event_initialized)) { /* only once for all hooks */
-		perf_timing *perf_t = start_perf_timing("pbs_python_event_set");
-
 		rc = pbs_python_event_set(hook_event, rq_user,
 			rq_host, req_ptr, perf_label);
-		
-		end_perf_timing(perf_t, __LINE__ -3, __FILE__);
 
 		if (rc == -1) { /* internal server code failure */
 			log_event(PBSEVENT_DEBUG2,
@@ -4342,12 +4330,8 @@ int server_process_hooks(int rq_type, char *rq_user, char *rq_host, hook *phook,
 	/* let rc pass through */
 	if (rc == 0) {
 		hook_perf_stat_start(perf_label, "run_code", 0);
-		
-		perf_timing *perf_t = start_perf_timing("pbs_python_run_code_in_namespace");
 
 		rc = pbs_python_run_code_in_namespace(&svr_interp_data, phook->script, 0);
-
-		end_perf_timing(perf_t, __LINE__ -2, __FILE__);
 
 		hook_perf_stat_stop(perf_label, "run_code", 0);
 
@@ -6904,13 +6888,9 @@ run_periodic_hook(struct work_task *ptask)
 		req_ptr.vns_list = (pbs_list_head *)get_vnode_list();
 		req_ptr.resv_list = (pbs_list_head *)get_resv_list();
 
-		perf_timing *perf_t = start_perf_timing("server_process_hooks");
-
 		ret = server_process_hooks(PBS_BATCH_HookPeriodic, NULL, NULL, phook,
 					HOOK_EVENT_PERIODIC, NULL, &req_ptr, hook_msg,
 					sizeof(hook_msg), pbs_python_set_interrupt, &num_run, &event_initialized);
-
-		end_perf_timing(perf_t, __LINE__ -4, __FILE__);
 
 		if (ret == 0)
 			log_event(PBSE_HOOKERROR, PBS_EVENTCLASS_HOOK, LOG_ERR, __func__, hook_msg);

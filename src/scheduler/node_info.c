@@ -155,6 +155,7 @@
 #include "pbs_bitmap.h"
 #include "pbs_license.h"
 #include "multi_threading.h"
+#include "libutil.h"
 #ifdef NAS
 #include "site_code.h"
 #endif

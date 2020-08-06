@@ -1429,8 +1429,6 @@ main(int argc, char **argv)
 		"%s", server_host);
 	if ((pc=strchr(svr_interp_data.local_host_name, '.')) != NULL)
 		*pc = '\0';
-
-	perf_timing *perf_t = start_perf_timing("pbs_python_ext_start_interpreter");
 	
 	if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 		log_err(-1, msg_daemonname, "Failed to start Python interpreter");
@@ -1438,8 +1436,6 @@ main(int argc, char **argv)
 		free(keep_daemon_name);
 		return (1);
 	}
-
-	end_perf_timing(perf_t, __LINE__ -7, __FILE__);
 
 	/* check and enable the prov attributes */
 	set_srv_prov_attributes();
@@ -1454,11 +1450,7 @@ main(int argc, char **argv)
 		free(keep_daemon_name);
 		return (1);
 	}
-	perf_t = start_perf_timing("pbs_python_ext_start_interpreter");
-
 	process_hooks(periodic_req, hook_msg, sizeof(hook_msg), pbs_python_set_interrupt);
-
-	end_perf_timing(perf_t, __LINE__ -2, __FILE__);
 	/*
 	 * Make the scheduler (re)-read the configuration
 	 * and fairshare usage.
@@ -1677,13 +1669,9 @@ main(int argc, char **argv)
 	}
 #endif
 
-	perf_t = start_perf_timing("pbs_python_ext_shutdown_interpreter");
-
 	/* Shut down interpreter now before closing network connections */
 	pbs_python_ext_shutdown_interpreter(&svr_interp_data); /* stop python if started */
-	
-	end_perf_timing(perf_t, __LINE__ -2, __FILE__);
-	
+		
 	shutdown_ack();
 	net_close(-1);		/* close all network connections */
 	tpp_shutdown();

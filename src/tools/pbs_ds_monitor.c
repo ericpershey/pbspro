@@ -72,6 +72,7 @@
 #include <pbs_internal.h>
 #include "pbs_db.h"
 #include "pbs_ifl.h"
+#include "libutil.h"
 
 #define MAX_LOCK_ATTEMPTS 5
 #define MAX_DBPID_ATTEMPTS 20

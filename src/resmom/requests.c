@@ -87,6 +87,7 @@
 #include "work_task.h"
 #include "placementsets.h"
 #include "pbs_internal.h"
+#include "libutil.h"
 
 #if defined(PBS_SECURITY) && (PBS_SECURITY == KRB5)
 #include "renew_creds.h"

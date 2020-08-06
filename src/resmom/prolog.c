@@ -64,6 +64,7 @@
 #include "log.h"
 #include "mom_mach.h"
 #include "mom_func.h"
+#include "libutil.h"
 
 
 #define PBS_PROLOG_TIME 30

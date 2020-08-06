@@ -65,6 +65,7 @@
 #ifndef PBS_MOM
 #include "queue.h"
 #endif /* PBS_MOM */
+#include "libutil.h"
 
 
 

@@ -63,6 +63,7 @@
 #include "pbs_version.h"
 #include "sched_cmds.h"
 #include "log.h"
+#include "libutil.h"
 
 /* prototypes */
 static void print_fairshare_entity(group_info *ginfo);

@@ -50,6 +50,7 @@
 #include <errno.h>
 #include "Long.h"
 #include "Long_.h"
+#include "libutil.h"
 
 #define LBUFSIZ (CHAR_BIT * sizeof(u_Long) + 2)
 

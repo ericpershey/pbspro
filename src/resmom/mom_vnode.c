@@ -59,6 +59,7 @@
 #include	"mom_vnode.h"
 #include	"libutil.h"
 #include	"hook_func.h"
+#include "libutil.h"
 
 #ifndef	_POSIX_ARG_MAX
 #define	_POSIX_ARG_MAX	4096	/* largest value standards guarantee */

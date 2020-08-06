@@ -92,6 +92,7 @@
 #include <sys/select.h>
 #endif
 #include <sys/resource.h>
+#include "libutil.h"
 
 #include	"pbs_version.h"
 #include	"portability.h"

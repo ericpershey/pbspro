@@ -51,6 +51,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <errno.h>
+#include "libutil.h"
 
 #include "Long.h"
 #include "Long_.h"

@@ -77,6 +77,7 @@
 #include "pbs_nodes.h"
 #include "svrfunc.h"
 #include "tpp.h"
+#include "libutil.h"
 
 
 /* External Globals */

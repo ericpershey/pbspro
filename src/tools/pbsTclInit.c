@@ -61,6 +61,7 @@
 #include	"pbs_internal.h"
 #include	"log.h"
 #include	"tpp.h"
+#include 	"libutil.h"
 
 
 
