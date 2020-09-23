@@ -88,7 +88,6 @@ const struct enum_conv smp_cluster_info[] =
 	{
 	{ SMP_NODE_PACK, "pack" },
 	{ SMP_ROUND_ROBIN, "round_robin" },
-	{ SMP_LOWEST_LOAD, "lowest_load", },
 	{ HIGH_SMP_DIST, "" }
 };
 
@@ -107,16 +106,6 @@ const struct enum_conv preempt_prio_info[] =
 	{ PREEMPT_EXPRESS, "express_queue" },
 	{ PREEMPT_ERR, "" },			/* no corresponding config file value */
 	{ PREEMPT_HIGH, "" }
-};
-
-/*
- *	res_to_get - resources to get from each nodes mom
- */
-const char *res_to_get[] =
-	{
-	"loadave",		/* the current load average */
-	"max_load",		/* static max_load value */
-	"ideal_load",		/* static ideal_load value */
 };
 
 /* Used to create static indexes into allres */
@@ -138,17 +127,14 @@ const struct enum_conv resind[] =
 	{RES_HIGH, ""}
 };
 
-/* number of indices in the res_to_get array */
-const int num_resget = sizeof(res_to_get) / sizeof(char *);
-
 struct config conf;
 struct status cstat;
 
 /* to make references happy */
-int pbs_rm_port;
 int got_sigpipe;
-
-int	second_connection;
+sched_svrconn **servers = NULL;
+ds_queue *sched_cmds = NULL;
+void *poll_context = NULL;
 
 /* Stuff needed for multi-threading */
 pthread_mutex_t general_lock;
@@ -177,7 +163,6 @@ resdef **boolres = NULL;
 char *cmp_aoename = NULL;
 
 char *sc_name = NULL;
-int sched_port = -1;
 char *logfile = NULL;
 
 int preempt_normal;			/* preempt priority of normal_jobs */

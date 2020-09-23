@@ -85,30 +85,30 @@ extern "C" {
 #define ATTR_N "Job_Name"
 #define ATTR_S "Shell_Path_List"
 #define ATTR_array_indices_submitted ATTR_J
-#define ATTR_depend		"depend"
-#define ATTR_inter		"interactive"
-#define ATTR_sandbox		"sandbox"
-#define ATTR_stagein		"stagein"
-#define ATTR_stageout		"stageout"
-#define ATTR_resvTag		"reserve_Tag"
-#define ATTR_resv_start 	"reserve_start"
-#define ATTR_resv_end   	"reserve_end"
-#define ATTR_resv_duration	"reserve_duration"
-#define ATTR_resv_state		"reserve_state"
-#define ATTR_resv_substate	"reserve_substate"
-#define ATTR_resv_job		"reserve_job"
-#define ATTR_auth_u		"Authorized_Users"
-#define ATTR_auth_g		"Authorized_Groups"
-#define ATTR_auth_h		"Authorized_Hosts"
-#define ATTR_cred		"cred"
-#define ATTR_nodemux		"no_stdio_sockets"
-#define ATTR_umask		"umask"
-#define ATTR_block		"block"
-#define ATTR_convert            "qmove"
-#define ATTR_DefaultChunk	"default_chunk"
-#define ATTR_X11_cookie         "forward_x11_cookie"
-#define ATTR_X11_port           "forward_x11_port"
-#define ATTR_GUI		"gui"
+#define ATTR_depend			"depend"
+#define ATTR_inter			"interactive"
+#define ATTR_sandbox			"sandbox"
+#define ATTR_stagein			"stagein"
+#define ATTR_stageout			"stageout"
+#define ATTR_resvTag			"reserve_Tag"
+#define ATTR_resv_start			"reserve_start"
+#define ATTR_resv_end			"reserve_end"
+#define ATTR_resv_duration		"reserve_duration"
+#define ATTR_resv_state			"reserve_state"
+#define ATTR_resv_substate		"reserve_substate"
+#define ATTR_resv_job			"reserve_job"
+#define ATTR_auth_u			"Authorized_Users"
+#define ATTR_auth_g			"Authorized_Groups"
+#define ATTR_auth_h			"Authorized_Hosts"
+#define ATTR_cred			"cred"
+#define ATTR_nodemux			"no_stdio_sockets"
+#define ATTR_umask			"umask"
+#define ATTR_block			"block"
+#define ATTR_convert			"qmove"
+#define ATTR_DefaultChunk		"default_chunk"
+#define ATTR_X11_cookie			"forward_x11_cookie"
+#define ATTR_X11_port			"forward_x11_port"
+#define ATTR_GUI			"gui"
 
 /* Begin Standing Reservation Attributes */
 #define ATTR_resv_standing      "reserve_standing"
@@ -351,7 +351,6 @@ extern "C" {
 #define ATTR_job_sort_formula_threshold "job_sort_formula_threshold"
 #define ATTR_throughput_mode "throughput_mode"
 #define ATTR_opt_backfill_fuzzy "opt_backfill_fuzzy"
-#define ATTR_sched_port "sched_port"
 #define ATTR_partition "partition"
 #define ATTR_sched_priv "sched_priv"
 #define ATTR_sched_log "sched_log"
@@ -453,8 +452,6 @@ enum mgr_obj {
 #define MSG_OUT		1
 #define MSG_ERR		2
 
-
-#define BLUEGENE		"bluegene"
 /* SUSv2 guarantees that host names are limited to 255 bytes */
 #define PBS_MAXHOSTNAME		255	/* max host name length */
 #ifndef MAXPATHLEN
@@ -489,7 +486,7 @@ enum mgr_obj {
 
 /* the pair to this list is in module_pbs_v1.c and must be updated to reflect any changes */
 enum batch_op {	SET, UNSET, INCR, DECR,
-	EQ, NE, GE, GT, LE, LT, DFLT
+	EQ, NE, GE, GT, LE, LT, DFLT, INTERNAL
 };
 
 /* shutdown manners externally visible */
@@ -499,10 +496,10 @@ enum batch_op {	SET, UNSET, INCR, DECR,
 
 /* messages that may be passsed  by pbs_deljob() api to the server  via its extend parameter*/
 
-#define FORCEDEL			"force"
+#define FORCE				"force"
 #define NOMAIL  			"nomail"
 #define SUPPRESS_EMAIL  		"suppress_email"
-#define DELETEHISTORY		"deletehist"
+#define DELETEHISTORY			"deletehist"
 /*
  ** This structure is identical to attropl so they can be used
  ** interchangably.  The op field is not used.

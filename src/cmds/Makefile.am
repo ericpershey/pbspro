@@ -78,7 +78,6 @@ sbin_PROGRAMS = \
 
 dist_bin_SCRIPTS = \
 	mpiexec \
-	nqs2pbs \
 	pbs_lamboot \
 	pbs_mpihp \
 	pbs_mpilam \
@@ -106,7 +105,7 @@ common_sources = \
 
 pbsdsh_CPPFLAGS = ${common_cflags}
 pbsdsh_LDADD = ${common_libs}
-pbsdsh_SOURCES = pbsdsh.c
+pbsdsh_SOURCES = pbsdsh.c ${common_sources}
 
 pbsnodes_CPPFLAGS = ${common_cflags}
 pbsnodes_LDADD = ${common_libs}
@@ -121,32 +120,26 @@ pbs_demux_LDADD = ${common_libs}
 pbs_demux_SOURCES = pbs_demux.c
 
 pbs_dataservice_bin_CPPFLAGS = \
-	${common_cflags} \
-	@database_inc@
-pbs_dataservice_bin_LDFLAGS = "-Wl,-rpath,$(DESTDIR)$(libdir)"
+	${common_cflags}
 pbs_dataservice_bin_LDADD = \
-	$(top_builddir)/src/lib/Libdb/libdb.so \
+	$(top_builddir)/src/lib/Libdb/libpbsdb.la \
 	${common_libs} \
-	@database_lib@ \
 	-lssl \
 	-lcrypto
 pbs_dataservice_bin_SOURCES = pbs_dataservice.c ${common_sources}
 
 pbs_ds_password_bin_CPPFLAGS = \
-	${common_cflags} \
-	@database_inc@
-pbs_ds_password_bin_LDFLAGS = "-Wl,-rpath,$(DESTDIR)$(libdir)"
+	${common_cflags}
 pbs_ds_password_bin_LDADD = \
-	$(top_builddir)/src/lib/Libdb/libdb.so \
+	$(top_builddir)/src/lib/Libdb/libpbsdb.la \
 	${common_libs} \
-	@database_lib@ \
 	-lssl \
 	-lcrypto
 pbs_ds_password_bin_SOURCES = pbs_ds_password.c ${common_sources}
 
 pbs_tmrsh_CPPFLAGS = ${common_cflags}
 pbs_tmrsh_LDADD = ${common_libs}
-pbs_tmrsh_SOURCES = pbs_tmrsh.c
+pbs_tmrsh_SOURCES = pbs_tmrsh.c ${common_sources}
 
 pbs_ralter_CPPFLAGS = ${common_cflags}
 pbs_ralter_LDADD = ${common_libs}
@@ -194,7 +187,7 @@ qmgr_CPPFLAGS = \
 qmgr_LDADD = \
 	${common_libs} \
 	@editline_lib@
-qmgr_SOURCES = qmgr.c ${common_sources}
+qmgr_SOURCES = qmgr.c qmgr_sup.c ${common_sources}
 
 qmove_CPPFLAGS = ${common_cflags}
 qmove_LDADD = ${common_libs}

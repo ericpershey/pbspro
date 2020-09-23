@@ -63,10 +63,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#ifndef WIN32
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
-#endif
+#include "pbs_idx.h"
 #include "pbs_error.h"
 #include "tpp_internal.h"
 #include "dis.h"
@@ -351,6 +350,11 @@ set_tpp_config(void (*log_fn)(int, const char *, char *), struct pbs_config *pbs
 	if (tpp_conf->auth_config->encrypt_method[0] != '\0') {
 		snprintf(log_buffer, TPP_LOGBUF_SZ, "TPP encryption method = %s", tpp_conf->auth_config->encrypt_method);
 		tpp_log_func(LOG_INFO, NULL, log_buffer);
+	}
+
+	if ((tpp_conf->supported_auth_methods = dup_string_arr(pbs_conf->supported_auth_methods)) == NULL) {
+		tpp_log_func(LOG_CRIT, __func__, "Out of memory while making copy of supported auth methods");
+		return -1;
 	}
 
 #ifdef PBS_COMPRESSION_ENABLED

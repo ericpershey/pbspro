@@ -175,7 +175,7 @@ extern "C" {
 #define PBSE_PLACENOSELECT	     15111 /* cannot have place w/o select */
 #define PBSE_INDIRECTHOP	     15112 /* too many indirect resc levels */
 #define PBSE_INDIRECTBT		     15113 /* target resc undefined */
-#define PBSE_NGBLUEGENE		     15114 /* No node_group_enable and bgl */
+/* Error number 15114 not used */
 #define PBSE_NODESTALE		     15115 /* Cannot change state of stale nd */
 #define PBSE_DUPRESC		     15116 /* cannot dup resc within a chunk */
 #define PBSE_CONNFULL		     15117 /* server connection table full */
@@ -286,6 +286,8 @@ extern "C" {
 #define PBSE_NODE_BUSY	15227		 /* Node is busy */
 #define PBSE_DEFAULT_PARTITION 15228	/* Default partition name is not allowed */
 #define PBSE_HISTDEPEND  15229		/* Finished job did not satisfy dependency */
+
+#define PBSE_SCHEDCONNECTED	15230
 
 /* the following structure is used to tie error number      */
 /* with text to be returned to a client, see svr_messages.c */

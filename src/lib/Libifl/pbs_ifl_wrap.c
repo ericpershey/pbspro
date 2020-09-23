@@ -139,7 +139,6 @@
 # pragma warning disable 592
 #endif
 
-
 #if defined(__GNUC__) && defined(_WIN32) && !defined(SWIG_PYTHON_NO_HYPOT_WORKAROUND)
 /* Workaround for '::hypot' has not been declared', see https://bugs.python.org/issue11566 */
 # include <math.h>
@@ -8507,7 +8506,6 @@ SWIG_init(void) {
   SWIG_Python_SetConstant(d, "ATTR_throughput_mode",SWIG_FromCharPtr("throughput_mode"));
   SWIG_Python_SetConstant(d, "ATTR_job_run_wait",SWIG_FromCharPtr("job_run_wait"));
   SWIG_Python_SetConstant(d, "ATTR_opt_backfill_fuzzy",SWIG_FromCharPtr("opt_backfill_fuzzy"));
-  SWIG_Python_SetConstant(d, "ATTR_sched_port",SWIG_FromCharPtr("sched_port"));
   SWIG_Python_SetConstant(d, "ATTR_partition",SWIG_FromCharPtr("partition"));
   SWIG_Python_SetConstant(d, "ATTR_sched_priv",SWIG_FromCharPtr("sched_priv"));
   SWIG_Python_SetConstant(d, "ATTR_sched_log",SWIG_FromCharPtr("sched_log"));
@@ -8584,7 +8582,6 @@ SWIG_init(void) {
   SWIG_Python_SetConstant(d, "PBS_HOOK",SWIG_FromCharPtr("pbshook"));
   SWIG_Python_SetConstant(d, "MSG_OUT",SWIG_From_int((int)(1)));
   SWIG_Python_SetConstant(d, "MSG_ERR",SWIG_From_int((int)(2)));
-  SWIG_Python_SetConstant(d, "BLUEGENE",SWIG_FromCharPtr("bluegene"));
   SWIG_Python_SetConstant(d, "PBS_MAXHOSTNAME",SWIG_From_int((int)(255)));
   SWIG_Python_SetConstant(d, "MAXPATHLEN",SWIG_From_int((int)(1024)));
   SWIG_Python_SetConstant(d, "MAXNAMLEN",SWIG_From_int((int)(255)));
@@ -8625,7 +8622,7 @@ SWIG_init(void) {
   SWIG_Python_SetConstant(d, "SHUT_IMMEDIATE",SWIG_From_int((int)(0)));
   SWIG_Python_SetConstant(d, "SHUT_DELAY",SWIG_From_int((int)(1)));
   SWIG_Python_SetConstant(d, "SHUT_QUICK",SWIG_From_int((int)(2)));
-  SWIG_Python_SetConstant(d, "FORCEDEL",SWIG_FromCharPtr("force"));
+  SWIG_Python_SetConstant(d, "FORCE",SWIG_FromCharPtr("force"));
   SWIG_Python_SetConstant(d, "NOMAIL",SWIG_FromCharPtr("nomail"));
   SWIG_Python_SetConstant(d, "SUPPRESS_EMAIL",SWIG_FromCharPtr("suppress_email"));
   SWIG_Python_SetConstant(d, "DELETEHISTORY",SWIG_FromCharPtr("deletehist"));

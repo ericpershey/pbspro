@@ -48,16 +48,16 @@
 #include <stdlib.h>
 #include <netdb.h>
 #include <pbs_ifl.h>
+#include <pwd.h>
 #include "pbs_internal.h"
 #include <limits.h>
 #include <pbs_error.h>
 #include "pbs_client_thread.h"
 #include "net_connect.h"
-
-#ifdef WIN32
 #include <sys/stat.h>
 #include <unistd.h>
-#else
+
+#ifndef WIN32
 #define shorten_and_cleanup_path(p) strdup(p)
 #endif
 
@@ -90,13 +90,15 @@ struct pbs_config pbs_conf = {
 	PBS_BATCH_SERVICE_PORT_DIS,		/* batch_service_port_dis */
 	PBS_MOM_SERVICE_PORT,			/* mom_service_port */
 	PBS_MANAGER_SERVICE_PORT,		/* manager_service_port */
-	PBS_SCHEDULER_SERVICE_PORT,		/* scheduler_service_port */
 	PBS_DATA_SERVICE_PORT,			/* pbs data service port */
 	NULL,					/* pbs_conf_file */
 	NULL,					/* pbs_home_path */
 	NULL,					/* pbs_exec_path */
 	NULL,					/* pbs_server_name */
 	NULL,					/* PBS server id */
+	0,					/* single pbs server instance by default */
+	NULL,					/* pbs_server_instances */
+	NULL,					/* cp_path */
 	NULL,					/* scp_path */
 	NULL,					/* rcp_path */
 	NULL,					/* pbs_demux_path */
@@ -125,7 +127,9 @@ struct pbs_config pbs_conf = {
 	NULL,					/* mom short name override */
 	NULL,					/* pbs_lr_save_path */
 	0,					/* high resolution timestamp logging */
-	0					/* number of scheduler threads */
+	0,					/* number of scheduler threads */
+	NULL,					/* default scheduler user */
+	{'\0'}					/* current running user */
 #ifdef WIN32
 	,NULL					/* remote viewer launcher executable along with launch options */
 #endif
@@ -161,8 +165,6 @@ identify_service_entry(char *name)
 		p = &pbs_conf.mom_service_port;
 	} else if (strcmp(name, PBS_MANAGER_SERVICE_NAME) == 0) {
 		p = &pbs_conf.manager_service_port;
-	} else if (strcmp(name, PBS_SCHEDULER_SERVICE_NAME) == 0) {
-		p = &pbs_conf.scheduler_service_port;
 	} else if (strcmp(name, PBS_DATA_SERVICE_NAME) == 0) {
 		p = &pbs_conf.pbs_data_service_port;
 	}
@@ -252,6 +254,64 @@ parse_config_line(FILE *fp, char **key, char **val)
 	return ret;
 }
 
+
+/**
+ * @brief
+ * parse_psi - parses the PBS_SERVER_INSTANCES
+ *    
+ * @param[in] conf_value  configuration value set in pbs.conf
+ * 
+ * @return int
+ * @retval -1, For error
+ * @retval 0, For success
+ */
+
+int
+parse_psi(char *conf_value)
+{
+	char **list;
+	int i;
+	char *svrname = NULL;
+	
+	free(pbs_conf.psi);
+
+	list = break_comma_list(conf_value);
+	if (list == NULL)
+		return -1;
+
+	for (i = 0; list[i] != NULL; i++)
+		;
+
+	if (!(pbs_conf.psi = calloc(i, sizeof(psi_t)))) {
+		fprintf(stderr, "Out of memory while parsing configuration %s", conf_value);
+		free_string_array(list);
+		return -1;
+	}
+
+	for (i = 0; list[i] != NULL; i++) {
+		svrname = parse_servername(list[i], &(pbs_conf.psi[i].port));
+		if (svrname == NULL) {
+			fprintf(stderr, "Error parsing PBS_SERVER_INSTANCES %s \n", list[i]);
+			free_string_array(list);
+			return -1;
+		}	
+		strcpy(pbs_conf.psi[i].name, svrname);
+
+		if (pbs_conf.psi[i].name[0] == '\0')
+			strcpy(pbs_conf.psi[i].name, pbs_conf.pbs_server_name);
+		if (pbs_conf.psi[i].port == 0) {
+			if (is_same_host(pbs_conf.psi[i].name, pbs_conf.pbs_server_name))
+				pbs_conf.psi[i].port = pbs_conf.batch_service_port;
+			else
+				pbs_conf.psi[i].port = PBS_BATCH_SERVICE_PORT;
+		}
+	}
+	free_string_array(list);
+	pbs_conf.pbs_num_servers = i;
+
+	return 0;
+}
+
 /**
  * @brief
  *	pbs_loadconf - Populate the pbs_conf structure
@@ -288,11 +348,14 @@ __pbs_loadconf(int reload)
 	char *conf_value;		/* the value from the conf file or env*/
 	char *gvalue;			/* used with getenv() */
 	unsigned int uvalue;		/* used with sscanf() */
+	struct passwd *pw;
+	uid_t pbs_current_uid;
 #ifndef WIN32
 	struct servent *servent;	/* for use with getservent */
 	char **servalias;		/* service alias list */
 	unsigned int *pui;		/* for use with identify_service_entry */
 #endif
+	char *psi_value = NULL;
 
 	/* initialize the thread context data, if not already initialized */
 	if (pbs_client_thread_init_thread_context() != 0)
@@ -334,9 +397,6 @@ __pbs_loadconf(int reload)
 	pbs_conf.manager_service_port = get_svrport(
 		PBS_MANAGER_SERVICE_NAME, "tcp",
 		pbs_conf.manager_service_port);
-	pbs_conf.scheduler_service_port = get_svrport(
-		PBS_SCHEDULER_SERVICE_NAME, "tcp",
-		pbs_conf.scheduler_service_port);
 	pbs_conf.pbs_data_service_port = get_svrport(
 		PBS_DATA_SERVICE_NAME, "tcp",
 		pbs_conf.pbs_data_service_port);
@@ -428,11 +488,6 @@ __pbs_loadconf(int reload)
 					pbs_conf.manager_service_port =
 						((uvalue <= 65535) ? uvalue : pbs_conf.manager_service_port);
 			}
-			else if (!strcmp(conf_name, PBS_CONF_SCHEDULER_SERVICE_PORT)) {
-				if (sscanf(conf_value, "%u", &uvalue) == 1)
-					pbs_conf.scheduler_service_port =
-						((uvalue <= 65535) ? uvalue : pbs_conf.scheduler_service_port);
-			}
 			else if (!strcmp(conf_name, PBS_CONF_DATA_SERVICE_PORT)) {
 				if (sscanf(conf_value, "%u", &uvalue) == 1)
 					pbs_conf.pbs_data_service_port =
@@ -499,6 +554,10 @@ __pbs_loadconf(int reload)
 				free(pbs_conf.pbs_server_name);
 				pbs_conf.pbs_server_name = strdup(conf_value);
 			}
+			else if (!strcmp(conf_name, PBS_CONF_SERVER_INSTANCES)) {
+				if ((psi_value = strdup(conf_value)) == NULL)
+					goto err;
+			}
 			else if (!strcmp(conf_name, PBS_CONF_RCP)) {
 				free(pbs_conf.rcp_path);
 				pbs_conf.rcp_path = shorten_and_cleanup_path(conf_value);
@@ -506,6 +565,10 @@ __pbs_loadconf(int reload)
 			else if (!strcmp(conf_name, PBS_CONF_SCP)) {
 				free(pbs_conf.scp_path);
 				pbs_conf.scp_path = shorten_and_cleanup_path(conf_value);
+			}
+			else if (!strcmp(conf_name, PBS_CONF_CP)) {
+				free(pbs_conf.cp_path);
+				pbs_conf.cp_path = shorten_and_cleanup_path(conf_value);
 			}
 			/* rcp_path can be inferred from pbs_conf.pbs_exec_path - see below */
 			/* pbs_demux_path is inferred from pbs_conf.pbs_exec_path - see below */
@@ -603,6 +666,10 @@ __pbs_loadconf(int reload)
 				}
 				free(value);
 			}
+			else if (!strcmp(conf_name, PBS_CONF_DAEMON_SERVICE_USER)) {
+				free(pbs_conf.pbs_daemon_service_user);
+				pbs_conf.pbs_daemon_service_user = strdup(conf_value);
+			}
 			/* iff_path is inferred from pbs_conf.pbs_exec_path - see below */
 		}
 		fclose(fp);
@@ -664,11 +731,6 @@ __pbs_loadconf(int reload)
 			pbs_conf.manager_service_port =
 				((uvalue <= 65535) ? uvalue : pbs_conf.manager_service_port);
 	}
-	if ((gvalue = getenv(PBS_CONF_SCHEDULER_SERVICE_PORT)) != NULL) {
-		if (sscanf(gvalue, "%u", &uvalue) == 1)
-			pbs_conf.scheduler_service_port =
-				((uvalue <= 65535) ? uvalue : pbs_conf.scheduler_service_port);
-	}
 	if ((gvalue = getenv(PBS_CONF_HOME)) != NULL) {
 		free(pbs_conf.pbs_home_path);
 		pbs_conf.pbs_home_path = shorten_and_cleanup_path(gvalue);
@@ -690,6 +752,11 @@ __pbs_loadconf(int reload)
 			goto err;
 		}
 	}
+	if ((gvalue = getenv(PBS_CONF_SERVER_INSTANCES)) != NULL) {
+		free(psi_value);
+		if ((psi_value = strdup(gvalue)) == NULL)
+			goto err;
+	}
 	if ((gvalue = getenv(PBS_CONF_RCP)) != NULL) {
 		free(pbs_conf.rcp_path);
 		pbs_conf.rcp_path = shorten_and_cleanup_path(gvalue);
@@ -697,6 +764,10 @@ __pbs_loadconf(int reload)
 	if ((gvalue = getenv(PBS_CONF_SCP)) != NULL) {
 		free(pbs_conf.scp_path);
 		pbs_conf.scp_path = shorten_and_cleanup_path(gvalue);
+	}
+	if ((gvalue = getenv(PBS_CONF_CP)) != NULL) {
+		free(pbs_conf.cp_path);
+		pbs_conf.cp_path = shorten_and_cleanup_path(gvalue);
 	}
 	if ((gvalue = getenv(PBS_CONF_PRIMARY)) != NULL) {
 		free(pbs_conf.pbs_primary);
@@ -815,6 +886,11 @@ __pbs_loadconf(int reload)
 			pbs_conf.pbs_sched_threads = uvalue;
 	}
 
+	if ((gvalue = getenv(PBS_CONF_DAEMON_SERVICE_USER)) != NULL) {
+		free(pbs_conf.pbs_daemon_service_user);
+		pbs_conf.pbs_daemon_service_user = strdup(gvalue);
+	}
+
 #ifdef WIN32
 	if ((gvalue = getenv(PBS_CONF_REMOTE_VIEWER)) != NULL) {
 		free(pbs_conf.pbs_conf_remote_viewer);
@@ -847,6 +923,11 @@ __pbs_loadconf(int reload)
 		fprintf(stderr, "pbsconf error: pbs conf variables not found: %s\n", buf);
 		goto err;
 	}
+
+	if (parse_psi(psi_value ? psi_value : pbs_conf.pbs_server_name) == -1)
+		goto err;
+	free(psi_value);
+
 
 	/*
 	 * Perform sanity checks on PBS_*_HOST_NAME values and PBS_CONF_SMTP_SERVER_NAME.
@@ -916,6 +997,17 @@ __pbs_loadconf(int reload)
 			back2forward_slash(pbs_conf.rcp_path);
 #endif
 		} else {
+			goto err;
+		}
+	}
+	if (pbs_conf.cp_path == NULL) {
+#ifdef WIN32
+		char *cmd = "xcopy";
+#else
+		char *cmd = "/bin/cp";
+#endif
+		pbs_conf.cp_path = strdup(cmd);
+		if (pbs_conf.cp_path == NULL) {
 			goto err;
 		}
 	}
@@ -1004,6 +1096,17 @@ __pbs_loadconf(int reload)
 		}
 	}
 
+	/* determine who we are */
+	pbs_current_uid = getuid();
+	if ((pw = getpwuid(pbs_current_uid)) == NULL) {
+		goto err;
+	}
+	if (strlen(pw->pw_name) > (PBS_MAXUSER - 1)) {
+		goto err;
+	}
+	strcpy(pbs_conf.current_user, pw->pw_name);
+
+
 	pbs_conf.loaded = 1;
 
 	if (pbs_client_thread_unlock_conf() != 0)
@@ -1040,6 +1143,10 @@ err:
 		free(pbs_conf.scp_path);
 		pbs_conf.scp_path = NULL;
 	}
+	if (pbs_conf.cp_path) {
+		free(pbs_conf.cp_path);
+		pbs_conf.cp_path = NULL;
+	}
 	if (pbs_conf.pbs_environment) {
 		free(pbs_conf.pbs_environment);
 		pbs_conf.pbs_environment = NULL;
@@ -1068,6 +1175,9 @@ err:
 		free_string_array(pbs_conf.supported_auth_methods);
 		pbs_conf.supported_auth_methods = NULL;
 	}
+	
+	if (psi_value != NULL)
+		free(psi_value);
 
 	pbs_conf.load_failed = 1;
 	(void)pbs_client_thread_unlock_conf();

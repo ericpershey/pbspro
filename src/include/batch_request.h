@@ -49,6 +49,7 @@ extern "C" {
 #include "net_connect.h"
 
 #define PBS_SIGNAMESZ 16
+#define MAX_JOBS_PER_REPLY 500
 
 /* QueueJob */
 struct rq_queuejob {
@@ -252,6 +253,10 @@ struct rqfpair {
 	char *fp_rmt;   /* used in Copy only     */
 };
 
+struct rq_register_sched {
+	char *rq_name;
+};
+
 /*
  * ok we now have all the individual request structures defined,
  * so here is the union ...
@@ -276,6 +281,7 @@ struct batch_request {
 	char *tppcmd_msgid;			/* msg id for tpp commands */
 	struct batch_reply rq_reply;		/* the reply area for this request */
 	union indep_request {
+		struct rq_register_sched rq_register_sched;
 		struct rq_auth rq_auth;
 		int rq_connect;
 		struct rq_queuejob rq_queuejob;
@@ -322,6 +328,7 @@ extern void reply_badattr(int, int, svrattrl *, struct batch_request *);
 extern void reply_badattr_msg(int, int, svrattrl *, struct batch_request *, int);
 extern int reply_text(struct batch_request *, int, char *);
 extern int reply_send(struct batch_request *);
+extern int reply_send_status_part(struct batch_request *);
 extern int reply_jobid(struct batch_request *, char *, int);
 extern int reply_jobid_msg(struct batch_request *, char *, int, int);
 extern void reply_free(struct batch_reply *);

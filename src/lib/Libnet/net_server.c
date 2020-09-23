@@ -56,12 +56,8 @@
 #include <fcntl.h>
 #include <time.h>
 #include <stdlib.h>
-
-#ifndef WIN32
-#include <stdlib.h>
 #include <poll.h>
 #include <sys/resource.h>
-#endif
 
 #include "portability.h"
 #include "server_limits.h"
@@ -302,10 +298,8 @@ init_network(unsigned int port)
 	if (bind(sd, (struct sockaddr *)&socname, sizeof(socname)) < 0) {
 #ifdef WIN32
 		errno = WSAGetLastError();
-		(void)closesocket(sd);
-#else
-		(void)close(sd);
 #endif
+		closesocket(sd);
 		log_err(errno, __func__ , "bind failed");
 		return (-1);
 	}
@@ -361,10 +355,8 @@ init_network_add(int sd, int (*readyreadfunc)(conn_t *), void (*readfunc)(int))
 	if (add_conn(sd, type, (pbs_net_t)0, 0, NULL, accept_conn) == NULL) {
 #ifdef WIN32
 		errno = WSAGetLastError();
-		(void)closesocket(sd);
-#else
-		(void)close(sd);
 #endif
+		closesocket(sd);
 		log_err(errno, __func__, "add_conn failed");
 		return -1;
 	}
@@ -374,10 +366,8 @@ init_network_add(int sd, int (*readyreadfunc)(conn_t *), void (*readfunc)(int))
 		log_err(errno, __func__ , "listen failed");
 #ifdef WIN32
 		errno = WSAGetLastError();
-		(void)closesocket(sd);
-#else
-		(void)close(sd);
 #endif
+		closesocket(sd);
 		return (-1);
 	}
 
@@ -709,29 +699,7 @@ accept_conn(int sd)
 
 /**
  * @brief
- *      add_conn - add a connection to the svr_conn array.
- *
- * @par Functionality:
- *	wrapper function to add_conn_priority called with priority_flag set to 0
- *
- * @param[in]   sd: socket descriptor
- * @param[in]   type: (enumb conn_type)
- * @param[in]   addr: host IP address in host byte order
- * @param[in]   port: port number in host byte order
- * @param[in]   func: pointer to function to call when data is ready to read
- *
- * @return      pointer to conn_t
- * @retval      NULL - failure.
- */
-conn_t *
-add_conn(int sd, enum conn_type type, pbs_net_t addr, unsigned int port, int (*ready_func)(conn_t *), void (*func)(int))
-{
-	return add_conn_priority(sd, type, addr, port, ready_func, func, 0);
-}
-
-/**
- * @brief
- *	add_conn_priority - add a connection to the svr_conn array.
+ *	add_conn - add a connection to the svr_conn array.
  *
  * @par Functionality:
  *	Find an empty slot in the connection table.  This is done by hashing
@@ -743,13 +711,12 @@ add_conn(int sd, enum conn_type type, pbs_net_t addr, unsigned int port, int (*r
  * @param[in]	addr: host IP address in host byte order
  * @param[in]	port: port number in host byte order
  * @param[in]	func: pointer to function to call when data is ready to read
- * @param[in]	priority_flag: 1 if connection is priority else 0
  *
  * @return	pointer to conn_t
  * @retval	NULL - failure.
  */
 conn_t *
-add_conn_priority(int sd, enum conn_type type, pbs_net_t addr, unsigned int port, int (*ready_func)(conn_t *), void (*func)(int), int priority_flag)
+add_conn(int sd, enum conn_type type, pbs_net_t addr, unsigned int port, int (*ready_func)(conn_t *), void (*func)(int))
 {
 	int 	idx;
 	conn_t *conn;
@@ -794,19 +761,35 @@ add_conn_priority(int sd, enum conn_type type, pbs_net_t addr, unsigned int port
 		close_conn(sd);
 		return NULL;
 	}
-	if (priority_flag) {
-		conn->cn_prio_flag = 1;
-		if (tpp_em_add_fd(priority_context, sd, EM_IN | EM_HUP | EM_ERR) < 0) {
-			int err = errno;
-			snprintf(logbuf, sizeof(logbuf),
-				"could not add socket %d to the priority poll list", sd);
-			log_err(err, __func__, logbuf);
-			close_conn(sd);
-			return NULL;
-        	}
-	}
 
 	return svr_conn[idx];
+}
+
+
+/**
+ * @brief set given conn as priority connection and add it to priority poll list
+ *
+ * @param[in]	conn - pointer to connection structure
+ *
+ * @return int
+ * @retval 0 - failure
+ * @retval 1 - success
+ */
+int
+set_conn_as_priority(conn_t *conn)
+{
+	if (!conn || conn->cn_sock < 0)
+		return 0;
+
+	if (conn->cn_prio_flag == 1)
+		return 1;
+
+	if (tpp_em_add_fd(priority_context, conn->cn_sock, EM_IN | EM_HUP | EM_ERR) < 0) {
+		log_errf(errno, __func__, "could not add socket %d to the priority poll list", conn->cn_sock);
+		return 0;
+	}
+	conn->cn_prio_flag = 1;
+	return 1;
 }
 
 /**
@@ -925,7 +908,7 @@ close_conn(int sd)
 		cleanup_conn(idx);
 		num_connections--;
 
-		CLOSESOCKET(sd);
+		closesocket(sd);
 	} else {
 		/* if there is a function to call on close, do it */
 		if (svr_conn[idx]->cn_oncl != 0)
@@ -933,7 +916,7 @@ close_conn(int sd)
 
 		cleanup_conn(idx);
 		num_connections--;
-		CLOSESOCKET(sd); /* pipe so use normal close */
+		closesocket(sd); /* pipe so use normal close */
 	}
 }
 
@@ -1174,7 +1157,7 @@ init_poll_context(void)
 		snprintf(logbuf, sizeof(logbuf),
 			"Could not add socket %d to the read set", sd_dummy);
 		log_err(err, __func__, logbuf);
-		CLOSESOCKET(sd_dummy);
+		closesocket(sd_dummy);
 		return -1;
 	}
 	if ((tpp_em_add_fd(priority_context, sd_dummy, EM_IN) == -1)) {
@@ -1182,26 +1165,10 @@ init_poll_context(void)
 		snprintf(logbuf, sizeof(logbuf),
 			"Could not add socket %d to the read set for priority socket", sd_dummy);
 		log_err(err, __func__, logbuf);
-		CLOSESOCKET(sd_dummy);
+		closesocket(sd_dummy);
 		return -1;
 	}
 #endif /* WIN32 */
 
 	return 0;
-}
-
-/**
- * @brief
- *	Close the socket descriptor.
- *
- * @param[in]   sd: socket descriptor.
- *
- */
-void
-close_socket(int sd) {
-#ifdef WIN32
-	(void)closesocket(sd);
-#else
-	(void) close(sd);
-#endif
 }

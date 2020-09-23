@@ -179,7 +179,6 @@ new_resource_resv()
 	resresv->server = NULL;
 	resresv->ninfo_arr = NULL;
 	resresv->nspec_arr = NULL;
-	resresv->orig_nspec_arr = NULL;
 
 	resresv->job = NULL;
 	resresv->resv = NULL;
@@ -372,9 +371,6 @@ free_resource_resv(resource_resv *resresv)
 
 	if (resresv->nspec_arr != NULL)
 		free_nspecs(resresv->nspec_arr);
-	
-	if (resresv->orig_nspec_arr != NULL)
-		free_nspecs(resresv->orig_nspec_arr);
 
 	if (resresv->job != NULL)
 		free_job_info(resresv->job);
@@ -653,7 +649,7 @@ dup_resource_resv(resource_resv *oresresv, server_info *nsinfo, queue_info *nqin
 	nresresv->aoename = string_dup(oresresv->aoename);
 	nresresv->eoename = string_dup(oresresv->eoename);
 
-	nresresv->node_set_str = dup_string_array(oresresv->node_set_str);
+	nresresv->node_set_str = dup_string_arr(oresresv->node_set_str);
 
 	nresresv->resresv_ind = oresresv->resresv_ind;
 	nresresv->node_set = copy_node_ptr_array(oresresv->node_set, nsinfo->nodes);
@@ -667,26 +663,26 @@ dup_resource_resv(resource_resv *oresresv, server_info *nsinfo, queue_info *nqin
 					nresresv->job->resv->resv->resv_nodes);
 				nresresv->nspec_arr = dup_nspecs(oresresv->nspec_arr,
 					nresresv->job->resv->ninfo_arr, NULL);
-				nresresv->orig_nspec_arr = dup_nspecs(oresresv->orig_nspec_arr,
-					nresresv->job->resv->ninfo_arr, nresresv->select);
 
 			}
 			else {
 				nresresv->ninfo_arr = copy_node_ptr_array(oresresv->ninfo_arr,
 					nsinfo->nodes);
-				nresresv->orig_nspec_arr = dup_nspecs(oresresv->orig_nspec_arr,
-					nsinfo->nodes, nresresv->select);
 				nresresv->nspec_arr = dup_nspecs(oresresv->nspec_arr,
 					nsinfo->nodes, NULL);
 			}
 		}
 	}
 	else if (oresresv->is_resv) {
+		selspec *sel;
 		nresresv->is_resv = 1;
 		nresresv->resv = dup_resv_info(oresresv->resv, nsinfo);
-
+		if (nresresv->resv->select_orig != NULL)
+			sel = nresresv->resv->select_orig;
+		else
+			sel = nresresv->select;
+		nresresv->resv->orig_nspec_arr = dup_nspecs(oresresv->resv->orig_nspec_arr, nsinfo->nodes, sel);
 		nresresv->ninfo_arr = copy_node_ptr_array(oresresv->ninfo_arr, nsinfo->nodes);
-		nresresv->orig_nspec_arr = dup_nspecs(oresresv->orig_nspec_arr, nsinfo->nodes, nresresv->select);
 		nresresv->nspec_arr = dup_nspecs(oresresv->nspec_arr, nsinfo->nodes, NULL);
 	}
 	else  { /* error */
@@ -1664,6 +1660,7 @@ update_resresv_on_run(resource_resv *resresv, nspec **nspec_arr)
 	}
 	else if (resresv->is_resv && resresv->resv != NULL) {
 		resresv->resv->resv_state = RESV_RUNNING;
+		resresv->resv->is_running = 1;
 
 		resv_queue = find_queue_info(resresv->server->queues,
 			resresv->resv->queuename);
@@ -1753,6 +1750,7 @@ update_resresv_on_end(resource_resv *resresv, char *job_state)
 			set_timed_event_disabled(resresv->end_event, 1);
 	} else if (resresv->is_resv && resresv->resv != NULL) {
 		resresv->resv->resv_state = RESV_DELETED;
+		resresv->resv->is_running = 0;
 
 		resv_queue = find_queue_info(resresv->server->queues,
 			resresv->resv->queuename);
@@ -2002,7 +2000,7 @@ copy_resresv_array(resource_resv **resresv_arr,
  * @brief
  *		is_resresv_running - is a resource resv in the running state
  *			     for a job it's in the "R" state
- *			     for an advanced reservation it's in RESV_RUNNING
+ *			     for an advanced reservation its start time is in the past
  *
  *
  * @param[in]	resresv	-	the resresv to check if it's running
@@ -2030,7 +2028,7 @@ is_resresv_running(resource_resv *resresv)
 		if (resresv->resv == NULL)
 			return 0;
 
-		if (resresv->resv->resv_state ==RESV_RUNNING)
+		if (resresv->resv->is_running)
 			return 1;
 	}
 
@@ -2270,10 +2268,10 @@ free_chunk(chunk *ch)
 
 /**
  * @brief find_chunk_by_seq_num - find a chunk by its sequence number
- * 
+ *
  * @param[in] chunks - array of chunks to search
  * @param[in] seq_num - sequence number to search for
- * 
+ *
  * @return chunk *
  * @retval chunk found
  * @retval NULL if not found

@@ -44,18 +44,12 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-
-#ifndef WIN32
 #include <unistd.h>
-#else
-#include "win.h"
-#endif
-
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <pbs_ifl.h>
+#include <pbs_config.h>
 #include "pbs_internal.h"
 #include <log.h>
 #include "list_link.h"
@@ -404,6 +398,7 @@ extern int get_py_progname(char **);
 #define PY_GET_VNODE_STATIC_METHOD	"get_vnode_static"
 #define PY_GET_QUEUE_STATIC_METHOD	"get_queue_static"
 #define PY_GET_SERVER_DATA_FP_METHOD	"get_server_data_fp"
+#define PY_GET_SERVER_DATA_FILE_METHOD	"get_server_data_file"
 #define PY_USE_STATIC_DATA_METHOD	"use_static_data"
 
 /* Event parameter names */
