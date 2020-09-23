@@ -516,6 +516,14 @@ class PBSTestSuite(unittest.TestCase):
             self.revert_pbsconf()
             self.revert_schedulers()
             self.revert_moms()
+
+        # turn off opt_backfill_fuzzy to avoid unexpected calendaring behavior
+        # as many tests assume that scheduler will simulate each event
+        a = {'opt_backfill_fuzzy': 'off'}
+        for schedinfo in self.schedulers.values():
+            for schedname in schedinfo.keys():
+                self.server.manager(MGR_CMD_SET, SCHED, a, id=schedname)
+
         self.revert_comms()
         self.log_end_setup()
         self.measurements = []
@@ -1454,8 +1462,9 @@ class PBSTestSuite(unittest.TestCase):
             self.assertTrue(mom.isUp(), msg)
         mom.pbs_version()
         restart = False
-        if ((self.revert_to_defaults and self.mom_revert_to_defaults) or
-                force):
+        enabled_cpuset = False
+        if ((self.revert_to_defaults and self.mom_revert_to_defaults and
+             mom.revert_to_default) or force):
             # no need to delete vnodes as it is already deleted in
             # server revert_to_defaults
             mom.delete_pelog()
@@ -1475,23 +1484,25 @@ class PBSTestSuite(unittest.TestCase):
                 time.sleep(4)
                 just_before_enable_cgroup_cset = time.time()
                 mom.enable_cgroup_cset()
+                # a high max_attempts is needed to tolerate delay receiving
+                # hook-related files, due to temporary network interruptions
                 mom.log_match('pbs_cgroups.CF;copy hook-related '
-                              'file request received',
-                              starttime=just_before_enable_cgroup_cset)
+                              'file request received', max_attempts=120,
+                              starttime=just_before_enable_cgroup_cset-1,
+                              interval=1)
                 # Make sure that the MoM will generate per-NUMA node vnodes
                 # when the natural node is created below
                 # HUP may not be enough if exechost_startup is delayed
                 restart = True
+                enabled_cpuset = True
         if restart:
             mom.restart()
         else:
             mom.signal('-HUP')
         if not mom.isUp():
             self.logger.error('mom ' + mom.shortname + ' is down after revert')
-        if not mom.is_cpuset_mom():
-            self.server.manager(MGR_CMD_CREATE, NODE, None, mom.shortname)
         a = {'state': 'free'}
-        if mom.is_cpuset_mom():
+        if enabled_cpuset:
             # Checking whether the CF file was copied really belongs in code
             # that changes the config file -- i.e. after enable_cgroup_cset
             # called above. We're not sure it is always called here,
@@ -1500,6 +1511,7 @@ class PBSTestSuite(unittest.TestCase):
             mom.signal('-HUP')
             self.server.expect(NODE, a, id=mom.shortname + '[0]', interval=1)
         else:
+            self.server.manager(MGR_CMD_CREATE, NODE, id=mom.shortname)
             self.server.expect(NODE, a, id=mom.shortname, interval=1)
         return mom
 
