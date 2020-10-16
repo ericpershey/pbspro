@@ -5,6 +5,7 @@ RUN apt-get update -y && \
     apt-get install --assume-yes -y \
     libexpat1-dev \
     gcc \
+    g++ \
     git \
     hwloc \
     libedit-dev \

@@ -7,6 +7,7 @@ RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.n
     yum install -y \
     expat-devel \
     gcc \
+    gcc-c++ \
     git \
     hwloc-devel \
     libedit-devel \
