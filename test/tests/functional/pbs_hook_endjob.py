@@ -321,10 +321,10 @@ class TestHookEndJob(TestFunctional):
 
     def test_hook_endjob_rerun_single_job(self):
         """
-        Run a single job to completion and verify that the end job hook was
-        executed.
+        Start a single job, issue a rerun, and verify that the end job hook was
+        executed for both runs.
         """
-        def endjob_run_single_job():
+        def endjob_rerun_single_job():
             self.job_submit()
             self.job_verify_started()
             self.job_requeue()
@@ -332,7 +332,7 @@ class TestHookEndJob(TestFunctional):
             self.job_verify_started()
             self.job_verify_ended()
 
-        self.run_test_func(endjob_run_single_job)
+        self.run_test_func(endjob_rerun_single_job)
 
     def test_hook_endjob_delete(self):
         """
