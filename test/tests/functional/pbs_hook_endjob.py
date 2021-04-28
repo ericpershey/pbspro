@@ -103,64 +103,93 @@ class TestHookEndJob(TestFunctional):
         self.resv_id = None
         self.resv_queue = None
         self.resv_start_time = None
-
+        self.scheduling_enabled = True
+        self.hook_name = test_body_func.__name__
 
         self.logger.info("**************** HOOK START ****************")
-        hook_name = test_body_func.__name__
 
-        a = {'resources_available.ncpus': self.node_cpu_count}
+        a = {
+            'resources_available.ncpus': self.node_cpu_count,
+        }
         self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
 
-        attrs = {'event': 'endjob', 'enabled': 'True'}
-        ret = self.server.create_hook(hook_name, attrs)
-        self.assertEqual(ret, True, "Could not create hook %s" % hook_name)
+        attrs = {
+            'event': 'endjob',
+            'enabled': 'True',
+        }
+        ret = self.server.create_hook(self.hook_name, attrs)
+        self.assertEqual(
+            ret, True, "Could not create hook %s" % self.hook_name)
 
-        hook_body = generate_hook_body_from_func(endjob_hook, hook_name)
-        ret = self.server.import_hook(hook_name, hook_body)
-        self.assertEqual(ret, True, "Could not import hook %s" % hook_name)
+        hook_body = generate_hook_body_from_func(endjob_hook, self.hook_name)
+        ret = self.server.import_hook(self.hook_name, hook_body)
+        self.assertEqual(
+            ret, True, "Could not import hook %s" % self.hook_name)
 
-        a = {'job_history_enable': 'True'}
+        a = {
+            'job_history_enable': 'True',
+            'job_requeue_timeout': 1,
+            'reserve_retry_time': self.resv_retry_time,
+        }
         self.server.manager(MGR_CMD_SET, SERVER, a)
 
-        self.start_time = int(time.time())
+        self.log_start_time = int(time.time())
         test_body_func(*args, **kwargs)
+        self.check_log_for_endjob_hook_messages()
 
-        for jid in [self.job_id] + self.subjob_ids:
-            msg_logged = jid in self.started_job_ids
+        ret = self.server.delete_hook(self.hook_name)
+        self.assertEqual(
+            ret, True, "Could not delete hook %s" % self.hook_name)
+        self.logger.info("**************** HOOK END ****************")
+
+    def check_log_for_endjob_hook_messages(self, job_ids=None):
+        jids = job_ids or [self.job_id] + self.subjob_ids
+        for jid in jids:
             # FIXME: max_attempts should be set to one (1), but semi-frequently
             # (35-ish percent of the time) it misses earlier messages despite
             # having already matched the last message expected in the log first
-            # (the job array).  this is possibly a bug in log_match() but
-            # requires further investigation.
+            # (ex: from the job array).  this is possibly a bug in log_match()
+            # but requires further investigation.
             #
             # the unfortunate part is that if this is a bug, there is no way to
             # detect a failure to log based on a more recent log message, thus
             # making it difficult to detect end-job hook scripts being run when
             # they shouldn't have been.
             max_attempts = 3
+            msg_logged = jid in self.started_job_ids
             self.server.log_match(
-                '%s;endjob hook started for test %s' % (jid, hook_name),
-                starttime=self.start_time, max_attempts=max_attempts,
+                '%s;endjob hook started for test %s' % (jid, self.hook_name),
+                starttime=self.log_start_time, max_attempts=max_attempts,
                 existence=msg_logged)
             # TODO: add check for reservation id (or None)
             self.server.log_match(
-                '%s;endjob hook finished for test %s' % (jid, hook_name),
-                starttime=self.start_time, max_attempts=max_attempts,
+                '%s;endjob hook finished for test %s' % (jid, self.hook_name),
+                starttime=self.log_start_time, max_attempts=max_attempts,
                 existence=msg_logged)
+        self.log_start_time = int(time.time())
+        self.started_job_ids = []
 
-        ret = self.server.delete_hook(hook_name)
-        self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
-        self.logger.info("**************** HOOK END ****************")
-
-    def job_submit(
-            self,
-            job_sleep_time=job_time_success,
-            job_attrs={}):
+    def job_submit(self, job_sleep_time=job_time_success, job_attrs={}):
         self.job = Job(TEST_USER, attrs=job_attrs)
         self.job.set_sleep_time(job_sleep_time)
         self.job_id = self.server.submit(self.job)
 
+    def job_requeue(self, job_id=None):
+        if self.scheduling_enabled:
+            self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+            self.scheduling_enabled = False
+        jid = job_id or self.job_id
+        self.server.rerunjob(jid, extend='force')
+        self.job_verify_queued()
+
+    def job_verify_queued(self, job_id=None):
+        jid = job_id or self.job_id
+        self.server.expect(JOB, {'job_state': 'Q'}, id=jid)
+
     def job_verify_started(self, job_id=None):
+        if not self.scheduling_enabled:
+            self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+            self.scheduling_enabled = True
         jid = job_id or self.job_id
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
         self.started_job_ids.append(jid)
@@ -182,10 +211,11 @@ class TestHookEndJob(TestFunctional):
             subjob_count=job_array_num_subjobs,
             subjob_ncpus=1,
             job_attrs={}):
-        a = {}
+        a = {
+            ATTR_J: '0-' + str(subjob_count - 1),
+            'Resource_List.select': '1:ncpus=' + str(subjob_ncpus),
+        }
         a.update(job_attrs)
-        a[ATTR_J] = '0-' + str(subjob_count - 1)
-        a['Resource_List.select'] = '1:ncpus=' + str(subjob_ncpus)
         self.job_submit(job_sleep_time, job_attrs=a)
 
         self.subjob_count = subjob_count
@@ -209,19 +239,18 @@ class TestHookEndJob(TestFunctional):
         self.job_verify_ended()
 
     def resv_submit(
-            self, select, start, end, user, place='free', resv_attrs={}):
+            self, user, resources, start_time, end_time, place='free',
+            resv_attrs={}):
         """
         helper method to submit a reservation
         """
-        a = {'reserve_retry_time': self.resv_retry_time}
-        self.server.manager(MGR_CMD_SET, SERVER, a)
-
-        self.resv_start_time = start
-        a = {'Resource_List.select': select,
-             'Resource_List.place': place,
-             'reserve_start': start,
-             'reserve_end': end,
-             }
+        self.resv_start_time = start_time
+        a = {
+            'Resource_List.select': resources,
+            'Resource_List.place': place,
+            'reserve_start': start_time,
+            'reserve_end': end_time,
+        }
         a.update(resv_attrs)
         resv = Reservation(user, a)
         self.resv_id = self.server.submit(resv)
@@ -236,7 +265,7 @@ class TestHookEndJob(TestFunctional):
         self.logger.info('Sleeping until reservation starts')
         self.server.expect(
             RESV, {'reserve_state': (MATCH_RE, 'RESV_RUNNING|5')},
-            id=self.resv_id, offset=self.resv_start_time-int(time.time()-1))
+            id=self.resv_id, offset=self.resv_start_time-int(time.time()+1))
 
     @tags('hooks', 'smoke')
     def test_hook_endjob_run_single_job(self):
@@ -271,10 +300,10 @@ class TestHookEndJob(TestFunctional):
         that the end job hook was executed for all subjobs and the array job.
         """
         def endjob_run_array_job_in_resv():
-            self.resv_submit(
-                user=TEST_USER, select='1:ncpus='+str(self.node_cpu_count),
-                start=self.start_time+self.resv_start_delay,
-                end=self.start_time+self.resv_start_delay+self.resv_duration)
+            resources = '1:ncpus=' + str(self.node_cpu_count)
+            start_time = int(time.time()) + self.resv_start_delay
+            end_time = start_time + self.resv_duration
+            self.resv_submit(TEST_USER, resources, start_time, end_time)
             self.resv_verify_confirmed()
 
             a = {ATTR_queue: self.resv_queue}
@@ -290,40 +319,20 @@ class TestHookEndJob(TestFunctional):
 
         self.run_test_func(endjob_run_array_job_in_resv)
 
-    def test_hook_endjob_reque(self):
+    def test_hook_endjob_rerun_single_job(self):
         """
-        By creating an import hook, it executes a job hook.
+        Run a single job to completion and verify that the end job hook was
+        executed.
         """
-        self.logger.info("**************** HOOK START ****************")
-        hook_name = "hook_endjob_reque"
-        hook_msg = 'running %s' % hook_name
-        hook_body = generate_hook_body_from_func(endjob_hook, hook_msg)
-        attrs = {'event': 'endjob', 'enabled': 'True'}
-        start_time = time.time()
+        def endjob_run_single_job():
+            self.job_submit()
+            self.job_verify_started()
+            self.job_requeue()
+            self.check_log_for_endjob_hook_messages()
+            self.job_verify_started()
+            self.job_verify_ended()
 
-        ret = self.server.create_hook(hook_name, attrs)
-        self.assertEqual(ret, True, "Could not create hook %s" % hook_name)
-        ret = self.server.import_hook(hook_name, hook_body)
-        self.assertEqual(ret, True, "Could not import hook %s" % hook_name)
-
-        a = {'job_history_enable': 'True',
-            'job_requeue_timeout': 1}
-        self.server.manager(MGR_CMD_SET, SERVER, a)
-
-        j = Job(TEST_USER, attrs={ATTR_N: 'job_requeue_timeout'})
-        j.set_sleep_time(4)
-        jid = self.server.submit(j)
-        self.server.rerunjob(jid, extend='force')
-        self.server.expect(JOB, {'job_state': 'R', 'substate': 42}, id=jid,
-                                max_attempts=10, interval=2)
-
-        self.server.expect(JOB, {'job_state': 'F'}, extend='x',
-                                offset=4, id=jid, max_attempts=10,
-                                interval=2)
-        ret = self.server.delete_hook(hook_name)
-        self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
-        self.server.log_match(hook_msg, starttime=start_time)
-        self.logger.info("**************** HOOK END ****************")
+        self.run_test_func(endjob_run_single_job)
 
     def test_hook_endjob_delete(self):
         """
