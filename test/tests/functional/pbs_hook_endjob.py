@@ -182,6 +182,13 @@ class TestHookEndJob(TestFunctional):
         self.server.rerunjob(jid, extend='force')
         self.job_verify_queued()
 
+    def job_delete(self, job_id=None):
+        jid = job_id or self.job_id
+        self.server.delete(jid)
+        # check that the substate is set to 91 (TERMINATED) which indicates
+        # that the job was deleted
+        self.server.expect(JOB, {'substate': 91}, extend='x', id=jid)
+
     def job_verify_queued(self, job_id=None):
         jid = job_id or self.job_id
         self.server.expect(JOB, {'job_state': 'Q'}, id=jid)
@@ -193,12 +200,6 @@ class TestHookEndJob(TestFunctional):
         jid = job_id or self.job_id
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
         self.started_job_ids.append(jid)
-
-    def job_verify_deleted(self, job_id=None):
-        jid = job_id or self.job_id
-        # check that the substate is set to 91 (TERMINATED) which indicates
-        # that the job was deleted
-        self.server.expect(JOB, {'job_state': 91}, extend='x', id=jid)
 
     def job_verify_ended(self, job_id=None):
         jid = job_id or self.job_id
@@ -334,47 +335,18 @@ class TestHookEndJob(TestFunctional):
 
         self.run_test_func(endjob_rerun_single_job)
 
-    def test_hook_endjob_delete(self):
+    def test_hook_endjob_delete_running_single_job(self):
         """
-        By creating an import hook, it executes a job hook.
+        Run a single job, but delete before completion.  Verify that the end
+        job hook was executed.
         """
-        self.logger.info("**************** HOOK START ****************")
-        hook_name = "hook_endjob_delete"
-        hook_msg = 'running %s' % hook_name
-        hook_body = generate_hook_body_from_func(endjob_hook, hook_msg)
-        attrs = {'event': 'endjob', 'enabled': 'True'}
-        start_time = time.time()
+        def endjob_delete_running_single_job():
+            self.job_submit(job_sleep_time=self.job_time_qdel)
+            self.job_verify_started()
+            self.job_delete()
+            self.job_verify_ended()
 
-        ret = self.server.create_hook(hook_name, attrs)
-        self.assertEqual(ret, True, "Could not create hook %s" % hook_name)
-        ret = self.server.import_hook(hook_name, hook_body)
-        self.assertEqual(ret, True, "Could not import hook %s" % hook_name)
-
-        a = {'job_history_enable': 'True'}
-        self.server.manager(MGR_CMD_SET, SERVER, a)
-
-        j = Job(TEST_USER)
-        j.set_sleep_time(4)
-        jid = self.server.submit(j)
-
-        # check job array is running
-        self.server.expect(JOB, {'job_state': 'R'}, id=jid,
-                                max_attempts=10)
-        # delete job
-        try:
-            self.server.delete(jid)
-        except:
-            self.logger.info("exception occurred during job delete attampt")
-
-        # check that the substate is set to 91 (TERMINATED) which indicates
-        # job was deleted
-        self.server.expect(JOB, {'substate': 91}, extend='x',
-                                offset=4, id=jid, max_attempts=10,
-                                interval=2)
-        ret = self.server.delete_hook(hook_name)
-        self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
-        self.server.log_match(hook_msg, starttime=start_time)
-        self.logger.info("**************** HOOK END ****************")
+        self.run_test_func(endjob_delete_running_single_job)
 
     def test_hook_endjob_delete_running_array_job(self):
         """
