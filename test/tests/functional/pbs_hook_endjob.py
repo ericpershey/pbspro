@@ -82,9 +82,13 @@ def endjob_hook(hook_func_name):
 
 @tags('hooks')
 class TestHookEndJob(TestFunctional):
-    job_time_success = 3
-    job_time_qdel = 100
-    job_array_num_subjobs = 3
+    node_cpu_count = 4
+    job_array_num_subjobs = node_cpu_count
+    job_time_success = 5
+    job_time_qdel = 120
+    resv_retry_time = 5
+    resv_start_delay = 20
+    resv_duration = 180
 
     def run_test_func(self, test_body_func, *args, **kwargs):
         """
@@ -96,9 +100,16 @@ class TestHookEndJob(TestFunctional):
         self.subjob_count = 0
         self.subjob_ids = []
         self.started_job_ids = []
+        self.resv_id = None
+        self.resv_queue = None
+        self.resv_start_time = None
+
 
         self.logger.info("**************** HOOK START ****************")
         hook_name = test_body_func.__name__
+
+        a = {'resources_available.ncpus': self.node_cpu_count}
+        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
 
         attrs = {'event': 'endjob', 'enabled': 'True'}
         ret = self.server.create_hook(hook_name, attrs)
@@ -116,38 +127,30 @@ class TestHookEndJob(TestFunctional):
 
         for jid in [self.job_id] + self.subjob_ids:
             msg_logged = jid in self.started_job_ids
+            # FIXME: max_attempts should be set to one (1), but semi-frequently
+            # (35-ish percent of the time) it misses earlier messages despite
+            # having already matched the last message expected in the log first
+            # (the job array).  this is possibly a bug in log_match() but
+            # requires further investigation.
+            #
+            # the unfortunate part is that if this is a bug, there is no way to
+            # detect a failure to log based on a more recent log message, thus
+            # making it difficult to detect end-job hook scripts being run when
+            # they shouldn't have been.
+            max_attempts = 3
             self.server.log_match(
                 '%s;endjob hook started for test %s' % (jid, hook_name),
-                starttime=self.start_time, max_attempts=3,
+                starttime=self.start_time, max_attempts=max_attempts,
                 existence=msg_logged)
+            # TODO: add check for reservation id (or None)
             self.server.log_match(
                 '%s;endjob hook finished for test %s' % (jid, hook_name),
-                starttime=self.start_time, max_attempts=3,
+                starttime=self.start_time, max_attempts=max_attempts,
                 existence=msg_logged)
 
         ret = self.server.delete_hook(hook_name)
         self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
         self.logger.info("**************** HOOK END ****************")
-
-    def submit_reservation(self, select, start, end, user, rrule=None,
-                           place='free', extra_attrs=None):
-        """
-        helper method to submit a reservation
-        """
-        a = {'Resource_List.select': select,
-             'Resource_List.place': place,
-             'reserve_start': start,
-             'reserve_end': end,
-             }
-        if rrule is not None:
-            tzone = self.get_tz()
-            a.update({ATTR_resv_rrule: rrule, ATTR_resv_timezone: tzone})
-
-        if extra_attrs:
-            a.update(extra_attrs)
-        r = Reservation(user, a)
-
-        return self.server.submit(r)
 
     def job_submit(
             self,
@@ -172,19 +175,6 @@ class TestHookEndJob(TestFunctional):
         jid = job_id or self.job_id
         self.server.expect(JOB, {'job_state': 'F'}, extend='x', id=jid)
 
-    @tags('hooks', 'smoke')
-    def test_hook_endjob_run_single_job(self):
-        """
-        Run a single job to completion and verify that the end job hook was
-        executed.
-        """
-        def endjob_run_single_job():
-            self.job_submit()
-            self.job_verify_started()
-            self.job_verify_ended()
-
-        self.run_test_func(endjob_run_single_job)
-
     def job_array_submit(
             self,
             job_sleep_time=job_time_success,
@@ -192,13 +182,10 @@ class TestHookEndJob(TestFunctional):
             subjob_count=job_array_num_subjobs,
             subjob_ncpus=1,
             job_attrs={}):
-        a = {'resources_available.ncpus': avail_ncpus}
-        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
-
         a = {}
         a.update(job_attrs)
         a[ATTR_J] = '0-' + str(subjob_count - 1)
-        a['Resource_List.select'] = 'ncpus=' + str(subjob_ncpus)
+        a['Resource_List.select'] = '1:ncpus=' + str(subjob_ncpus)
         self.job_submit(job_sleep_time, job_attrs=a)
 
         self.subjob_count = subjob_count
@@ -221,6 +208,49 @@ class TestHookEndJob(TestFunctional):
     def job_array_verify_ended(self):
         self.job_verify_ended()
 
+    def resv_submit(
+            self, select, start, end, user, place='free', resv_attrs={}):
+        """
+        helper method to submit a reservation
+        """
+        a = {'reserve_retry_time': self.resv_retry_time}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        self.resv_start_time = start
+        a = {'Resource_List.select': select,
+             'Resource_List.place': place,
+             'reserve_start': start,
+             'reserve_end': end,
+             }
+        a.update(resv_attrs)
+        resv = Reservation(user, a)
+        self.resv_id = self.server.submit(resv)
+
+    def resv_verify_confirmed(self):
+        a = {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2')}
+        self.server.expect(RESV, a, id=self.resv_id)
+        self.resv_queue = self.resv_id.split('.')[0]
+        self.server.status(RESV, 'resv_nodes')
+
+    def resv_verify_started(self):
+        self.logger.info('Sleeping until reservation starts')
+        self.server.expect(
+            RESV, {'reserve_state': (MATCH_RE, 'RESV_RUNNING|5')},
+            id=self.resv_id, offset=self.resv_start_time-int(time.time()-1))
+
+    @tags('hooks', 'smoke')
+    def test_hook_endjob_run_single_job(self):
+        """
+        Run a single job to completion and verify that the end job hook was
+        executed.
+        """
+        def endjob_run_single_job():
+            self.job_submit()
+            self.job_verify_started()
+            self.job_verify_ended()
+
+        self.run_test_func(endjob_run_single_job)
+
     def test_hook_endjob_run_array_job(self):
         """
         Run an array of jobs to completion and verify that the end job hook was
@@ -235,62 +265,30 @@ class TestHookEndJob(TestFunctional):
 
         self.run_test_func(endjob_run_array_job)
 
-    def test_hook_endjob_resv(self):
+    def test_hook_endjob_run_array_job_in_resv(self):
         """
-        Run a single job to completion and verify that the end job hook was
-        executed.
+        Run an array of jobs to completion within a reservation and verify
+        that the end job hook was executed for all subjobs and the array job.
         """
-        def endjob_resv():
-            a = {'reserve_retry_time': 5}
-            self.server.manager(MGR_CMD_SET, SERVER, a)
+        def endjob_run_array_job_in_resv():
+            self.resv_submit(
+                user=TEST_USER, select='1:ncpus='+str(self.node_cpu_count),
+                start=self.start_time+self.resv_start_delay,
+                end=self.start_time+self.resv_start_delay+self.resv_duration)
+            self.resv_verify_confirmed()
 
-            now = int(time.time())
-            rid1 = self.submit_reservation(
-                user=TEST_USER, select='1:ncpus=1', start=now + 30,
-                end=now + 90)
+            a = {ATTR_queue: self.resv_queue}
+            self.job_array_submit(
+                subjob_ncpus=int(self.node_cpu_count/2), job_attrs=a)
 
-            a = {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2')}
-            self.server.expect(RESV, a, id=rid1)
-            resv_queue = rid1.split('.')[0]
-            self.server.status(RESV, 'resv_nodes')
+            self.resv_verify_started()
 
-            num_array_jobs = 3
-            a = {'resources_available.ncpus': 1}
-            self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
-        attr_j_str = '1-' + str(num_array_jobs)
-        j = Job(TEST_USER, attrs={
-            ATTR_J: attr_j_str, 'Resource_List.select': 'ncpus=1',
-            ATTR_queue: resv_queue})
+            self.job_array_verify_started()
+            self.job_array_verify_subjobs_started()
+            self.job_array_verify_subjobs_ended()
+            self.job_array_verify_ended()
 
-        j.set_sleep_time(4)
-        jid = self.server.submit(j)
-
-        subjid = []
-        subjid.append(jid)
-        #subjid.append(jid)
-        for i in range (1,(num_array_jobs+1)):
-            subjid.append( j.create_subjob_id(jid, i) )
-
-        self.logger.info('Sleeping until reservation starts')
-        self.server.expect(RESV,
-                           {'reserve_state': (MATCH_RE, 'RESV_RUNNING|5')},
-                           id=rid1, offset=self.start_time - int(time.time()))
-
-        # 1. check job array has begun
-        self.server.expect(JOB, {'job_state': 'B'}, jid)
-
-        for i in range (1,(num_array_jobs+1)):
-            self.server.expect(JOB, {'job_state': 'R'},
-                               id=subjid[i], offset=4)
-
-        self.server.expect(JOB, {'job_state': 'F'}, extend='x',
-                                offset=4, id=jid, interval=5)
-
-        ret = self.server.delete_hook(hook_name)
-        self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
-        self.server.log_match(hook_msg, starttime=start_time,
-                              max_attempts=10)
-        self.logger.info("**************** HOOK END ****************")
+        self.run_test_func(endjob_run_array_job_in_resv)
 
     def test_hook_endjob_reque(self):
         """
