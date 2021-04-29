@@ -335,6 +335,10 @@ class TestHookEndJob(TestFunctional):
 
         self.run_test_func(endjob_rerun_single_job)
 
+    def test_hook_endjob_rerun_array_job(self):
+        # TODO: add code and description, or remove
+        pass
+
     def test_hook_endjob_delete_running_single_job(self):
         """
         Run a single job, but delete before completion.  Verify that the end
@@ -350,51 +354,80 @@ class TestHookEndJob(TestFunctional):
 
     def test_hook_endjob_delete_running_array_job(self):
         """
-        By creating an import hook, it executes a job hook.
+        Run an array job, where all jobs get started but also deleted before
+        # completion.  Verify that the end job hook was executed for all
+        # subjobs and the array job.
         """
-
+        # TODO: need to delete job array and maybe subjobs
         def endjob_delete_running_array_job():
-            self.job_array_submit(
-                job_sleep_time=self.job_time_qdel)
+            self.job_array_submit(job_sleep_time=self.job_time_qdel)
             self.job_array_verify_started()
+            self.job_array_verify_subjobs_started()
+            self.job_array_verify_subjobs_ended()
+            self.job_array_verify_ended()
 
-        num_array_jobs = 3
-        a = {'job_history_enable': 'True'}
-        self.server.manager(MGR_CMD_SET, SERVER, a)
-        a = {'resources_available.ncpus': num_array_jobs}
-        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
-        attr_j_str = '1-' + str(num_array_jobs)
-        j = Job(
-            TEST_USER,
-             attrs={ATTR_J: attr_j_str, 'Resource_List.select': 'ncpus=1'})
-        j.set_sleep_time(20)
-        jid = self.server.submit(j)
+        self.run_test_func(endjob_delete_running_array_job)
 
-        subjid = []
-        for i in range(num_array_jobs):
-            subjid.append(j.create_subjob_id(jid, i+1))
+#        num_array_jobs = 3
+#        a = {'job_history_enable': 'True'}
+#        self.server.manager(MGR_CMD_SET, SERVER, a)
+#        a = {'resources_available.ncpus': num_array_jobs}
+#        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
+#        attr_j_str = '1-' + str(num_array_jobs)
+#        j = Job(
+#            TEST_USER,
+#             attrs={ATTR_J: attr_j_str, 'Resource_List.select': 'ncpus=1'})
+#        j.set_sleep_time(20)
+#        jid = self.server.submit(j)
+#
+#        subjid = []
+#        for i in range(num_array_jobs):
+#            subjid.append(j.create_subjob_id(jid, i+1))
+#
+#        # check job array has begun
+#        self.server.expect(JOB, {'job_state': 'B'}, jid)
+#
+#        # wait for the subjobs to begin running
+#        for i in range(num_array_jobs):
+#            self.server.expect(JOB, {'job_state': 'R'}, id=subjid[i])
+#
+#        # delete array job
+#        self.server.delete(id=jid)
+#
+#        for i in range(num_array_jobs):
+#            # check that the substate is set to 91 (TERMINATED) which
+#            # indicates job was deleted
+#            self.server.expect(JOB, {'substate': 91}, extend='x', id=subjid[i])
+#
+#        self.server.expect(JOB, {'substate': 91}, extend='x', id=jid)
+#
+#        ret = self.server.delete_hook(hook_name)
+#        self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
+#        self.server.log_match(hook_msg, starttime=start_time)
+#        self.logger.info("**************** HOOK END ****************")
 
-        # check job array has begun
-        self.server.expect(JOB, {'job_state': 'B'}, jid)
+    def test_hook_endjob_delete_partial_running_array_job(self):
+        """
+        Run a single job, but delete before completion.  Verify that the end
+        job hook was executed.
+        """
+        # TODO: need to delete job array and maybe started subjobs
+        def endjob_delete_partial_running_array_job():
+            a = {ATTR_queue: self.resv_queue}
+            self.job_array_submit(
+                job_sleep_time=self.job_time_qdel, job_attrs=a)
+            self.job_array_verify_started()
+            self.job_array_verify_subjobs_started()
+            self.job_array_verify_subjobs_ended()
+            self.job_array_verify_ended()
 
-        # wait for the subjobs to begin running
-        for i in range(num_array_jobs):
-            self.server.expect(JOB, {'job_state': 'R'}, id=subjid[i])
+    def test_hook_endjob_delete_unstarted_single_job(self):
+        # TODO: add code and description, or remove
+        pass
 
-        # delete array job
-        self.server.delete(id=jid)
-
-        for i in range(num_array_jobs):
-            # check that the substate is set to 91 (TERMINATED) which
-            # indicates job was deleted
-            self.server.expect(JOB, {'substate': 91}, extend='x', id=subjid[i])
-
-        self.server.expect(JOB, {'substate': 91}, extend='x', id=jid)
-
-        ret = self.server.delete_hook(hook_name)
-        self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
-        self.server.log_match(hook_msg, starttime=start_time)
-        self.logger.info("**************** HOOK END ****************")
+    def test_hook_endjob_delete_unstarted_array_job(self):
+        # TODO: add code and description, or remove
+        pass
 
     def test_hook_endjob_delete_array_subjobs(self):
         """
@@ -449,7 +482,7 @@ class TestHookEndJob(TestFunctional):
         self.server.log_match(hook_msg, starttime=start_time)
         self.logger.info("**************** HOOK END ****************")
 
-    def test_hook_endjob_delete_force(self):
+    def test_hook_endjob_force_delete_single_job(self):
         """
         By creating an import hook, it executes a job hook.
         """
@@ -492,3 +525,7 @@ class TestHookEndJob(TestFunctional):
         self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
         self.server.log_match(hook_msg, starttime=start_time)
         self.logger.info("**************** HOOK END ****************")
+
+    def test_hook_endjob_force_delete_array_job(self):
+        # TODO: write code
+        pass
