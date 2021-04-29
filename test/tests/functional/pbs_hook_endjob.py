@@ -145,23 +145,26 @@ class TestHookEndJob(TestFunctional):
     def check_log_for_endjob_hook_messages(self, job_ids=None):
         jids = job_ids or [self.job_id] + self.subjob_ids
         for jid in jids:
+            msg_logged = jid in self.started_job_ids
             # FIXME: max_attempts should be set to one (1), but semi-frequently
             # (35-ish percent of the time) it misses earlier messages despite
             # having already matched the last message expected in the log first
             # (ex: from the job array).  this is possibly a bug in log_match()
             # but requires further investigation.
             #
-            # the unfortunate part is that if this is a bug, there is no way to
-            # detect a failure to log based on a more recent log message, thus
-            # making it difficult to detect end-job hook scripts being run when
-            # they shouldn't have been.
-            max_attempts = 3
-            msg_logged = jid in self.started_job_ids
+            # the unfortunate part of this characteristic is that one cannot
+            # guarantee that a message was never logged, which means that one
+            # cannot detect with 100% certainty that the hook script was
+            # executed when it should not have been.
+            max_attempts = 3 if msg_logged else 10
             self.server.log_match(
                 '%s;endjob hook started for test %s' % (jid, self.hook_name),
                 starttime=self.log_start_time, max_attempts=max_attempts,
                 existence=msg_logged)
-            # TODO: add check for reservation id (or None)
+            self.server.log_match(
+                '%s;endjob hook, resv:%s' % (jid, self.resv_queue or "(None)"),
+                starttime=self.log_start_time, max_attempts=max_attempts,
+                existence=msg_logged)
             self.server.log_match(
                 '%s;endjob hook finished for test %s' % (jid, self.hook_name),
                 starttime=self.log_start_time, max_attempts=max_attempts,
