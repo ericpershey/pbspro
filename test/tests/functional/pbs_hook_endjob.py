@@ -52,9 +52,20 @@ def endjob_hook(hook_func_name):
     try:
         e = pbs.event()
         job = e.job
-        # print additional info
         pbs.logjobmsg(
             job.id, 'endjob hook started for test %s' % (hook_func_name,))
+        pbs.logjobmsg(job.id, 'endjob hook, job starttime:%s' % (job.stime,))
+        pbs.logjobmsg(job.id, 'endjob hook, job endtime:%s' % (job.endtime,))
+        # pbs.logjobmsg(job.id, 'endjob hook, job_dir=%s' % (dir(job),))
+        pbs.logjobmsg(job.id, 'endjob hook, job_state=%s' % (job.job_state,))
+        pbs.logjobmsg(job.id, 'endjob hook, job_substate=%s' % (job.substate,))
+        state_desc = pbs.REVERSE_JOB_STATE.get(job.job_state, '(None)')
+        substate_desc = pbs.REVERSE_JOB_SUBSTATE.get(job.substate, '(None)')
+        pbs.logjobmsg(
+            job.id, 'endjob hook, job_state_desc=%s' % (state_desc,))
+        pbs.logjobmsg(
+            job.id, 'endjob hook, job_substate=%s' % (substate_desc,))
+        pbs.logjobmsg(job.id, 'endjob hook, job endtime:%d' % (job.endtime,))
         if hasattr(job, "resv") and job.resv:
             pbs.logjobmsg(
                 job.id, 'endjob hook, resv:%s' % (job.resv.resvid,))
@@ -66,7 +77,6 @@ def endjob_hook(hook_func_name):
                 'endjob hook, resv_state:%s' % (job.resv.reserve_state,))
         else:
             pbs.logjobmsg(job.id, 'endjob hook, resv:(None)')
-        pbs.logjobmsg(job.id, 'endjob hook, job endtime:%d' % (job.endtime,))
         # pbs.logjobmsg(pbs.REVERSE_JOB_STATE.get(job.state))
         pbs.logjobmsg(
             job.id, 'endjob hook finished for test %s' % (hook_func_name,))
@@ -88,7 +98,7 @@ class TestHookEndJob(TestFunctional):
     job_time_qdel = 120
     resv_retry_time = 5
     resv_start_delay = 20
-    resv_duration = 180
+    resv_duration = job_time_qdel + 60
 
     def run_test_func(self, test_body_func, *args, **kwargs):
         """
@@ -100,6 +110,7 @@ class TestHookEndJob(TestFunctional):
         self.subjob_count = 0
         self.subjob_ids = []
         self.started_job_ids = []
+        self.deleted_job_ids = []
         self.resv_id = None
         self.resv_queue = None
         self.resv_start_time = None
@@ -143,34 +154,29 @@ class TestHookEndJob(TestFunctional):
         self.logger.info("**************** HOOK END ****************")
 
     def check_log_for_endjob_hook_messages(self, job_ids=None):
+        """
+        Look for messages logged by the endjob hook.  This method assumes that
+        all started jobs have been verified as terminated or forced deleted,
+        thus insuring that the endjob hook has run for those jobs.
+        """
         jids = job_ids or [self.job_id] + self.subjob_ids
         for jid in jids:
             msg_logged = jid in self.started_job_ids
-            # FIXME: max_attempts should be set to one (1), but semi-frequently
-            # (35-ish percent of the time) it misses earlier messages despite
-            # having already matched the last message expected in the log first
-            # (ex: from the job array).  this is possibly a bug in log_match()
-            # but requires further investigation.
-            #
-            # the unfortunate part of this characteristic is that one cannot
-            # guarantee that a message was never logged, which means that one
-            # cannot detect with 100% certainty that the hook script was
-            # executed when it should not have been.
-            max_attempts = 3 if msg_logged else 10
             self.server.log_match(
                 '%s;endjob hook started for test %s' % (jid, self.hook_name),
-                starttime=self.log_start_time, max_attempts=max_attempts,
+                starttime=self.log_start_time, n='ALL', max_attempts=1,
                 existence=msg_logged)
             self.server.log_match(
                 '%s;endjob hook, resv:%s' % (jid, self.resv_queue or "(None)"),
-                starttime=self.log_start_time, max_attempts=max_attempts,
+                starttime=self.log_start_time, n='ALL', max_attempts=1,
                 existence=msg_logged)
             self.server.log_match(
                 '%s;endjob hook finished for test %s' % (jid, self.hook_name),
-                starttime=self.log_start_time, max_attempts=max_attempts,
+                starttime=self.log_start_time, n='ALL', max_attempts=1,
                 existence=msg_logged)
         self.log_start_time = int(time.time())
         self.started_job_ids = []
+        self.deleted_job_ids = []
 
     def job_submit(self, job_sleep_time=job_time_success, job_attrs={}):
         self.job = Job(TEST_USER, attrs=job_attrs)
@@ -188,9 +194,7 @@ class TestHookEndJob(TestFunctional):
     def job_delete(self, job_id=None):
         jid = job_id or self.job_id
         self.server.delete(jid)
-        # check that the substate is set to 91 (TERMINATED) which indicates
-        # that the job was deleted
-        self.server.expect(JOB, {'substate': 91}, extend='x', id=jid)
+        self.deleted_job_ids.append(jid)
 
     def job_verify_queued(self, job_id=None):
         jid = job_id or self.job_id
@@ -206,7 +210,12 @@ class TestHookEndJob(TestFunctional):
 
     def job_verify_ended(self, job_id=None):
         jid = job_id or self.job_id
-        self.server.expect(JOB, {'job_state': 'F'}, extend='x', id=jid)
+        # if the job was deleted, then verify that the substate is set to
+        # TERMINATED (91); otherwise verify that the substate is set to
+        # FINISHED (92).
+        substate = 91 if jid in self.deleted_job_ids else 92
+        self.server.expect(
+            JOB, {'job_state': 'F', 'substate': substate}, extend='x', id=jid)
 
     def job_array_submit(
             self,
@@ -227,20 +236,21 @@ class TestHookEndJob(TestFunctional):
             self.job.create_subjob_id(self.job_id, i)
             for i in range(self.subjob_count)]
 
-    def job_array_verify_started(self):
+    def job_array_delete(self):
+        self.job_delete()
+        # all subjobs should have been deleted
+        self.deleted_job_ids = [self.job_id] + self.subjob_ids
+
+    def job_array_verify_started(self, first_subjob=0, num_subjobs=None):
         self.server.expect(JOB, {'job_state': 'B'}, self.job_id)
         self.started_job_ids.append(self.job_id)
-
-    def job_array_verify_subjobs_started(self):
-        for jid in self.subjob_ids:
+        jids = self.subjob_ids[first_subjob:num_subjobs]
+        for jid in jids:
             self.job_verify_started(job_id=jid)
 
-    def job_array_verify_subjobs_ended(self):
-        for jid in self.subjob_ids:
-            self.job_verify_ended(job_id=jid)
-
     def job_array_verify_ended(self):
-        self.job_verify_ended()
+        for jid in [self.job_id] + self.subjob_ids:
+            self.job_verify_ended(job_id=jid)
 
     def resv_submit(
             self, user, resources, start_time, end_time, place='free',
@@ -274,7 +284,7 @@ class TestHookEndJob(TestFunctional):
     @tags('hooks', 'smoke')
     def test_hook_endjob_run_single_job(self):
         """
-        Run a single job to completion and verify that the end job hook was
+        Run a single job to completion and verify that the end job hook is
         executed.
         """
         def endjob_run_single_job():
@@ -286,14 +296,12 @@ class TestHookEndJob(TestFunctional):
 
     def test_hook_endjob_run_array_job(self):
         """
-        Run an array of jobs to completion and verify that the end job hook was
+        Run an array of jobs to completion and verify that the end job hook is
         executed for all subjobs and the array job.
         """
         def endjob_run_array_job():
             self.job_array_submit()
             self.job_array_verify_started()
-            self.job_array_verify_subjobs_started()
-            self.job_array_verify_subjobs_ended()
             self.job_array_verify_ended()
 
         self.run_test_func(endjob_run_array_job)
@@ -301,7 +309,7 @@ class TestHookEndJob(TestFunctional):
     def test_hook_endjob_run_array_job_in_resv(self):
         """
         Run an array of jobs to completion within a reservation and verify
-        that the end job hook was executed for all subjobs and the array job.
+        that the end job hook is executed for all subjobs and the array job.
         """
         def endjob_run_array_job_in_resv():
             resources = '1:ncpus=' + str(self.node_cpu_count)
@@ -317,15 +325,13 @@ class TestHookEndJob(TestFunctional):
             self.resv_verify_started()
 
             self.job_array_verify_started()
-            self.job_array_verify_subjobs_started()
-            self.job_array_verify_subjobs_ended()
             self.job_array_verify_ended()
 
         self.run_test_func(endjob_run_array_job_in_resv)
 
     def test_hook_endjob_rerun_single_job(self):
         """
-        Start a single job, issue a rerun, and verify that the end job hook was
+        Start a single job, issue a rerun, and verify that the end job hook is
         executed for both runs.
         """
         def endjob_rerun_single_job():
@@ -345,11 +351,12 @@ class TestHookEndJob(TestFunctional):
     def test_hook_endjob_delete_running_single_job(self):
         """
         Run a single job, but delete before completion.  Verify that the end
-        job hook was executed.
+        job hook is executed.
         """
         def endjob_delete_running_single_job():
             self.job_submit(job_sleep_time=self.job_time_qdel)
             self.job_verify_started()
+            time.sleep(self.job_time_success)
             self.job_delete()
             self.job_verify_ended()
 
@@ -358,71 +365,35 @@ class TestHookEndJob(TestFunctional):
     def test_hook_endjob_delete_running_array_job(self):
         """
         Run an array job, where all jobs get started but also deleted before
-        # completion.  Verify that the end job hook was executed for all
-        # subjobs and the array job.
+        completion.  Verify that the end job hook is executed for all
+        subjobs and the array job.
         """
-        # TODO: need to delete job array and maybe subjobs
         def endjob_delete_running_array_job():
             self.job_array_submit(job_sleep_time=self.job_time_qdel)
             self.job_array_verify_started()
-            self.job_array_verify_subjobs_started()
-            self.job_array_verify_subjobs_ended()
+            time.sleep(self.job_time_success)
+            self.job_array_delete()
             self.job_array_verify_ended()
 
         self.run_test_func(endjob_delete_running_array_job)
 
-#        num_array_jobs = 3
-#        a = {'job_history_enable': 'True'}
-#        self.server.manager(MGR_CMD_SET, SERVER, a)
-#        a = {'resources_available.ncpus': num_array_jobs}
-#        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
-#        attr_j_str = '1-' + str(num_array_jobs)
-#        j = Job(
-#            TEST_USER,
-#             attrs={ATTR_J: attr_j_str, 'Resource_List.select': 'ncpus=1'})
-#        j.set_sleep_time(20)
-#        jid = self.server.submit(j)
-#
-#        subjid = []
-#        for i in range(num_array_jobs):
-#            subjid.append(j.create_subjob_id(jid, i+1))
-#
-#        # check job array has begun
-#        self.server.expect(JOB, {'job_state': 'B'}, jid)
-#
-#        # wait for the subjobs to begin running
-#        for i in range(num_array_jobs):
-#            self.server.expect(JOB, {'job_state': 'R'}, id=subjid[i])
-#
-#        # delete array job
-#        self.server.delete(id=jid)
-#
-#        for i in range(num_array_jobs):
-#            # check that the substate is set to 91 (TERMINATED) which
-#            # indicates job was deleted
-#            self.server.expect(JOB, {'substate': 91}, extend='x', id=subjid[i])
-#
-#        self.server.expect(JOB, {'substate': 91}, extend='x', id=jid)
-#
-#        ret = self.server.delete_hook(hook_name)
-#        self.assertEqual(ret, True, "Could not delete hook %s" % hook_name)
-#        self.server.log_match(hook_msg, starttime=start_time)
-#        self.logger.info("**************** HOOK END ****************")
-
     def test_hook_endjob_delete_partial_running_array_job(self):
         """
-        Run a single job, but delete before completion.  Verify that the end
-        job hook was executed.
+        Run an array job, where on the first two jobs get started but also
+        deleted before completion.  Verify that the end job hook is executed
+        for the started subjobs and the array job.
         """
-        # TODO: need to delete job array and maybe started subjobs
         def endjob_delete_partial_running_array_job():
-            a = {ATTR_queue: self.resv_queue}
             self.job_array_submit(
-                job_sleep_time=self.job_time_qdel, job_attrs=a)
-            self.job_array_verify_started()
-            self.job_array_verify_subjobs_started()
-            self.job_array_verify_subjobs_ended()
+                subjob_count=6,
+                job_sleep_time=self.job_time_qdel,
+                subjob_ncpus=int(self.node_cpu_count/2))
+            self.job_array_verify_started(num_subjobs=2)
+            time.sleep(self.job_time_success)
+            self.job_array_delete()
             self.job_array_verify_ended()
+
+        self.run_test_func(endjob_delete_partial_running_array_job)
 
     def test_hook_endjob_delete_unstarted_single_job(self):
         # TODO: add code and description, or remove
