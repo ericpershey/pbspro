@@ -773,7 +773,7 @@ pbs_get_attributes_in_error(int connect) {
  *
  */
 char *
-pbs_submit(int c, struct attropl *attrib, char *script, char *destination, char *extend) {
+pbs_submit(int c, struct attropl  *attrib, char *script, char *destination, char *extend) {
 	return (*pfn_pbs_submit)(c, attrib, script, destination, extend);
 }
 

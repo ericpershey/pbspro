@@ -2381,6 +2381,7 @@ main(int argc, char **argv, char **envp) /* qstat */
 #endif /* PBS_NO_POSIX_VIOLATION */
 
 	/*test for real deal or just version and exit*/
+
 	PRINT_VERSION_AND_EXIT(argc, argv);
 	delay_query();
 #ifdef WIN32

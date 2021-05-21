@@ -1857,10 +1857,6 @@ end_perf_timing(perf_timing* perf_t, int lineno, char *file_name) {
 	FILE *fd;
 	time_t now;
  	time(&now);
-  	struct tm *local = localtime(&now);
-  	int day = local->tm_mday;
-  	int month = local->tm_mon + 1;
-  	int year = local->tm_year + 1900;
 	fd = fopen(perf_file, "a");
 	if (ftell(fd) == 0) {
 		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
