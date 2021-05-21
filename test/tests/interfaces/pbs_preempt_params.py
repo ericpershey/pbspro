@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -123,13 +123,11 @@ class TestPreemptParamsQmgr(TestInterfaces):
 
         self.server.manager(MGR_CMD_SET, SCHED, a, runas=ROOT_USER)
 
-        p = '"starving_jobs, normal_jobs, starving_jobs+fairshare, fairshare"'
+        p = '"express_queue, normal_jobs, express_queue+fairshare, fairshare"'
         a = {param: p}
         self.server.manager(MGR_CMD_SET, SCHED, a,
                             runas=ROOT_USER)
 
-        p = 'starving_jobs, normal_jobs, starving_jobs+fairshare,fairshare'
-        a = {param: p}
         self.server.manager(MGR_CMD_LIST, SCHED, a, runas=ROOT_USER)
 
         self.server.manager(MGR_CMD_UNSET, SCHED, param,

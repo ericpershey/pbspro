@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -125,4 +125,21 @@ class TestPbsnodes_json(TestFunctional):
         try:
             json.loads("\n".join(n_out))
         except ValueError:
+            self.assertFalse(True, "Json failed to load")
+
+    def test_empty_comment_json(self):
+        """
+        Test an empty node comment (only a space) under json.
+        """
+
+        self.server.manager(MGR_CMD_SET, NODE,
+                            {'comment': ' '}, id=self.mom.shortname)
+        cmd = os.path.join(self.server.pbs_conf['PBS_EXEC'],
+                           'bin', 'pbsnodes') + ' -av -Fjson'
+        ret = self.du.run_cmd(self.server.hostname, cmd=cmd)
+        n_out = "\n".join(ret['out'])
+        try:
+            json.loads(n_out)
+        except ValueError:
+            self.logger.info(n_out)
             self.assertFalse(True, "Json failed to load")

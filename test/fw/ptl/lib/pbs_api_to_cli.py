@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -142,7 +142,6 @@ api_to_cli = {
     ATTR_ReqCred: 'require_cred',
     ATTR_runcount: 'W run_count=',
     ATTR_stime: 's',
-    ATTR_pset: 'pset',
     ATTR_executable: 'executable',
     ATTR_Arglist: 'argument_list',
     ATTR_version: 'pbs_version',

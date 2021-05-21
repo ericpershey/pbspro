@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -67,27 +67,5 @@
 struct batch_status *
 __pbs_statrsc(int c, char *id, struct attrl *attrib, char *extend)
 {
-	struct batch_status *ret = NULL;
-	int                  rc;
-
-	/* initialize the thread context data, if not already initialized */
-	if (pbs_client_thread_init_thread_context() != 0)
-		return NULL;
-
-	/* first verify the attributes, if verification is enabled */
-	rc = pbs_verify_attributes(c, PBS_BATCH_StatusRsc,
-		MGR_OBJ_RSC, MGR_CMD_NONE, (struct attropl *) attrib);
-	if (rc)
-		return NULL;
-
-	if (pbs_client_thread_lock_connection(c) != 0)
-		return NULL;
-
-	ret = PBSD_status(c, PBS_BATCH_StatusRsc, id, attrib, extend);
-
-	/* unlock the thread lock and update the thread context data */
-	if (pbs_client_thread_unlock_connection(c) != 0)
-		return NULL;
-
-	return ret;
+	return PBSD_status_random(c, PBS_BATCH_StatusRsc, id, attrib, extend, MGR_OBJ_RSC);
 }

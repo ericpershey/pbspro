@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -56,10 +56,7 @@
 
 #include <stdio.h>
 #include <sys/types.h>
-
-#ifndef WIN32
 #include <sys/param.h>
-#endif
 
 #include "pbs_ifl.h"
 #include <errno.h>
@@ -73,12 +70,7 @@
 #include "list_link.h"
 #include "attribute.h"
 
-#ifdef WIN32
 #include <sys/stat.h>
-#include <io.h>
-#include <windows.h>
-#include "win.h"
-#endif
 
 #include "job.h"
 #include "reservation.h"
@@ -143,7 +135,6 @@ job_save_fs(job *pjob)
 	int	redo;
 	int	pmode;
 	int quick = 1;
-	struct attribute *pattr;
 
 #ifdef WIN32
 	pmode = _S_IWRITE | _S_IREAD;
@@ -167,9 +158,8 @@ job_save_fs(job *pjob)
 		quick = 0;
 	}
 
-	pattr = pjob->ji_wattr;
 	for (i = 0; i < JOB_ATR_LAST; i++) {
-		if ((pattr+i)->at_flags & ATR_VFLAG_MODIFY) {
+		if ((get_jattr(pjob, i))->at_flags & ATR_VFLAG_MODIFY) {
 			quick = 0;
 			break;
 		}
@@ -203,8 +193,7 @@ job_save_fs(job *pjob)
 
 	} else {
 		/* an attribute changed,  update mtime */
-		pjob->ji_wattr[JOB_ATR_mtime].at_val.at_long = time_now;
-		pjob->ji_wattr[JOB_ATR_mtime].at_flags |= ATR_MOD_MCACHE;
+		set_jattr_l_slim(pjob, JOB_ATR_mtime, time_now, SET);
 
 		/*
 		 * write the whole structure to the file.
@@ -334,7 +323,7 @@ job_recov_fs(char *filename)
 
 	/* change file name in case recovery fails so we don't try same file */
 
-	(void)strcpy(basen, pbs_recov_filename);
+	pbs_strncpy(basen, pbs_recov_filename, sizeof(basen));
 	psuffix = basen + strlen(basen) - strlen(JOB_BAD_SUFFIX);
 	(void)strcpy(psuffix, JOB_BAD_SUFFIX);
 #ifdef WIN32

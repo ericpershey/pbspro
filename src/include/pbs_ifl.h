@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -85,30 +85,31 @@ extern "C" {
 #define ATTR_N "Job_Name"
 #define ATTR_S "Shell_Path_List"
 #define ATTR_array_indices_submitted ATTR_J
-#define ATTR_depend		"depend"
-#define ATTR_inter		"interactive"
-#define ATTR_sandbox		"sandbox"
-#define ATTR_stagein		"stagein"
-#define ATTR_stageout		"stageout"
-#define ATTR_resvTag		"reserve_Tag"
-#define ATTR_resv_start 	"reserve_start"
-#define ATTR_resv_end   	"reserve_end"
-#define ATTR_resv_duration	"reserve_duration"
-#define ATTR_resv_state		"reserve_state"
-#define ATTR_resv_substate	"reserve_substate"
-#define ATTR_resv_job		"reserve_job"
-#define ATTR_auth_u		"Authorized_Users"
-#define ATTR_auth_g		"Authorized_Groups"
-#define ATTR_auth_h		"Authorized_Hosts"
-#define ATTR_cred		"cred"
-#define ATTR_nodemux		"no_stdio_sockets"
-#define ATTR_umask		"umask"
-#define ATTR_block		"block"
-#define ATTR_convert            "qmove"
-#define ATTR_DefaultChunk	"default_chunk"
-#define ATTR_X11_cookie         "forward_x11_cookie"
-#define ATTR_X11_port           "forward_x11_port"
-#define ATTR_GUI		"gui"
+#define ATTR_depend			"depend"
+#define ATTR_inter			"interactive"
+#define ATTR_sandbox			"sandbox"
+#define ATTR_stagein			"stagein"
+#define ATTR_stageout			"stageout"
+#define ATTR_resvTag			"reserve_Tag"
+#define ATTR_resv_start			"reserve_start"
+#define ATTR_resv_end			"reserve_end"
+#define ATTR_resv_duration		"reserve_duration"
+#define ATTR_resv_state			"reserve_state"
+#define ATTR_resv_substate		"reserve_substate"
+#define ATTR_resv_job			"reserve_job"
+#define ATTR_auth_u			"Authorized_Users"
+#define ATTR_auth_g			"Authorized_Groups"
+#define ATTR_auth_h			"Authorized_Hosts"
+#define ATTR_cred			"cred"
+#define ATTR_nodemux			"no_stdio_sockets"
+#define ATTR_umask			"umask"
+#define ATTR_block			"block"
+#define ATTR_convert			"qmove"
+#define ATTR_DefaultChunk		"default_chunk"
+#define ATTR_X11_cookie			"forward_x11_cookie"
+#define ATTR_X11_port			"forward_x11_port"
+#define ATTR_GUI			"gui"
+#define ATTR_max_run_subjobs		"max_run_subjobs"
 
 /* Begin Standing Reservation Attributes */
 #define ATTR_resv_standing      "reserve_standing"
@@ -120,7 +121,7 @@ extern "C" {
 /* End of standing reservation specific */
 
 /* additional job and general attribute names */
-
+#define ATTR_server_inst_id "server_instance_id"
 #define ATTR_ctime	"ctime"
 #define ATTR_estimated  "estimated"
 #define ATTR_exechost	"exec_host"
@@ -183,7 +184,6 @@ extern "C" {
 #define ATTR_runcount	"run_count"
 #define ATTR_run_version	"run_version"
 #define ATTR_stime	"stime"
-#define ATTR_pset	"pset"
 #define ATTR_executable		"executable"
 #define ATTR_Arglist		"argument_list"
 #define	ATTR_version	"pbs_version"
@@ -268,6 +268,7 @@ extern "C" {
 #define ATTR_locsvrs	"location_servers"
 #define ATTR_logevents	"log_events"
 #define ATTR_logfile	"log_file"
+#define ATTR_mailer	"mailer"
 #define ATTR_mailfrom	"mail_from"
 #define ATTR_nodepack	"node_pack"
 #define ATTR_nodefailrq "node_fail_requeue"
@@ -286,7 +287,6 @@ extern "C" {
 #define ATTR_status	"server_state"
 #define ATTR_syscost	"system_cost"
 #define ATTR_FlatUID	"flatuid"
-#define ATTR_FLicenses	"FLicenses"
 #define ATTR_ResvEnable	"resv_enable"
 #define ATTR_aclResvgren        "acl_resv_group_enable"
 #define ATTR_aclResvgroup       "acl_resv_groups"
@@ -351,7 +351,6 @@ extern "C" {
 #define ATTR_job_sort_formula_threshold "job_sort_formula_threshold"
 #define ATTR_throughput_mode "throughput_mode"
 #define ATTR_opt_backfill_fuzzy "opt_backfill_fuzzy"
-#define ATTR_sched_port "sched_port"
 #define ATTR_partition "partition"
 #define ATTR_sched_priv "sched_priv"
 #define ATTR_sched_log "sched_log"
@@ -442,6 +441,8 @@ enum mgr_obj {
 	MGR_OBJ_HOST,		/* Host  	*/
 	MGR_OBJ_HOOK,		/* Hook         */
 	MGR_OBJ_PBS_HOOK,	/* PBS Hook     */
+	MGR_OBJ_JOBARRAY_PARENT,	/* Job array parent */
+	MGR_OBJ_SUBJOB,		/* Sub Job */
 	MGR_OBJ_LAST		/* Last entry	*/
 };
 
@@ -453,8 +454,6 @@ enum mgr_obj {
 #define MSG_OUT		1
 #define MSG_ERR		2
 
-
-#define BLUEGENE		"bluegene"
 /* SUSv2 guarantees that host names are limited to 255 bytes */
 #define PBS_MAXHOSTNAME		255	/* max host name length */
 #ifndef MAXPATHLEN
@@ -463,6 +462,7 @@ enum mgr_obj {
 #ifndef MAXNAMLEN
 #define MAXNAMLEN		255
 #endif
+#define MSVR_JID_NCHARS_SVR	2	/* No. of chars reserved for svr instance in job ids for multi-server */
 #define PBS_MAXSCHEDNAME 	15
 #define PBS_MAXUSER		256		/* max user name length */
 #define PBS_MAXPWLEN		256		/* max password length */
@@ -470,10 +470,11 @@ enum mgr_obj {
 #define PBS_MAXQUEUENAME	15		/* max queue name length */
 #define PBS_MAXJOBNAME  	230		/* max job name length */
 #define PBS_MAXSERVERNAME	PBS_MAXHOSTNAME	/* max server name length */
+#define MAX_SVR_ID		(PBS_MAXSERVERNAME + PBS_MAXPORTNUM + 1)	/* svr_id is of the form sever_name:port */
 #define PBS_MAXSEQNUM		12		/* max sequence number length */
 #define PBS_DFLT_MAX_JOB_SEQUENCE_ID 9999999	/* default value of max_job_sequence_id server attribute */
 #define PBS_MAXPORTNUM	5		/* udp/tcp port numbers max=16 bits */
-#define PBS_MAXSVRJOBID	(PBS_MAXSEQNUM - 1 + PBS_MAXSERVERNAME + PBS_MAXPORTNUM + 2) /* server job id size, -1 to keep same length when made SEQ 7 */
+#define PBS_MAXSVRJOBID	(PBS_MAXSEQNUM + MSVR_JID_NCHARS_SVR - 1 + PBS_MAXSERVERNAME + PBS_MAXPORTNUM + 2) /* server job id size, -1 to keep same length when made SEQ 7 */
 #define PBS_MAXSVRRESVID	(PBS_MAXSVRJOBID + 1)
 #define PBS_MAXQRESVNAME	(PBS_MAXQUEUENAME)
 #define PBS_MAXCLTJOBID		(PBS_MAXSVRJOBID + PBS_MAXSERVERNAME + PBS_MAXPORTNUM + 2) /* client job id size */
@@ -489,7 +490,7 @@ enum mgr_obj {
 
 /* the pair to this list is in module_pbs_v1.c and must be updated to reflect any changes */
 enum batch_op {	SET, UNSET, INCR, DECR,
-	EQ, NE, GE, GT, LE, LT, DFLT
+	EQ, NE, GE, GT, LE, LT, DFLT, INTERNAL
 };
 
 /* shutdown manners externally visible */
@@ -499,10 +500,11 @@ enum batch_op {	SET, UNSET, INCR, DECR,
 
 /* messages that may be passsed  by pbs_deljob() api to the server  via its extend parameter*/
 
-#define FORCEDEL			"force"
+#define FORCE				"force"
 #define NOMAIL  			"nomail"
 #define SUPPRESS_EMAIL  		"suppress_email"
-#define DELETEHISTORY		"deletehist"
+#define DELETEHISTORY			"deletehist"
+
 /*
  ** This structure is identical to attropl so they can be used
  ** interchangably.  The op field is not used.
@@ -525,9 +527,15 @@ struct attropl {
 
 struct batch_status {
 	struct batch_status *next;
-	char		    *name;
-	struct attrl	    *attribs;
-	char		    *text;
+	char *name;
+	struct attrl *attribs;
+	char *text;
+};
+
+struct batch_deljob_status {
+	struct batch_deljob_status *next;
+	char *name;
+	int code;
 };
 
 /* structure to hold an attribute that failed verification at ECL
@@ -606,6 +614,8 @@ DECLDIR int pbs_connect_extend(char *, char *);
 DECLDIR char *pbs_default(void);
 
 DECLDIR int pbs_deljob(int, char *, char *);
+
+DECLDIR struct batch_deljob_status *pbs_deljoblist(int, char **, int, char *);
 
 DECLDIR int pbs_disconnect(int);
 
@@ -709,6 +719,8 @@ extern char *pbs_default(void);
 
 extern int pbs_deljob(int, char *, char *);
 
+extern struct batch_deljob_status *pbs_deljoblist(int, char **, int, char *);
+
 extern char *pbs_geterrmsg(int);
 
 extern int pbs_holdjob(int, char *, char *, char *);
@@ -736,6 +748,8 @@ extern char **pbs_selectjob(int, struct attropl *, char *);
 extern int pbs_sigjob(int, char *, char *, char *);
 
 extern void pbs_statfree(struct batch_status *);
+
+extern void pbs_delstatfree(struct batch_deljob_status *);
 
 extern struct batch_status *pbs_statrsc(int, char *, struct attrl *, char *);
 
@@ -784,6 +798,7 @@ extern int (*pfn_pbs_connect)(char *);
 extern int (*pfn_pbs_connect_extend)(char *, char *);
 extern char *(*pfn_pbs_default)(void);
 extern int (*pfn_pbs_deljob)(int, char *, char *);
+extern struct batch_deljob_status *(*pfn_pbs_deljoblist)(int, char **, int, char *);
 extern int (*pfn_pbs_disconnect)(int);
 extern char *(*pfn_pbs_geterrmsg)(int);
 extern int (*pfn_pbs_holdjob)(int, char *, char *, char *);
@@ -799,6 +814,7 @@ extern int (*pfn_pbs_runjob)(int, char *, char *, char *);
 extern char **(*pfn_pbs_selectjob)(int, struct attropl *, char *);
 extern int (*pfn_pbs_sigjob)(int, char *, char *, char *);
 extern void (*pfn_pbs_statfree)(struct batch_status *);
+extern void (*pfn_pbs_delstatfree)(struct batch_deljob_status *);
 extern struct batch_status *(*pfn_pbs_statrsc)(int, char *, struct attrl *, char *);
 extern struct batch_status *(*pfn_pbs_statjob)(int, char *, struct attrl *, char *);
 extern struct batch_status *(*pfn_pbs_selstat)(int, struct attropl *, struct attrl *, char *);

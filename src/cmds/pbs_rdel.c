@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -81,12 +81,8 @@ main(int argc, char **argv, char **envp)
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
-
 
 	while ((c = getopt(argc, argv, "q:")) != EOF)
 		switch (c) {
@@ -118,20 +114,21 @@ main(int argc, char **argv, char **envp)
 		int connect;
 		int stat = 0;
 
-		strcpy(resv_id, argv[optind]);
+		pbs_strncpy(resv_id, argv[optind], sizeof(resv_id));
 		if (get_server(resv_id, resv_id_out, server_out)) {
 			fprintf(stderr, "pbs_rdel: illegally formed reservation identifier: %s\n", resv_id);
 			any_failed = 1;
 			continue;
 		}
-		connect = cnt2server(server_out);
 
+		connect = cnt2server(server_out);
 		if (connect <= 0) {
 			fprintf(stderr, "pbs_rdel: cannot connect to server %s (errno=%d)\n",
 				pbs_server, pbs_errno);
 			any_failed = pbs_errno;
 			continue;
-		}
+		} else if (pbs_errno)
+			show_svr_inst_fail(connect, argv[0]);
 
 		stat = pbs_delresv(connect, resv_id_out, dest_queue);
 		if (stat) {

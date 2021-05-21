@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -219,8 +219,13 @@ static int
 load_node(PGresult *res, pbs_db_node_info_t *pnd, int row)
 {
 	char *raw_array;
-	static int nd_name_fnum, mom_modtime_fnum, nd_hostname_fnum, nd_state_fnum, nd_ntype_fnum,
-	nd_pque_fnum, attributes_fnum;
+	static int nd_name_fnum;
+	static int mom_modtime_fnum;
+	static int nd_hostname_fnum;
+	static int nd_state_fnum;
+	static int nd_ntype_fnum;
+	static int nd_pque_fnum;
+	static int attributes_fnum;
 	static int fnums_inited = 0;
 
 	if (fnums_inited == 0) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -209,11 +209,10 @@ extern void DIS_tcp_funcs();
 #define DIS_READ_BUF 1
 
 typedef struct pbs_dis_buf {
-	size_t tdis_lead;
-	size_t tdis_trail;
-	size_t tdis_eod;
 	size_t tdis_bufsize;
-	char *tdis_thebuf;
+	size_t tdis_len;
+	char *tdis_pos;
+	char *tdis_data;
 } pbs_dis_buf_t;
 
 typedef struct pbs_tcp_auth_data {
@@ -235,8 +234,6 @@ int disr_skip(int, size_t);
 int dis_getc(int);
 int dis_gets(int, char *, size_t);
 int dis_puts(int, const char *, size_t);
-int disr_commit(int, int);
-int disw_commit(int, int);
 int dis_flush(int);
 void dis_setup_chan(int, pbs_tcp_chan_t * (*)(int));
 void dis_destroy_chan(int);
@@ -250,10 +247,10 @@ auth_def_t * transport_chan_get_authdef(int, int);
 int transport_send_pkt(int, int, void *, size_t);
 int transport_recv_pkt(int, int *, void **, size_t *);
 
-pbs_tcp_chan_t * (*pfn_transport_get_chan)(int);
-int (*pfn_transport_set_chan)(int, pbs_tcp_chan_t *);
-int (*pfn_transport_recv)(int, void *, int);
-int (*pfn_transport_send)(int, void *, int);
+extern pbs_tcp_chan_t * (*pfn_transport_get_chan)(int);
+extern int (*pfn_transport_set_chan)(int, pbs_tcp_chan_t *);
+extern int (*pfn_transport_recv)(int, void *, int);
+extern int (*pfn_transport_send)(int, void *, int);
 
 #define transport_recv(x, y, z) (*pfn_transport_recv)(x, y, z)
 #define transport_send(x, y, z) (*pfn_transport_send)(x, y, z)

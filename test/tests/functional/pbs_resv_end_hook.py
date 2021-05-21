@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -163,7 +163,7 @@ if e.type == pbs.RESV_END:
                                 TestResvEndHook.advance_resv_hook_script)
 
         offset = 10
-        duration = 30
+        duration = 300
         rid = self.submit_resv(offset, duration)
 
         attrs = {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2')}

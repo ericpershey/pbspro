@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -344,7 +344,13 @@ def size_as_int(value):
     """
     Convert a size string to an integer representation of size in bytes
     """
-    return int(convert_size(value).rstrip(string.ascii_lowercase))
+    in_bytes = convert_size(value, units='b')
+    if in_bytes is not None:
+        return int(convert_size(value).rstrip(string.ascii_lowercase))
+    else:
+        pbs.logmsg(pbs.EVENT_ERROR, "size_as_int: Value %s "
+                   "does not convert to int, returning None" % value)
+        return None
 
 
 #
@@ -652,6 +658,7 @@ def printjob_info(jobid, include_attributes=False):
             info[key] = int(val)
         else:
             info[key] = val
+    pbs.logmsg(pbs.EVENT_DEBUG4, 'JB file info returned: %s' % repr(info))
     return info
 
 
@@ -670,8 +677,6 @@ def job_is_running(jobid):
     Returns True if job shows a running state and substate
     """
     jobinfo = printjob_info(jobid)
-    if 'state' in jobinfo and jobinfo['state'] != 4:
-        return False
     if 'substate' in jobinfo:
         return jobinfo['substate'] == 42
     return False
@@ -881,6 +886,9 @@ class HookUtils(object):
             self.hook_events = hook_events
         else:
             # Defined in the order they appear in module_pbs_v1.c
+            # if adding new events that may not exist in all PBS versions,
+            # use hasattr() to prevent exceptions when the hook is used
+            # on older PBS versions - see e.g. EXECJOB_ABORT
             self.hook_events = {}
             self.hook_events[pbs.QUEUEJOB] = {
                 'name': 'queuejob',
@@ -902,6 +910,16 @@ class HookUtils(object):
                 'name': 'runjob',
                 'handler': None
             }
+            if hasattr(pbs, "MANAGEMENT"):
+                self.hook_events[pbs.MANAGEMENT] = {
+                    'name': 'management',
+                    'handler': None
+                }
+            if hasattr(pbs, "MODIFYVNODE"):
+                self.hook_events[pbs.MODIFYVNODE] = {
+                    'name': 'modifyvnode',
+                    'handler': None
+                }
             self.hook_events[pbs.PROVISION] = {
                 'name': 'provision',
                 'handler': None
@@ -1049,7 +1067,7 @@ class HookUtils(object):
                                'deleting cpuset cgroup')
 
         # Configure the new cgroup
-        cgroup.configure_job(event.job.id, jobutil.assigned_resources,
+        cgroup.configure_job(event.job, jobutil.assigned_resources,
                              node, cgroup, event.type)
 
         # Write out the assigned resources
@@ -1066,8 +1084,13 @@ class HookUtils(object):
                 for key in cgroup.assigned_resources['device_names']:
                     if key.startswith('mic'):
                         mics.append(key[3:])
-                    elif key.startswith('nvidia'):
-                        gpus.append(node.devices['gpu'][key]['uuid'])
+                    elif (key.startswith('nvidia')
+                            and "gpu" in node.devices
+                            and key in node.devices['gpu']):
+                        if 'uuid' in node.devices['gpu'][key]:
+                            gpus.append(node.devices['gpu'][key]['uuid'])
+                        if 'uuids' in node.devices['gpu'][key]:
+                            gpus.extend(node.devices['gpu'][key]['uuids'])
                 if mics:
                     env_list.append('OFFLOAD_DEVICES=%s' %
                                     ",".join(mics))
@@ -1136,6 +1159,54 @@ class HookUtils(object):
                            'Error removing file: %s' % (filename))
         return True
 
+    def manage_rlimit_as(self, job):
+        """
+        Sets rlimit_as according to pvmem (if present)
+        if pvmem is not present, sets it to unlimited
+        (since we know vmem specifies memory+swap usage limit,
+         not address space limit)
+        """
+        import resource
+        rlimit_as = None
+        parent_pid = os.getppid()
+        if 'pvmem' in job.Resource_List and job.Resource_List['pvmem']:
+            rlimit_as = size_as_int(job.Resource_List['pvmem'])
+        else:
+            rlimit_as = resource.RLIM_INFINITY
+
+        prlimit_command = None
+        if hasattr(resource, 'prlimit'):
+            # No need to call command -- Python has direct support
+            prlimit_command = ''
+            pbs.logmsg(pbs.EVENT_DEBUG3,
+                       'Calling resource.prlimit(%s, resource.RLIMIT_AS, %s)'
+                       % (parent_pid, str((rlimit_as, rlimit_as))))
+            resource.prlimit(parent_pid, resource.RLIMIT_AS,
+                             (rlimit_as, rlimit_as))
+        elif os.path.isfile('/usr/bin/prlimit'):
+            prlimit_command = '/usr/bin/prlimit'
+        elif os.path.isfile('/bin/prlimit'):
+            prlimit_command = '/bin/prlimit'
+
+        if prlimit_command is None:
+            pbs.logmsg(pbs.EVENT_DEBUG, "cannot set rlimit_as for task: "
+                       "prlimit command not found")
+        elif prlimit_command != '':
+            cmd = [prlimit_command,
+                   '--as=' + str(rlimit_as) + ':' + str(rlimit_as),
+                   '--pid=' + str(parent_pid)]
+            pbs.logmsg(pbs.EVENT_DEBUG3, 'Running: ' + ' '.join(cmd))
+            try:
+                # Try running the prlimit command
+                process = subprocess.Popen(cmd, shell=False,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE)
+                out = process.communicate()[0]
+            except Exception:
+                pbs.logmsg(pbs.EVENT_ERROR,
+                           'Found but to failed to execute: %s' %
+                           ' '.join(cmd))
+
     def _execjob_launch_handler(self, event, cgroup, jobutil):
         """
         Handler for execjob_launch events.
@@ -1154,7 +1225,15 @@ class HookUtils(object):
             pbs.logmsg(pbs.EVENT_DEBUG4,
                        'assigned_resources: %s' %
                        (cgroup.assigned_resources))
-            cgroup.setup_job_devices_env(node.devices['gpu'])
+            if "gpu" in node.devices:
+                cgroup.setup_job_devices_env(node.devices['gpu'])
+
+        # If vmem was requested, set per process address space limit
+        # or clear the one MoM has set,
+        # if possible (requires prlimit support)
+        if (cgroup.cfg['manage_rlimit_as']
+                and cgroup.cfg['cgroup']['memsw']['enabled']):
+            self.manage_rlimit_as(pbs.event().job)
         return True
 
     def _exechost_periodic_handler(self, event, cgroup, jobutil):
@@ -1295,7 +1374,7 @@ class HookUtils(object):
                                'deleting cpuset cgroup')
 
         # Configure the cgroup
-        cgroup.configure_job(event.job.id, jobutil.assigned_resources,
+        cgroup.configure_job(event.job, jobutil.assigned_resources,
                              node, cgroup, event.type)
         # Write out the assigned resources
         cgroup.write_cgroup_assigned_resources(event.job.id)
@@ -1311,8 +1390,13 @@ class HookUtils(object):
                 for key in cgroup.assigned_resources['device_names']:
                     if key.startswith('mic'):
                         mics.append(key[3:])
-                    elif key.startswith('nvidia'):
-                        gpus.append(node.devices['gpu'][key]['uuid'])
+                    elif (key.startswith('nvidia')
+                            and "gpu" in node.devices
+                            and key in node.devices['gpu']):
+                        if 'uuid' in node.devices['gpu'][key]:
+                            gpus.append(node.devices['gpu'][key]['uuid'])
+                        if 'uuids' in node.devices['gpu'][key]:
+                            gpus.extend(node.devices['gpu'][key]['uuids'])
                 if mics:
                     env_list.append('OFFLOAD_DEVICES=%s' %
                                     ",".join(mics))
@@ -1503,8 +1587,10 @@ class NodeUtils(object):
             self.numa_nodes = self._discover_numa_nodes()
         if devices is not None:
             self.devices = devices
-        else:
+        elif self.cfg['cgroup']['devices']['enabled']:
             self.devices = self._discover_devices()
+        else:
+            self.devices = {}
         # Add the devices count i.e. nmics and ngpus to the numa nodes
         self._add_device_counts_to_numa_nodes()
         # Information for offlining nodes
@@ -1756,6 +1842,59 @@ class NodeUtils(object):
                                 devices[dclass][inst]['device'] = path
                                 devices[dclass][inst]['uuid'] = \
                                     gpus[gpuid]['uuid']
+        # if any gpu has mig enabled, let's use them
+        if gpus and any(gpus[gpu]['mig'] for gpu in gpus):
+            nvidia_cap_major = None
+            with open(os.path.join(os.sep, 'proc', 'devices')) as f:
+                for line in f:
+                    device = line.split()
+                    if len(device) != 2:
+                        continue
+                    if device[1] == 'nvidia-caps':
+                        nvidia_cap_major = int(device[0])
+                        break
+            if nvidia_cap_major is None:
+                pbs.logmsg(pbs.EVENT_SYSTEM, '%s: A GPU has MIG enabled, but'
+                           'nvidia-caps is not found in /proc/devices. '
+                           'Skipping MIG configuration'
+                           % caller_name())
+            else:
+                gis = {}
+                # we need major, minor, type, uuids, numa_node
+                for gpuid in gpus:
+                    if 'gis' not in gpus[gpuid]:
+                        continue
+                    for giid in gpus[gpuid]['gis']:
+                        gi = gpus[gpuid]['gis'][giid]
+                        if 'cis' not in gi:
+                            # no cis found for this gi, just skip
+                            continue
+                        name = 'nvidia-cap%d' % gi['minor']
+                        numa = devices['gpu'][gpuid]['numa_node']
+                        major = devices['gpu'][gpuid]['major']
+                        minor = devices['gpu'][gpuid]['minor']
+                        # extra_devs are the device numbers of the physical
+                        # gpu, as well as the nvidia controller
+                        new_gpu = {'major': nvidia_cap_major,
+                                   'minor': gi['minor'],
+                                   'is_gi': True,
+                                   'type': 'c',
+                                   'numa_node': numa,
+                                   'extra_devs': ['%d:%d' % (major, minor),
+                                                  '%d:255' % (major)],
+                                   'uuids': []
+                                   }
+                        for ciid in gi['cis']:
+                            ci = gi['cis'][ciid]
+                            new_gpu['uuids'].append(ci['uuid'])
+                            major = nvidia_cap_major
+                            minor = ci['minor']
+                            new_gpu['extra_devs'].append(
+                                '%d:%d' % (major, minor))
+                        devices['gpu'][name] = new_gpu
+                    del devices['gpu'][gpuid]
+
+        pbs.logmsg(pbs.EVENT_DEBUG4, 'Processed GPUs: %s' % devices['gpu'])
         if gpus and not devices['gpu']:
             pbs.logmsg(pbs.EVENT_SYSTEM, '%s: GPUs discovered but could not '
                        'be successfully mapped to devices.' % (caller_name()))
@@ -1768,9 +1907,13 @@ class NodeUtils(object):
         """
         pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Method called' % caller_name())
         gpus = {}
-        cmd = [self.cfg['nvidia-smi'], '-q', '-x']
+        if self.cfg['discover_gpus'] and self.cfg['nvidia-smi']:
+            cmd = [self.cfg['nvidia-smi'], '-q', '-x']
+        else:
+            return gpus
         pbs.logmsg(pbs.EVENT_DEBUG4, 'NVIDIA SMI command: %s' % cmd)
         time_start = time.time()
+        mig_found = False
         try:
             # Try running the nvidia-smi command
             process = subprocess.Popen(cmd, shell=False,
@@ -1808,14 +1951,149 @@ class NodeUtils(object):
                     if len(domain) != 4:
                         raise ValueError('GPU ID not recognized: ' + bus_id)
                     name = 'nvidia%s' % child.find('minor_number').text
+                    mig_enabled = False
+                    mig_mode = child.find('mig_mode')
+                    if mig_mode is not None:
+                        current_mig = mig_mode.find('current_mig')
+                        if current_mig is not None:
+                            if current_mig.text == 'Enabled':
+                                mig_found = True
+                                mig_enabled = True
                     gpus[name] = {
                         'pci_bus_id': (domain + ':' + instance).lower(),
-                        'uuid': child.find('uuid').text
+                        'uuid': child.find('uuid').text,
+                        'mig': mig_enabled
                     }
         except Exception as exc:
             pbs.logmsg(pbs.EVENT_DEBUG, 'Unexpected error: %s' % exc)
+
+        # at least one gpu had mig enabled, let's add the gis
+        if mig_found:
+            self._discover_migs(gpus)
+
         pbs.logmsg(pbs.EVENT_DEBUG4, 'GPUs: %s' % gpus)
         return gpus
+
+    def _discover_migs(self, gpus):
+        """
+        Mutate the gpus dictionary with mig info, GIs and CIs
+        """
+        pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Method called' % caller_name())
+        # find GIs
+        cmd = [self.cfg['nvidia-smi'], 'mig', '-lgi']
+        pbs.logmsg(pbs.EVENT_DEBUG4, 'NVIDIA SMI command: %s' % cmd)
+        time_start = time.time()
+        out = []
+        try:
+            # Try running the nvidia-smi command
+            process = subprocess.Popen(cmd, shell=False,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE,
+                                       universal_newlines=True)
+            out = process.communicate()[0].split('\n')
+        except Exception:
+            pbs.logmsg(pbs.EVENT_DEBUG4, 'Failed to execute: %s' %
+                       " ".join(cmd))
+            pbs.logmsg(pbs.EVENT_DEBUG3, '%s: No MIGs found' % caller_name())
+            return
+        elapsed_time = time.time() - time_start
+        if elapsed_time > 2.0:
+            pbs.logmsg(pbs.EVENT_DEBUG,
+                       '%s: nvidia-smi call took %f seconds' %
+                       (caller_name(), elapsed_time))
+
+        # format is
+        # | GPUID   NAME       ProfileID  GIID       PLACE     |
+        # |====================================================|
+        # |   0  MIG 1g.5gb       19        7          4:1     |
+        # +----------------------------------------------------+
+        # |   0  MIG 1g.5gb       19        8          5:1     |
+        r = re.compile(r'^\|\s+(\d+)\s+MIG\s+\S+\s+\d+\s+(\d+)\s+\S+\s+\|$')
+        for out_line in out:
+            match = r.match(out_line)
+            if not match:
+                continue
+            gpu_num = int(match.group(1))
+            gpuid = 'nvidia%d' % gpu_num
+            giid = int(match.group(2))
+            minor = self._discover_mig_minor(gpu_num, giid, ci=None)
+            gi = {'minor': minor, 'gi': giid}
+            pbs.logmsg(pbs.EVENT_DEBUG4, 'GI found %s' % str(gi))
+            if 'gis' not in gpus[gpuid]:
+                gpus[gpuid]['gis'] = {}
+            gpus[gpuid]['gis'][giid] = gi
+
+        # now find all CIs
+        cmd = [self.cfg['nvidia-smi'], 'mig', '-lci']
+        pbs.logmsg(pbs.EVENT_DEBUG4, 'NVIDIA SMI command: %s' % cmd)
+        time_start = time.time()
+        out = []
+        try:
+            # Try running the nvidia-smi command
+            process = subprocess.Popen(cmd, shell=False,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE,
+                                       universal_newlines=True)
+            out = process.communicate()[0].split('\n')
+        except Exception:
+            pbs.logmsg(pbs.EVENT_DEBUG4, 'Failed to execute: %s' %
+                       " ".join(cmd))
+            pbs.logmsg(pbs.EVENT_DEBUG3, '%s: No MIGs found' % caller_name())
+            return
+        elapsed_time = time.time() - time_start
+        if elapsed_time > 2.0:
+            pbs.logmsg(pbs.EVENT_DEBUG,
+                       '%s: nvidia-smi call took %f seconds' %
+                       (caller_name(), elapsed_time))
+
+        # format is either
+        # | Compute instances:                                    |
+        # | GPU     GPU       Name             Profile   Instance |
+        # |       Instance                       ID        ID     |
+        # |         ID                                            |
+        # |   0      7       MIG 1g.5gb           0         0     |
+        # or
+        # | Compute instances:                                             |
+        # | GPU     GPU       Name         Profile   Instance   Placement  |
+        # |       Instance                   ID        ID       Start:Size |
+        # |         ID                                                     |
+        # |   0      7       MIG 1g.5gb       0         0          0:1     |
+        r = re.compile(
+            r'^\|\s+(\d+)\s+(\d+)\s+MIG\s+\S+\s+\d+\s+(\d+)\s+(\S+\s+)?\|$')
+        for out_line in out:
+            match = r.match(out_line)
+            if not match:
+                continue
+            gpu_num = int(match.group(1))
+            gpuid = 'nvidia%d' % gpu_num
+            giid = int(match.group(2))
+            ciid = int(match.group(3))
+            minor = self._discover_mig_minor(gpu_num, giid, ciid)
+            if minor == -1:
+                continue
+            uuid = 'MIG-%s/%s/%s' % (gpus[gpuid]['uuid'], giid, ciid)
+            ci = {'minor': minor, 'gi': giid, 'ci': ciid, 'uuid': uuid}
+            pbs.logmsg(pbs.EVENT_DEBUG4, 'CI found %s' % str(ci))
+            if 'cis' not in gpus[gpuid]['gis'][giid]:
+                gpus[gpuid]['gis'][giid]['cis'] = {}
+            gpus[gpuid]['gis'][giid]['cis'][ciid] = ci
+
+    def _discover_mig_minor(self, gpu, gi, ci=None):
+        pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Method called' % caller_name())
+        path = os.path.join(os.sep, 'proc', 'driver',
+                            'nvidia-caps', 'mig-minors')
+        if ci is None:
+            capname = 'gpu%d/gi%d/access' % (gpu, gi)
+        else:
+            capname = 'gpu%d/gi%d/ci%d/access' % (gpu, gi, ci)
+        with open(path, 'r') as minors:
+            for line in minors:
+                cap, minor = line.split(' ', 1)
+                if cap == capname:
+                    return int(minor)
+        pbs.logmsg(pbs.EVENT_DEBUG, 'Cannot find minor number for %s'
+                   % capname)
+        return -1
 
     def _discover_meminfo(self):
         """
@@ -1925,8 +2203,15 @@ class NodeUtils(object):
                        caller_name())
         cpuinfo['physical_cpus'] = int(cpuinfo['logical_cpus']
                                        // cpuinfo['hyperthreads_per_core'])
-        pbs.logmsg(pbs.EVENT_DEBUG4, '%s returning: %s' %
-                   (caller_name(), cpuinfo))
+        wanted_keys = ['physical_cpus', 'logical_cpus','hyperthreads_per_core',
+                       'hyperthreads']
+        cpuinfo_short = dict((k, cpuinfo[k])
+                             for k in wanted_keys if k in cpuinfo)
+        pbs.logmsg(pbs.EVENT_DEBUG4, "%s returning: %s"
+                   % (caller_name(), cpuinfo_short))
+        if 0 in cpuinfo['cpu']:
+            pbs.logmsg(pbs.EVENT_DEBUG4, "%s For CPU 0: cpuinfo['cpu'][0]: %s"
+                       % (caller_name(), cpuinfo['cpu'][0]))
         return cpuinfo
 
     def gather_jobs_on_node(self, cgroup):
@@ -2209,6 +2494,10 @@ class NodeUtils(object):
             if vmem < 0:
                 vmem = 0
             vmem -= vmem % (1024 * 1024)
+            # if there is no swap, trying to subtract vnode_hidden_mb
+            # will lower vmem under mem, do not allow
+            if vmem < mem:
+                vmem = mem
             vmem = pbs.size(convert_size(vmem, 'mb'))
             host_resc_avail['vmem'] = vmem
             pbs.logmsg(pbs.EVENT_DEBUG4, vnode_msg_mem %
@@ -2225,11 +2514,27 @@ class NodeUtils(object):
             val -= val % (1024 * 1024)  # round down to MB
             host_resc_avail['hpmem'] = \
                 pbs.size(convert_size(val, 'mb'))
+            if (self.cfg['cgroup']['memsw']['enabled']
+                    and self.cfg['cgroup']['memsw']['manage_cgswap']):
+                # special case 0 cgswap because assigning a "0mb"
+                # pbs.size difference causes a bug
+                if vmem == mem:
+                    host_resc_avail['cgswap'] = pbs.size('0')
+                else:
+                    host_resc_avail['cgswap'] = (host_resc_avail['vmem']
+                                                 - host_resc_avail['mem'])
+            else:
+                # This unsets it if it was defined earlier and needs to
+                # disappear
+                host_resc_avail['cgswap'] = None
         else:
             # set the value on the host to 0
             host_resc_avail['mem'] = pbs.size('0')
             host_resc_avail['vmem'] = pbs.size('0')
             host_resc_avail['hpmem'] = pbs.size('0')
+            if (self.cfg['cgroup']['memsw']['enabled']
+                    and self.cfg['cgroup']['memsw']['manage_cgswap']):
+                host_resc_avail['cgswap'] = pbs.size('0')
             # Some kernel drivers "reserve" memory on /proc/meminfo
             # and this is not reflected in the node meminfo; if necessary,
             # adjust the values published as resources_available.mem
@@ -2259,6 +2564,9 @@ class NodeUtils(object):
                 vnode_key = vnode_name + '[%d]' % nnid
                 vnode_list[vnode_key] = pbs.vnode(vnode_name)
                 vnode_resc_avail = vnode_list[vnode_key].resources_available
+                # ensure that if no devices were discovered that
+                # ngpus is set to 0; otherwise MoM may still use stale value
+                vnode_resc_avail['ngpus'] = 0
                 if (vntype and self.cfg['propagate_vntype_to_server']):
                     vnode_resc_avail['vntype'] = vntype
             for key, val in sorted(self.numa_nodes[nnid].items()):
@@ -2356,6 +2664,24 @@ class NodeUtils(object):
             for nnid in self.numa_nodes:
                 vnode_key = vnode_name + '[%d]' % nnid
                 vnode_resc_avail = vnode_list[vnode_key].resources_available
+                # vmem can be smaller than mem if there is no swap, since
+                # we try to hide 1MB of swap from the server
+                if vnode_resc_avail['vmem'] < vnode_resc_avail['mem']:
+                    vnode_resc_avail['vmem'] = vnode_resc_avail['mem']
+                if (self.cfg['cgroup']['memsw']['enabled']
+                        and self.cfg['cgroup']['memsw']['manage_cgswap']):
+                    # Special case 0 cgswap since a bug creates a crash when
+                    # the "0mb" pbs.size difference is assigned to the resource
+                    if vnode_resc_avail['vmem'] == vnode_resc_avail['mem']:
+                        vnode_resc_avail['cgswap'] = pbs.size('0')
+                    else:
+                        vnode_resc_avail['cgswap'] = \
+                            vnode_resc_avail['vmem'] - vnode_resc_avail['mem']
+                else:
+                    # This unsets it if it was defined earlier and needs to
+                    # disappear
+                    host_resc_avail['cgswap'] = None
+
                 pbs.logmsg(pbs.EVENT_DEBUG4, '%s: %s vnode_resc_avail: %s' %
                            (caller_name(), vnode_key, vnode_resc_avail))
         pbs.logmsg(pbs.EVENT_DEBUG4, '%s: host_resc_avail: %s' %
@@ -2447,7 +2773,7 @@ class NodeUtils(object):
         for vnode_name in vnode_comments:
             if vnode_comments[vnode_name] != self.offline_msg:
                 pbs.logmsg(pbs.EVENT_DEBUG, ('%s: Comment for vnode %s '
-                           + 'was not set by this hook')
+                                             + 'was not set by this hook')
                            % (caller_name(), vnode_name))
                 continue
             vnode = pbs.event().vnode_list[vnode_name]
@@ -2513,14 +2839,42 @@ class CgroupUtils(object):
         # but some of the code assumes only iterables are
         # in the "cgroup" dictionary,
         # without any guards to protect against extras!!
-        if "cgroup" in self.cfg and "enabled" in self.cfg['cgroup']:
+        if "enabled" in self.cfg['cgroup']:
             del self.cfg['cgroup']['enabled']
+
+        if not self.cfg['cgroup']['devices']['enabled']:
+            self.cfg['discover_gpus'] = False
+            pbs.logmsg(pbs.EVENT_DEBUG, 'discover_gpus set to False because '
+                       'devices subsystem is disabled')
 
         # Determine which subsystems we care about
         if subsystems is not None:
             self.subsystems = subsystems
         else:
             self.subsystems = self._target_subsystems()
+
+        # Check if memsw is enabled despite lack of kernel support
+        # if so disable memsw
+        if 'memsw' in self.subsystems:
+            memsw_limit_file = (self.paths['memsw']
+                                + 'limit_in_bytes')
+            if not os.path.isfile(memsw_limit_file):
+                pbs.logmsg(pbs.EVENT_ERROR,
+                           'CONFIG ERROR: CF enables memsw '
+                           'but %s is missing'
+                           % memsw_limit_file)
+                pbs.logmsg(pbs.EVENT_ERROR,
+                           'CONFIG ERROR: kernel swapaccount parameter is 0, '
+                           'disabling memsw subsystem')
+                pbs.logmsg(pbs.EVENT_ERROR,
+                           'CONFIG ERROR: to fix this, either add '
+                           'swapaccount=1 to kernel command line '
+                           'or disable memsw')
+                self.cfg['cgroup']['memsw']['enabled'] = False
+                self.subsystems.remove('memsw')
+                pbs.logmsg(pbs.EVENT_DEBUG4,
+                           'remaining enabled subsystems: '
+                           + repr(self.subsystems))
 
         # Return now if nothing is enabled
         if not self.subsystems:
@@ -2572,13 +2926,23 @@ class CgroupUtils(object):
         Write a message to the job stderr file
         """
         pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Method called' % caller_name())
+        filename = None
         try:
-            filename = job.stderr_file()
+            if str(job.Join_Path) == 'oe':
+                # If we write in stderr we might do it after the join!
+                # so write in stdout instead
+                filename = job.stdout_file()
+            else:
+                filename = job.stderr_file()
+            pbs.logmsg(pbs.EVENT_DEBUG4, "Message to be written to %s: %s"
+                       % (str(filename), msg.strip()))
             if filename is None:
                 return
             with open(filename, 'a') as desc:
                 desc.write(msg)
         except Exception:
+            # tough luck for user, but not fatal to system
+            # Note: sometimes normal (e.g. interactive jobs)
             pass
 
     def _target_subsystems(self):
@@ -2702,7 +3066,7 @@ class CgroupUtils(object):
             if jobid:
                 # Caller wants parent directory of job
                 return os.path.join(subdir, jobid, '')
-            # Caller wants parent directory of subsystem
+            # Caller wants job parent directory for subsystem
             return os.path.join(subdir, '')
         # Caller wants full path to file
         if cgfile == 'tasks':
@@ -2817,7 +3181,7 @@ class CgroupUtils(object):
                 config_dict['enabled'] = False
             if (config_dict['enabled'] and
                     any([fnmatch.fnmatch(vntype, p)
-                        for p in config_dict['exclude_vntypes']])):
+                         for p in config_dict['exclude_vntypes']])):
                 config_dict['enabled'] = False
                 if subsection is None:
                     subname = 'all subsystems'
@@ -2845,7 +3209,7 @@ class CgroupUtils(object):
                 config_dict['enabled'] = False
             if (config_dict['enabled'] and
                 any([fnmatch.fnmatch(self.hostname, p)
-                    for p in config_dict['exclude_hosts']])):
+                     for p in config_dict['exclude_hosts']])):
                 config_dict['enabled'] = False
                 if subsection is None:
                     subname = 'all subsystems'
@@ -2872,7 +3236,7 @@ class CgroupUtils(object):
                     or not isinstance(config_dict['enabled'], bool)):
                 config_dict['enabled'] = \
                     (any([fnmatch.fnmatch(self.hostname, p)
-                         for p in config_dict['include_hosts']]))
+                          for p in config_dict['include_hosts']]))
             else:
                 config_dict['enabled'] = \
                     (config_dict['enabled']
@@ -2898,7 +3262,7 @@ class CgroupUtils(object):
             config_dict['enabled'] = \
                 (config_dict['enabled']
                  and any([fnmatch.fnmatch(self.hostname, p)
-                         for p in config_dict['run_only_on_hosts']]))
+                          for p in config_dict['run_only_on_hosts']]))
             pbs.logmsg(pbs.EVENT_DEBUG4,
                        "%s: Config file parsing,"
                        " set %s to %s based on run_only_on_hosts"
@@ -2919,6 +3283,7 @@ class CgroupUtils(object):
         defaults['cgroup_prefix'] = 'pbs_jobs'
         defaults['cgroup_lock_file'] = os.path.join(PBS_MOM_HOME, 'mom_priv',
                                                     'cgroups.lock')
+        defaults['discover_gpus'] = True
         defaults['nvidia-smi'] = os.path.join(os.sep, 'usr', 'bin',
                                               'nvidia-smi')
         defaults['exclude_hosts'] = []
@@ -2935,6 +3300,7 @@ class CgroupUtils(object):
         defaults['job_setup_timeout'] = 30
         defaults['placement_type'] = 'load_balanced'
         defaults['propagate_vntype_to_server'] = True
+        defaults['manage_rlimit_as'] = True
         defaults['cgroup'] = {}
         defaults['cgroup']['cpu'] = {}
         defaults['cgroup']['cpu']['enabled'] = False
@@ -2967,20 +3333,14 @@ class CgroupUtils(object):
         defaults['cgroup']['devices']['exclude_hosts'] = []
         defaults['cgroup']['devices']['exclude_vntypes'] = []
         defaults['cgroup']['devices']['allow'] = []
-        defaults['cgroup']['hugetlb'] = {}
-        defaults['cgroup']['hugetlb']['enabled'] = False
-        defaults['cgroup']['hugetlb']['exclude_hosts'] = []
-        defaults['cgroup']['hugetlb']['exclude_vntypes'] = []
-        defaults['cgroup']['hugetlb']['default'] = '0MB'
-        defaults['cgroup']['hugetlb']['reserve_percent'] = 0
-        defaults['cgroup']['hugetlb']['reserve_amount'] = '0MB'
-        defaults['cgroup']['hugetlb']['vnode_hidden_mb'] = 1
         defaults['cgroup']['memory'] = {}
         defaults['cgroup']['memory']['enabled'] = False
         defaults['cgroup']['memory']['exclude_hosts'] = []
         defaults['cgroup']['memory']['exclude_vntypes'] = []
         defaults['cgroup']['memory']['soft_limit'] = False
         defaults['cgroup']['memory']['default'] = '0MB'
+        defaults['cgroup']['memory']['enforce_default'] = True
+        defaults['cgroup']['memory']['exclhost_ignore_default'] = False
         defaults['cgroup']['memory']['reserve_percent'] = 0
         defaults['cgroup']['memory']['reserve_amount'] = '0MB'
         defaults['cgroup']['memory']['vnode_hidden_mb'] = 1
@@ -2990,9 +3350,22 @@ class CgroupUtils(object):
         defaults['cgroup']['memsw']['exclude_hosts'] = []
         defaults['cgroup']['memsw']['exclude_vntypes'] = []
         defaults['cgroup']['memsw']['default'] = '0MB'
+        defaults['cgroup']['memsw']['enforce_default'] = True
+        defaults['cgroup']['memsw']['exclhost_ignore_default'] = False
         defaults['cgroup']['memsw']['reserve_percent'] = 0
         defaults['cgroup']['memsw']['reserve_amount'] = '0MB'
-        defaults['cgroup']['memsw']['vnode_hidden_mb'] = 0
+        defaults['cgroup']['memsw']['vnode_hidden_mb'] = 1
+        defaults['cgroup']['memsw']['manage_cgswap'] = False
+        defaults['cgroup']['hugetlb'] = {}
+        defaults['cgroup']['hugetlb']['enabled'] = False
+        defaults['cgroup']['hugetlb']['exclude_hosts'] = []
+        defaults['cgroup']['hugetlb']['exclude_vntypes'] = []
+        defaults['cgroup']['hugetlb']['default'] = '0MB'
+        defaults['cgroup']['hugetlb']['enforce_defaults'] = True
+        defaults['cgroup']['hugetlb']['exclhost_ignore_default'] = False
+        defaults['cgroup']['hugetlb']['reserve_percent'] = 0
+        defaults['cgroup']['hugetlb']['reserve_amount'] = '0MB'
+        defaults['cgroup']['hugetlb']['vnode_hidden_mb'] = 1
         defaults['cgroup']['net_cls'] = {}
         defaults['cgroup']['net_cls']['enabled'] = False
         defaults['cgroup']['net_prio'] = {}
@@ -3239,8 +3612,34 @@ class CgroupUtils(object):
         """
         Return a dictionary of currently assigned cgroup resources per job
         """
+        # if jobs have a limit *exactly* equal to the total limit available
+        # for all jobs, then they have no explicit memory req and the
+        # limit is the result of an 'unlimited' default;
+        # in that case, the scheduler assigned 0, so be consistent with it
+
         pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Method called' % caller_name())
         assigned = {}
+
+        # Get totals available for all jobs to compare with later
+        mem_avail = None
+        filename = self._cgroup_path('memory', 'limit_in_bytes')
+        if filename and os.path.isfile(filename):
+            with open(filename) as desc:
+                mem_avail = int(desc.readline())
+        vmem_avail = None
+        filename = self._cgroup_path('memsw', 'limit_in_bytes')
+        if filename and os.path.isfile(filename):
+            with open(filename) as desc:
+                vmem_avail = int(desc.readline())
+        hpmem_avail = None
+        filename = self._cgroup_path('hugetlb', 'limit_in_bytes')
+        if filename and os.path.isfile(filename):
+            with open(filename) as desc:
+                hpmem_avail = int(desc.readline())
+        pbs.logmsg(pbs.EVENT_DEBUG4, "get_assigned_cgroup_resources:"
+                   " total host avail mem=%s vmem=%s hpmem=%s"
+                   % (mem_avail, vmem_avail, hpmem_avail))
+
         for key in self.paths:
             if key in ('blkio', 'cpu', 'cpuacct', 'freezer', 'systemd'):
                 continue
@@ -3269,44 +3668,64 @@ class CgroupUtils(object):
                         assigned[jobid][key]['mems'] = \
                             expand_list(desc.readline())
                 elif key == 'memory':
-                    with open(self._cgroup_path(key, 'limit_in_bytes',
-                                                jobid)) as desc:
-                        assigned[jobid][key]['limit_in_bytes'] = \
-                            int(desc.readline())
-                    with open(self._cgroup_path(key, 'soft_limit_in_bytes',
-                                                jobid)) as desc:
-                        assigned[jobid][key]['soft_limit_in_bytes'] = \
-                            int(desc.readline())
-                elif key == 'memsw':
-                    filename = self._cgroup_path('memsw', 'limit_in_bytes',
-                                                 jobid)
-                    if os.path.isfile(filename):
+                    filename = self._cgroup_path(key, 'limit_in_bytes', jobid)
+                    if filename and os.path.isfile(filename):
                         with open(filename) as desc:
-                            assigned[jobid]['memsw'] = {}
-                            assigned[jobid]['memsw']['limit_in_bytes'] = \
+                            assigned[jobid][key]['limit_in_bytes'] = \
                                 int(desc.readline())
+                        if assigned[jobid][key]['limit_in_bytes'] == mem_avail:
+                            # not explicitly assigned, 'unlimited' raised dflt
+                            assigned[jobid][key]['limit_in_bytes'] = 0
+                    filename = self._cgroup_path(key,
+                                                 'soft_limit_in_bytes', jobid)
+                    if filename and os.path.isfile(filename):
+                        with open(filename) as desc:
+                            assigned[jobid][key]['soft_limit_in_bytes'] = \
+                                int(desc.readline())
+                        if (assigned[jobid][key]['soft_limit_in_bytes']
+                                == mem_avail):
+                            # not explicitly assigned, 'unlimited' raised dflt
+                            assigned[jobid][key]['soft_limit_in_bytes'] = 0
+                elif key == 'memsw':
+                    filename = self._cgroup_path(key, 'limit_in_bytes', jobid)
+                    if filename and os.path.isfile(filename):
+                        with open(filename) as desc:
+                            assigned[jobid][key]['limit_in_bytes'] = \
+                                int(desc.readline())
+                        if (assigned[jobid][key]['limit_in_bytes']
+                                == vmem_avail):
+                            # not explicitly assigned, 'unlimited' raised dflt
+                            assigned[jobid][key]['limit_in_bytes'] = 0
                     else:
                         pbs.logmsg(pbs.EVENT_DEBUG4, '%s: No such file: %s' %
                                    (caller_name(), filename))
                 elif key == 'hugetlb':
-                    with open(self._cgroup_path(key, 'limit_in_bytes',
-                                                jobid)) as desc:
-                        assigned[jobid][key]['limit_in_bytes'] = \
-                            int(desc.readline())
+                    filename = self._cgroup_path(key, 'limit_in_bytes', jobid)
+                    if filename and os.path.isfile(filename):
+                        with open(filename) as desc:
+                            assigned[jobid][key]['limit_in_bytes'] = \
+                                int(desc.readline())
+                        if (assigned[jobid][key]['limit_in_bytes']
+                                == hpmem_avail):
+                            # not explicitly assigned, 'unlimited' raised dflt
+                            assigned[jobid][key]['limit_in_bytes'] = 0
                 elif key == 'devices':
                     path = self._cgroup_path(key, 'list', jobid)
                     pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Devices path is %s' %
                                (caller_name(), path))
-                    with open(path) as desc:
-                        assigned[jobid][key]['list'] = []
-                        for line in desc:
-                            pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Appending %s' %
-                                       (caller_name(), line))
-                            assigned[jobid][key]['list'].append(line)
-                            pbs.logmsg(pbs.EVENT_DEBUG4,
-                                       '%s: assigned[%s][%s][list] = %s' %
-                                       (caller_name(), jobid, key,
-                                        assigned[jobid][key]['list']))
+                    if path and os.path.isfile(path):
+                        with open(path) as desc:
+                            assigned[jobid][key]['list'] = []
+                            for line in desc:
+                                pbs.logmsg(pbs.EVENT_DEBUG4, '%s: '
+                                           'Appending %s'
+                                           % (caller_name(), line))
+                                assigned[jobid][key]['list'].append(line)
+                                pbs.logmsg(pbs.EVENT_DEBUG4,
+                                           '%s: assigned[%s][%s][list] '
+                                           '= %s'
+                                           % (caller_name(), jobid, key,
+                                              assigned[jobid][key]['list']))
                 elif key == 'pids':
                     pbs.logmsg(pbs.EVENT_DEBUG4, '%s: subsystem %s' %
                                (caller_name(), key))
@@ -3339,7 +3758,8 @@ class CgroupUtils(object):
             # before calling splitlines
             # should not happen since we pass universal_newlines True
             out_split = stringified_output(out).splitlines()
-            ver = int(re.sub(r'Version=\D*(\d+)', r'\1', out_split[0]))
+            ver = int(re.sub(r'Version=\D*(\d+)', r'\1',
+                             out_split[0].split()[0]))
         except Exception:
             # Note we also get here if we can't decode an int version
             return 0
@@ -3451,7 +3871,7 @@ class CgroupUtils(object):
                             pids.append(int(entries[0]))
             except (OSError, IOError):
                 # PIDs may come and go as we read /proc so the glob data can
-                # become stale. Tollerate failures in this case.
+                # become stale. Tolerate failures in this case.
                 pass
         return pids
 
@@ -3461,8 +3881,19 @@ class CgroupUtils(object):
         """
         pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Method called' % caller_name())
         # make pids a list
+        pids = []
         if isinstance(pidarg, int):
-            pids = self._get_pids_in_sid(os.getsid(pidarg))
+            sid = 0
+            try:
+                sid = os.getsid(pidarg)
+            except OSError as exc:
+                sid = -1
+                pbs.logmsg(pbs.EVENT_DEBUG2,
+                           '%s: Request to attach session of non-existing'
+                           ' PID %s to jobid %s'
+                           % (caller_name(), pidarg, jobid))
+            if (sid > 1):
+                pids = self._get_pids_in_sid(sid)
         elif isinstance(pidarg, list):
             for pid in pidarg:
                 if not isinstance(pid, int):
@@ -3554,7 +3985,10 @@ class CgroupUtils(object):
                 if name.startswith('mic'):
                     offload_devices.append(name[3:])
                 elif name.startswith('nvidia'):
-                    cuda_visible_devices.append(gpus[name]['uuid'])
+                    if 'uuid' in gpus[name]:
+                        cuda_visible_devices.append(gpus[name]['uuid'])
+                    if 'uuids' in gpus[name]:
+                        cuda_visible_devices.extend(gpus[name]['uuids'])
             if offload_devices:
                 value = "\\,".join(offload_devices)
                 pbs.event().env['OFFLOAD_DEVICES'] = '%s' % value
@@ -3594,6 +4028,8 @@ class CgroupUtils(object):
             if devclass == 'mic' or devclass == 'gpu':
                 for instance in devices[devclass]:
                     dev = devices[devclass][instance]
+                    if 'extra_devs' in dev:
+                        accelerators.extend(dev['extra_devs'])
                     accelerators.append('%d:%d' % (dev['major'], dev['minor']))
         # For CentOS 7 we need to remove a *:* rwm from devices.list
         # before we can add anything to devices.allow. Otherwise our
@@ -3695,8 +4131,9 @@ class CgroupUtils(object):
                                              device_info['major'])
                 if dev_entry not in device_allowed:
                     device_allowed.append(dev_entry)
-            elif device_kind == 'gpu':
+            elif device_kind == 'gpu' and not device_info.get('is_gi', False):
                 # Requires the ctrl (255) to be added
+                # unless GPU is a GI from a MIG GPU
                 dev_entry = '%s %d:255 rwm' % (device_info['type'],
                                                device_info['major'])
                 if dev_entry not in device_allowed:
@@ -3708,6 +4145,14 @@ class CgroupUtils(object):
                                           device_info['minor'])
             if dev_entry not in device_allowed:
                 device_allowed.append(dev_entry)
+            # if there are extra majors/minors, add them too
+            if 'extra_devs' in device_info:
+                for extra in device_info['extra_devs']:
+                    dev_entry = '%s %s rwm' % (device_info['type'],
+                                               extra)
+                    if dev_entry not in device_allowed:
+                        device_allowed.append(dev_entry)
+
         return device_names, device_allowed
 
     def get_device_name(self, node, available, socket, major, minor):
@@ -3860,8 +4305,8 @@ class CgroupUtils(object):
             nmics = int(requested['nmics'])
             # Use a list comprehension to construct the mics list
             mics = [m.group(0)
-                    for l in available['devices']
-                    for m in [regex.search(l)] if m]
+                    for d in available['devices']
+                    for m in [regex.search(d)] if m]
             if nmics > len(mics):
                 pbs.logmsg(pbs.EVENT_DEBUG4, 'Insufficient nmics: %s/%s' %
                            (nmics, mics))
@@ -3880,8 +4325,8 @@ class CgroupUtils(object):
             ngpus = int(requested['ngpus'])
             # Use a list comprehension to construct the gpus list
             gpus = [m.group(0)
-                    for l in available['devices']
-                    for m in [regex.search(l)] if m]
+                    for d in available['devices']
+                    for m in [regex.search(d)] if m]
             if ngpus > len(gpus):
                 pbs.logmsg(pbs.EVENT_DEBUG4, 'Insufficient ngpus: %s/%s' %
                            (ngpus, gpus))
@@ -4005,8 +4450,13 @@ class CgroupUtils(object):
                 myname = 'socket %d' % socket
                 req = requested
             pbs.logmsg(pbs.EVENT_DEBUG4, 'Current target is %s' % myname)
-            new = self._assign_resources(req, available[socket],
-                                         [socket], node)
+            new = None
+            if socket in available:
+                new = self._assign_resources(req, available[socket],
+                                             [socket], node)
+            else:
+                pbs.logmsg(pbs.EVENT_ERROR, 'Attempt to allocate resources '
+                           'on non-existing socket #' + str(socket))
             if new:
                 new['cpuset.mems'].append(socket)
                 # Add the memory-only NUMA nodes
@@ -4247,7 +4697,8 @@ class CgroupUtils(object):
                                                  ['cpu']
                                                  ['zero_cpus_shares_fraction'])
                     # Note that the minimum in the kernel is 2
-                    self.write_value(path, int(max(2, weightless_shares*1000)))
+                    self.write_value(
+                        path, int(max(2, weightless_shares * 1000)))
                     value = (self.cfg['cgroup']
                                      ['cpu']
                                      ['zero_cpus_quota_fraction'])
@@ -4361,7 +4812,7 @@ class CgroupUtils(object):
                                 and pbs.event().job.in_ms_mom()):
                             self.write_to_stderr(pbs.event().job,
                                                  "Cgroup mem limit "
-                                                 "exceeded: %s" % (err_msg))
+                                                 "exceeded: %s\n" % (err_msg))
             elif subsys == 'memsw':
                 max_vmem = self._get_max_memsw_usage(jobid)
                 if max_vmem is None:
@@ -4381,7 +4832,7 @@ class CgroupUtils(object):
                     if vmem_failcnt > 0:
                         err_msg = self._get_error_msg(jobid)
                         pbs.logjobmsg(jobid,
-                                      'Cgroup memsw limit exceeded: %s' %
+                                      'Cgroup memsw limit exceeded: %s\n' %
                                       (err_msg))
                         if (pbs.event().type == pbs.EXECJOB_EPILOGUE
                                 and pbs.event().job.in_ms_mom()):
@@ -4474,75 +4925,118 @@ class CgroupUtils(object):
             finally:
                 os.umask(old_umask)
 
-    def configure_job(self, jobid, hostresc, node, cgroup, event_type):
+    def configure_job(self, job, hostresc, node, cgroup, event_type):
         """
         Determine the cgroup limits and configure the cgroups
         """
         pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Method called' % caller_name())
+        jobid = job.id
+
+        # Get available totals for mem, vmem and hpmem from parent cgroup
+        # Calling node.get_memory_on_node etc. may give slightly different
+        # results if kernel drivers have freshly reserved memory since
+        # exechost_startup was called
+        mem_avail = 0
+        filename = self._cgroup_path('memory', 'limit_in_bytes')
+        if filename and os.path.isfile(filename):
+            with open(filename) as desc:
+                mem_avail = int(desc.readline())
+        vmem_avail = 0
+        filename = self._cgroup_path('memsw', 'limit_in_bytes')
+        if filename and os.path.isfile(filename):
+            with open(filename) as desc:
+                vmem_avail = int(desc.readline())
+        hpmem_avail = 0
+        filename = self._cgroup_path('hugetlb', 'limit_in_bytes')
+        if filename and os.path.isfile(filename):
+            with open(filename) as desc:
+                hpmem_avail = int(desc.readline())
+
+        # Sanity check vmem_avail >= mem_avail
+        # -- unnecessary by construction in exechost_startup
+        # but memsw may be disabled or swap accounting disabled
+        if vmem_avail < mem_avail:
+            vmem_avail = mem_avail
+
+        pbs.logmsg(pbs.EVENT_DEBUG4, "configure_job:"
+                   " total host avail mem=%s vmem=%s hpmem=%s"
+                   % (mem_avail, vmem_avail, hpmem_avail))
+
         mem_enabled = 'memory' in self.subsystems
         vmem_enabled = 'memsw' in self.subsystems
         if mem_enabled or vmem_enabled:
             # Initialize mem variables
-            mem_avail = node.get_memory_on_node()
-            pbs.logmsg(pbs.EVENT_DEBUG4, 'mem_avail %s' % mem_avail)
             mem_requested = None
             if 'mem' in hostresc:
                 mem_requested = convert_size(hostresc['mem'], 'kb')
             mem_default = None
-            if mem_enabled:
-                mem_default = self.default('memory')
+            if mem_enabled and self.default('memory') is not None:
+                mem_default = size_as_int(self.default('memory'))
             # Initialize vmem variables
-            vmem_avail = node.get_vmem_on_node()
-            pbs.logmsg(pbs.EVENT_DEBUG4, 'vmem_avail %s' % vmem_avail)
             vmem_requested = None
             if 'vmem' in hostresc:
                 vmem_requested = convert_size(hostresc['vmem'], 'kb')
-            vmem_default = None
-            if vmem_enabled:
-                vmem_default = self.default('memsw')
+            vmem_default = 0
+            if (vmem_enabled and (self.default('memsw') is not None)
+                    and (vmem_avail > mem_avail)):
+                vmem_default = size_as_int(self.default('memsw'))
+                if vmem_default > (vmem_avail - mem_avail):
+                    vmem_default = vmem_avail - mem_avail
             # Initialize softmem variables
             if 'soft_limit' in self.cfg['cgroup']['memory']:
                 softmem_enabled = self.cfg['cgroup']['memory']['soft_limit']
             else:
                 softmem_enabled = False
-            # Sanity check
-            if size_as_int(mem_avail) > size_as_int(vmem_avail):
-                pbs.logmsg(pbs.EVENT_SYSTEM,
-                           '%s: WARNING: mem_avail > vmem_avail' %
-                           caller_name())
-                pbs.logmsg(pbs.EVENT_SYSTEM,
-                           '%s: Check reserve_amount and reserve_percent' %
-                           caller_name())
-                # Increase vmem_avail to match mem_avail
-                vmem_avail = mem_avail
             # Determine the mem limit
             if mem_requested is not None:
                 # mem requested may not exceed available
-                if size_as_int(mem_requested) > size_as_int(mem_avail):
+                if size_as_int(mem_requested) > mem_avail:
                     raise JobValueError(
                         'mem requested (%s) exceeds mem available (%s)' %
-                        (mem_requested, mem_avail))
+                        (mem_requested, str(mem_avail)))
                 mem_limit = mem_requested
             else:
                 # mem was not requested
-                if mem_default is None:
-                    mem_limit = mem_avail
+                if (mem_default is None
+                        or not self.cfg['cgroup']['memory']
+                                       ['enforce_default']
+                        or (self.cfg['cgroup']['memory']
+                                    ['exclhost_ignore_default']
+                            and "place" in job.Resource_List
+                            and 'exclhost'
+                                in repr(job.Resource_List['place']))):
+                    mem_limit = str(mem_avail)
                 else:
-                    mem_limit = mem_default
+                    mem_limit = str(mem_default)
             # Determine the vmem limit
-            if vmem_requested is not None:
+            if not vmem_enabled:
+                # set as equal, but will not be used to set cgroup limit
+                vmem_limit = mem_limit
+            elif vmem_requested is not None:
                 # vmem requested may not exceed available
-                if size_as_int(vmem_requested) > size_as_int(vmem_avail):
+                if size_as_int(vmem_requested) > vmem_avail:
                     raise JobValueError(
                         'vmem requested (%s) exceeds vmem available (%s)' %
-                        (vmem_requested, vmem_avail))
+                        (vmem_requested, str(vmem_avail)))
                 vmem_limit = vmem_requested
             else:
                 # vmem was not requested
-                if vmem_default is None:
-                    vmem_limit = vmem_avail
+                if (vmem_default is None
+                        or not self.cfg['cgroup']['memsw']
+                                       ['enforce_default']
+                        or (self.cfg['cgroup']['memsw']
+                                    ['exclhost_ignore_default']
+                            and 'place' in job.Resource_List
+                            and 'exclhost'
+                                in repr(job.Resource_List['place']))):
+                    vmem_limit = str(vmem_avail)
                 else:
-                    vmem_limit = vmem_default
+                    vmem_limit = str(min(vmem_avail,
+                                         size_as_int(mem_limit)
+                                         + vmem_default))
+            pbs.logmsg(pbs.EVENT_DEBUG4,
+                       "Limits computed from requests/defaults: "
+                       "mem: %s vmem: %s" % (mem_limit, vmem_limit))
             # Ensure vmem is at least as large as mem
             if size_as_int(vmem_limit) < size_as_int(mem_limit):
                 vmem_limit = mem_limit
@@ -4551,30 +5045,30 @@ class CgroupUtils(object):
                 softmem_limit = mem_limit
                 # The hard memory limit is assigned the lesser of the vmem
                 # limit and available memory
-                if size_as_int(vmem_limit) < size_as_int(mem_avail):
+                if size_as_int(vmem_limit) < mem_avail:
                     mem_limit = vmem_limit
                 else:
-                    mem_limit = mem_avail
+                    mem_limit = str(mem_avail)
             # Again, ensure vmem is at least as large as mem
             if size_as_int(vmem_limit) < size_as_int(mem_limit):
                 vmem_limit = mem_limit
             # Sanity checks when both memory and memsw are enabled
             if mem_enabled and vmem_enabled:
                 if vmem_requested is not None:
-                    if size_as_int(vmem_limit) > size_as_int(vmem_requested):
+                    if size_as_int(vmem_requested) < size_as_int(vmem_limit):
                         # The user requested an invalid limit
                         raise JobValueError(
-                            'vmem limit (%s) exceeds vmem requested (%s)' %
-                            (vmem_limit, vmem_requested))
+                            'vmem requested (%s) under minimum possible (%s)'
+                            % (vmem_requested, vmem_limit))
                 if size_as_int(vmem_limit) > size_as_int(mem_limit):
                     # This job may try to utilize swap
-                    if size_as_int(vmem_avail) <= size_as_int(mem_avail):
+                    if vmem_avail <= mem_avail:
                         # No swap available
                         if vmem_requested is not None:
                             raise CgroupLimitError('Job might utilize swap'
                                                    ' and no swap on host')
                         else:
-                            # It got its impossible vmem>mem from a default
+                            # It got an impossible vmem>mem
                             # undo that since there is no swap
                             vmem_limit = mem_limit
             # Assign mem and vmem
@@ -4600,22 +5094,30 @@ class CgroupUtils(object):
                                'scheduler configuration file' %
                                caller_name())
                     hostresc['vmem'] = pbs.size(vmem_limit)
+
         # Initialize hpmem variables
+        hpmem_default = None
+        hpmem_limit = None
         hpmem_enabled = 'hugetlb' in self.subsystems
         if hpmem_enabled:
-            hpmem_avail = node.get_hpmem_on_node(ignore_reserved=False)
-            hpmem_limit = None
-            hpmem_default = self.default('hugetlb')
-            if hpmem_default is None:
+            if self.default('hugetlb') is not None:
+                hpmem_default = size_as_int(self.default('hugetlb'))
+            if (hpmem_default is None
+                    or not self.cfg['cgroup']['hugetlb']
+                                   ['enforce_default']
+                    or (self.cfg['cgroup']['hugetlb']
+                                ['exclhost_ignore_default']
+                        and "place" in job.Resource_List
+                        and 'exclhost' in repr(job.Resource_List['place']))):
                 hpmem_default = hpmem_avail
             if 'hpmem' in hostresc:
                 hpmem_limit = convert_size(hostresc['hpmem'], 'kb')
             else:
-                hpmem_limit = hpmem_default
+                hpmem_limit = str(hpmem_default)
             # Assign hpmem
-            if size_as_int(hpmem_limit) > size_as_int(hpmem_avail):
+            if size_as_int(hpmem_limit) > hpmem_avail:
                 raise JobValueError('hpmem limit (%s) exceeds available (%s)' %
-                                    (hpmem_limit, hpmem_avail))
+                                    (hpmem_limit, str(hpmem_avail)))
             hostresc['hpmem'] = pbs.size(hpmem_limit)
         # Initialize cpuset variables
         cpuset_enabled = 'cpuset' in self.subsystems
@@ -5119,7 +5621,7 @@ class CgroupUtils(object):
         # default for _cgroup_path for parent is empty string
         try:
             with open(self._cgroup_path('cpu', 'cfs_quota_us',
-                      jobid), 'r') as fd:
+                                        jobid), 'r') as fd:
                 return int(fd.readline().strip())
         except Exception:
             return None
@@ -5272,6 +5774,16 @@ class CgroupUtils(object):
             if job_start < 0:
                 continue
             return kill_line
+
+        # Found nothing -- more recent kernels have different messages
+        for line in out_split:
+            start = line.find('oom-kill')
+            kill_line = line[start:]
+            job_start = line.find(jobid)
+            if job_start < 0:
+                continue
+            return kill_line
+
         return ''
 
     def write_job_env_file(self, jobid, env_list):
@@ -5515,6 +6027,184 @@ def set_global_vars():
         raise CgroupConfigError('Unable to determine PBS_MOM_HOME')
 
 
+def missing_str(memspecs):
+    if 'vmem' in memspecs and 'mem' in memspecs:
+        try:
+            if size_as_int(memspecs['vmem']) > 0:
+                vmem_size = pbs.size(memspecs['vmem'])
+            else:
+                vmem_size = pbs.size("0B")
+            if size_as_int(memspecs['mem']) > 0:
+                mem_size = pbs.size(memspecs['mem'])
+            else:
+                mem_size = pbs.size("0B")
+            if mem_size > vmem_size:
+                event.reject("invalid specification: vmem>mem")
+            elif mem_size == vmem_size:
+                # Avoid creating a "0mb" pbs.size
+                return("cgswap=0B")
+            else:
+                cgswap_size = vmem_size - mem_size
+                return ("cgswap="
+                        + str(cgswap_size))
+        except Exception:
+            pbs.logmsg(pbs.EVENT_DEBUG4,
+                       str(traceback.format_exc().strip().splitlines()))
+            event.reject("Invalid (v)mem size requested")
+
+    if 'mem' in memspecs and 'cgswap' in memspecs:
+        try:
+            if size_as_int(memspecs['mem']) > 0:
+                mem_size = pbs.size(memspecs['mem'])
+            else:
+                mem_size = pbs.size("0B")
+            if size_as_int(memspecs['cgswap']) > 0:
+                cgswap_size = pbs.size(memspecs['cgswap'])
+                vmem_size = mem_size + cgswap_size
+            else:
+                vmem_size = mem_size
+            return ("vmem="
+                    + str(vmem_size))
+        except Exception:
+            pbs.logmsg(pbs.EVENT_DEBUG4,
+                       str(traceback.format_exc().strip().splitlines()))
+            event.reject("Invalid mem or cgswap size requested")
+
+    if 'vmem' in memspecs and 'cgswap' in memspecs:
+        try:
+            if size_as_int(memspecs['vmem']) > 0:
+                vmem_size = pbs.size(memspecs['vmem'])
+            else:
+                vmem_size = pbs.size("0B")
+            # Woraround for bug: no arithmetic on zero pbs.size
+            # since user may have specified e.g. "0mb" cgswap
+            if size_as_int(memspecs['cgswap']) == 0:
+                mem_size = vmem_size
+                return ("mem=" + str(mem_size))
+            else:
+                cgswap_size = pbs.size(memspecs['cgswap'])
+                if cgswap_size >= vmem_size:
+                    event.reject("invalid specification: mem<=0")
+                else:
+                    mem_size = vmem_size - cgswap_size
+                    return ("mem=" + str(mem_size))
+        except Exception:
+            pbs.logmsg(pbs.EVENT_DEBUG4,
+                       str(traceback.format_exc().strip().splitlines()))
+            event.reject("Invalid (v)mem size requested")
+    return ""
+
+
+def fill_cgswap():
+    selspec = None
+    event = pbs.event()
+
+    job = event.job
+    job_o = None
+    if event.type == pbs.MODIFYJOB:
+        job_o = event.job_o
+
+    if (hasattr(job, 'Resource_List') and 'select' in job.Resource_List
+            and job.Resource_List.select):
+        # either a submission using -lselect or a qalter specifying -lselect
+        selspec = repr(job.Resource_List["select"])
+        pbs.logmsg(pbs.EVENT_DEBUG3, "fill_cgswap: original selspec is: %s"
+                   % selspec)
+        newspec = []
+        for chunkspec in selspec.split('+'):
+            chunkspec_split = chunkspec.split(':')
+            try:
+                chunkspec_quantity = int(chunkspec_split[0])
+            except Exception:
+                event.reject("Invalid number of chunks in -lselect")
+            newchunk = chunkspec
+            if len(chunkspec_split) == 1:
+                newspec.append(newchunk)
+            else:
+                # more than just a number of chunks
+                # -- get resources specified
+                memspecs = {}
+                for t in chunkspec_split[1:]:
+                    if t.startswith('mem='):
+                        memstr = t.split('=')[1]
+                        memspecs['mem'] = memstr
+                    if t.startswith('vmem='):
+                        vmemstr = t.split('=')[1]
+                        memspecs['vmem'] = vmemstr
+                    if t.startswith('cgswap='):
+                        cgswapstr = t.split('=')[1]
+                        memspecs['cgswap'] = cgswapstr
+                if len(memspecs) > 2:
+                    event.reject("chunk specification overconstrained, "
+                                 "specify only 2 of mem/vmem/cgswap")
+                elif len(memspecs) == 2:
+                    to_add = missing_str(memspecs)
+                    if to_add:
+                        newchunk += ":" + to_add
+                    newspec.append(newchunk)
+                else:
+                    newspec.append(newchunk)
+        newselspec = '+'.join(newspec)
+        pbs.logmsg(pbs.EVENT_DEBUG3, "fill_cgswap: old selspec was: %s, "
+                   "new selspec is %s"
+                   % (selspec, newselspec))
+        job.Resource_List['select'] = pbs.select(newselspec)
+        # need to remove possibly stale "global" cgswap
+        # if there is a select now but if the job was originally submitted
+        # with "old style" per-job resources, as cgswap chunk values are
+        # not summed into Resource_List as for vmem and mem
+        try:
+            job.Resource_List['cgswap'] = None
+        except Exception:
+            pass
+    else:
+        # Old style submission without -lselect
+        # We set 'global' per-job resources; will fail (by design)
+        # if original submission used -lselect.
+        to_add = None
+        memspecs_o = {}
+        memspecs_n = {}
+        memspecs = {}
+        for res in ['vmem', 'mem', 'cgswap']:
+            if (hasattr(job_o, 'Resource_List')
+                    and res in job_o.Resource_List
+                    and job_o.Resource_List[res] is not None):
+                memspecs_o[res] = job_o.Resource_List[res]
+            if (hasattr(job, 'Resource_List')
+                    and res in job.Resource_List
+                    and job.Resource_List[res] is not None):
+                memspecs_n[res] = job.Resource_List[res]
+        memspecs = {**memspecs_o, **memspecs_n}
+        pbs.logmsg(pbs.EVENT_DEBUG3, "memspecs read is: %s"
+                   % str(memspecs))
+
+        if len(memspecs) == 3:
+            # overconstrained -- we have 3 values for mem, vmem and cgswap
+            if (event.type == pbs.QUEUEJOB or len(memspecs_n) > 2):
+                event.reject("chunk specification overconstrained, "
+                             "specify only 2 of mem/vmem/cgswap")
+            else:
+                # modifyjob -- values in the new dictionary are controlling
+                if len(memspecs_n) == 2:
+                    # the two new values determine the third
+                    to_add = missing_str(memspecs_n)
+                elif len(memspecs_n) == 1:
+                    # specified one new value in qalter
+                    # -- pick which old one to keep
+                    # if new value is cgswap, keep old mem and recompute vmem
+                    # if new value is vmem, keep old mem and recompute cgswap
+                    # if new value is mem, keep old vmem and recompute cgswap
+                    if 'cgswap' in memspecs_n:
+                        del memspecs['vmem']
+                    else:
+                        del memspecs['cgswap']
+        if len(memspecs) == 2 and not to_add:
+            to_add = missing_str(memspecs)
+        if to_add:
+            to_add_split = to_add.split('=')
+            job.Resource_List[to_add_split[0]] = pbs.size(to_add_split[1])
+
+
 #
 # FUNCTION main
 #
@@ -5531,6 +6221,11 @@ def main():
     event = pbs.event()
     pbs.logmsg(pbs.EVENT_DEBUG4, '%s: Hook name is %s' %
                (caller_name(), event.hook_name))
+
+    if event.type in [pbs.MODIFYJOB, pbs.QUEUEJOB]:
+        fill_cgswap()
+        event.accept()
+
     try:
         set_global_vars()
     except Exception:

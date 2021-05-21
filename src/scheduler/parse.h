@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_PARSE_H
 #define	_PARSE_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include "data_types.h"
 #include "globals.h"
@@ -52,16 +49,7 @@ extern "C" {
  *	FILE FORMAT:
  *	config_name [white space ] : [ white space ] config_value
  */
-int parse_config(char *fname);
-
-/*
- *      init_config - initalize the config struture
- */
-#ifdef NAS /* localmod 005 */
-int init_config(void);
-#else
-int init_config();
-#endif /* localmod 005 */
+config parse_config(const char *fname);
 
 /*
  *      scan - Scan through the string looking for a white space delemeted word
@@ -84,22 +72,7 @@ int preempt_cmp(const void *p1, const void *p2);
  */
 int preempt_bit_field(char * plist);
 
-/*
- *      valid_config - perform validity checks on scheduler configuration
- *                     In a warning situation, we will fix it the best we can
- *                     and continue
- *
- *      returns 1: valid config (perfectly valid or with warnings)
- *              0: invalid config
- */
-int valid_config(void);
-
 /* Check if string is a valid special case sorting string */
-int is_speccase_sort(char *sort_res, int sort_type);
+int is_speccase_sort(const std::string&, int sort_type);
 
-void free_sort_info(enum sort_info_type si_type);
-
-#ifdef	__cplusplus
-}
-#endif
 #endif	/* _PARSE_H */

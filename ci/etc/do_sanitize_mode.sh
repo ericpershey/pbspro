@@ -1,6 +1,6 @@
 #!/bin/bash -xe
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -53,7 +53,7 @@ cd target-sanitize
 ../configure
 make dist
 cp -fv *.tar.gz /root/rpmbuild/SOURCES/
-CFLAGS="-g -O2 -Wall -Werror -fsanitize=address -fno-omit-frame-pointer" rpmbuild -bb --with ptl *.spec
+CFLAGS="-g -O2 -Wall -Werror -fsanitize=address -fno-omit-frame-pointer" CXXFLAGS="-g -O2 -Wall -Werror -fsanitize=address -fno-omit-frame-pointer" rpmbuild -bb --with ptl *.spec
 yum -y install /root/rpmbuild/RPMS/x86_64/*-server-??.*.x86_64.rpm
 yum -y install /root/rpmbuild/RPMS/x86_64/*-debuginfo-??.*.x86_64.rpm
 yum -y install /root/rpmbuild/RPMS/x86_64/*-ptl-??.*.x86_64.rpm

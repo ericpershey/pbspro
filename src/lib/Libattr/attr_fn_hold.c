@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -83,7 +83,7 @@
  */
 
 int
-decode_hold(struct attribute *patr, char *name, char *rescn, char *val)
+decode_hold(attribute *patr, char *name, char *rescn, char *val)
 {
 	char  *pc;
 
@@ -110,7 +110,7 @@ decode_hold(struct attribute *patr, char *name, char *rescn, char *val)
 					return (PBSE_BADATVAL);
 			}
 		}
-		patr->at_flags |= ATR_SET_MOD_MCACHE;
+		post_attr_set(patr);
 	} else
 		ATR_UNSET(patr);
 
@@ -191,7 +191,7 @@ encode_hold(const attribute *attr, pbs_list_head *phead, char *atname, char *rsn
  */
 
 int
-comp_hold(struct attribute *attr, struct attribute *with)
+comp_hold(attribute *attr, attribute *with)
 {
 	if (!attr || !with)
 		return -1;

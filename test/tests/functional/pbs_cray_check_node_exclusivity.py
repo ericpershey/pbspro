@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -489,9 +489,9 @@ class TestCheckNodeExclusivity(TestFunctional):
         """
 
         a = {'sharing': 'ignore_excl'}
-        self.server.create_vnodes(self.mom.shortname, a, 1,
-                                  self.mom, createnode=False,
-                                  delall=False, usenatvnode=True)
+        self.mom.create_vnodes(a, 1,
+                               createnode=False,
+                               delall=False, usenatvnode=True)
         self.server.expect(NODE, {'state': 'free',
                                   'sharing': 'ignore_excl'},
                            id=self.mom.shortname)

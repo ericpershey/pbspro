@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -53,13 +53,11 @@ class TestSchedJobRunWait(TestFunctional):
         for i in range(n):
             scname = "sc" + str(i)
             pname = "P" + str(i)
-            portnum = str(15050 + i)
             qname = "wq" + str(i)
             sc_quenames.append([scname, qname])
 
             a = {'partition': pname,
-                 'sched_host': self.server.hostname,
-                 'sched_port': portnum}
+                 'sched_host': self.server.hostname}
             self.server.manager(MGR_CMD_CREATE, SCHED,
                                 a, id=scname)
             self.scheds[scname].create_scheduler()
@@ -75,8 +73,8 @@ class TestSchedJobRunWait(TestFunctional):
             a = {'resources_available.ncpus': 1, 'partition': pname}
             prefix = 'vnode' + str(i)
             nname = prefix + "[0]"
-            self.server.create_vnodes(prefix, a, 1, self.mom,
-                                      delall=False, additive=True)
+            self.mom.create_vnodes(a, 1, delall=False,
+                                   additive=True, vname=nname)
         return sc_quenames
 
     def test_throughput_mode_deprecated(self):
@@ -108,7 +106,9 @@ class TestSchedJobRunWait(TestFunctional):
         # Setting job_run_wait to 'none' should just delete TP
         self.server.manager(MGR_CMD_SET, SCHED,
                             {'job_run_wait': "none"}, id="default")
-        self.server.expect(SCHED, 'throughput_mode', op=UNSET, id="default")
+        rt = self.server.status(SCHED, id="default")
+        self.assertNotIn('throughput_mode', rt[0].keys(),
+                         'throughput_mode displayed when not expected')
 
         # Setting JRW to runjob/execjob should set TP correctly
         self.server.manager(MGR_CMD_SET, SCHED,
@@ -279,6 +279,7 @@ pbs.event().accept()
         # Check that server received PBS_BATCH_AsyrunJob_ack request
         self.server.log_match("Type 97 request received", starttime=t)
 
+    @skip("issue 2330")
     def test_throughput_ok(self):
         """
         Test that throughput_mode still works correctly

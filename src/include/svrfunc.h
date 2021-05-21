@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -54,31 +54,21 @@ extern "C" {
 #include "pbs_sched.h"
 #include "pbs_entlim.h"
 
-/*
- * Convert given tracking table array index to subjob index
- *
- * For example: -J10-20:7 creates 2 subjob
- *   1. [10] on 0th index in table
- *   2. [17] on 1st index in table
- *
- * SJ_TBLIDX_2_IDX(pj, 1) == ((1 * 7) + 10) == 17
- */
-#define SJ_TBLIDX_2_IDX(pj, tblidx) ((tblidx * pj->ji_ajtrk->tkm_step) + pj->ji_ajtrk->tkm_start)
-
 extern int check_num_cpus(void);
 extern int chk_hold_priv(long, int);
 extern void close_client(int);
-extern int contact_sched(int, char *, pbs_net_t, unsigned int);
+extern void scheduler_close(int);
+extern int send_sched_cmd(pbs_sched *, int, char *);
 extern void count_node_cpus(void);
 extern int ctcpus(char *, int *);
-extern void get_jobowner(char *, char *);
 extern void cvrt_fqn_to_name(char *, char *);
 extern int failover_send_shutdown(int);
 extern char *get_hostPart(char *);
 extern int is_compose(int, int);
 extern int is_compose_cmd(int, int, char **);
 extern char *get_servername(unsigned int *);
-extern char *parse_servername(char *, unsigned int *);
+extern char *gen_svr_inst_id(void);
+extern int get_server_index(void);
 extern void process_Areply(int);
 extern void process_Dreply(int);
 extern void process_DreplyTPP(int);
@@ -105,11 +95,11 @@ extern void mark_node_down(char *, char *);
 extern void mark_node_offline_by_mom(char *, char *);
 extern void clear_node_offline_by_mom(char *, char *);
 extern void mark_which_queues_have_nodes(void);
-extern void set_sched_sock(int, pbs_sched *);
+#ifndef DEBUG
 extern void pbs_close_stdfiles(void);
+#endif
 extern int is_job_array(char *);
 extern int get_queued_subjobs_ct(job *);
-extern char *get_index_from_jid(char *);
 extern int parse_subjob_index(char *, char **, int *, int *, int *, int *);
 extern int expand_resc_array(char *, int, int);
 extern void resv_timer_init(void);
@@ -147,6 +137,7 @@ extern long long get_next_svr_sequence_id(void);
 extern int compare_obj_hash(void *, int , void *);
 extern void panic_stop_db();
 extern void free_db_attr_list(pbs_db_attr_list_t *);
+extern void req_stat_svr_ready(struct work_task *);
 
 #ifdef _PROVISION_H
 extern int find_prov_vnode_list(job *, exec_vnode_listtype *, char **);
@@ -188,22 +179,15 @@ extern void svr_mailowner(job *, int, int, char *);
 extern void svr_mailowner_id(char *, job *, int, int, char *);
 extern char *lastname(char *);
 extern void chk_array_doneness(job *);
-extern void update_array_indices_remaining_attr(job *);
 extern job *create_subjob(job *, char *, int *);
-extern char *cvt_range(job *, int);
 extern job *find_arrayparent(char *);
-extern int get_subjob_state(job *, int);
-extern int get_subjob_discarding(job *, int);
-extern char *mk_subjob_id(job *, int);
-extern void set_subjob_tblstate(job *, int, int);
-extern void update_subjob_state(job *, int);
+extern job *get_subjob_and_state(job *, int, char *, int *);
+extern void update_sj_parent(job *, job *, char *, char, char);
 extern void update_subjob_state_ct(job *);
 extern char *subst_array_index(job *, char *);
-extern int numindex_to_offset(job *, int);
-extern int subjob_index_to_offset(job *, char *);
 #ifndef PBS_MOM
 extern void svr_setjob_histinfo(job *, histjob_type);
-extern void svr_histjob_update(job *, int, int);
+extern void svr_histjob_update(job *, char, int);
 extern char *form_attr_comment(const char *, const char *);
 extern void complete_running(job *);
 extern void am_jobs_add(job *);
@@ -220,13 +204,13 @@ extern int set_entity_ct_sum_queued(job *, pbs_queue *, enum batch_op);
 extern int set_entity_resc_sum_max(job *, pbs_queue *, attribute *, enum batch_op);
 extern int set_entity_resc_sum_queued(job *, pbs_queue *, attribute *, enum batch_op);
 extern int account_entity_limit_usages(job *, pbs_queue *, attribute *, enum batch_op, int);
-extern void eval_chkpnt(attribute *, attribute *);
+extern void eval_chkpnt(job *pjob, attribute *queckp);
 #endif /* _QUEUE_H */
 
 #ifdef _BATCH_REQUEST_H
 extern int svr_startjob(job *, struct batch_request *);
 extern int svr_authorize_jobreq(struct batch_request *, job *);
-extern void dup_br_for_subjob(struct batch_request *, job *, void (*)(struct batch_request *, job *));
+extern int dup_br_for_subjob(struct batch_request *, job *, int (*)(struct batch_request *, job *));
 extern void set_old_nodes(job *);
 extern int send_job_exec_update_to_mom(job *, char *, int, struct batch_request *);
 extern int free_sister_vnodes(job *, char *, char *, char *, int, struct batch_request *);
@@ -304,8 +288,8 @@ extern int   keepfiles_action(attribute *pattr, void *pobject, int actmode);
 extern int   removefiles_action(attribute *pattr, void *pobject, int actmode);
 
 /* Functions below exposed as they are now accessed by the Python hooks */
-extern void update_state_ct(attribute *, int *, char *);
-extern void update_license_ct(attribute *, char *);
+extern void update_state_ct(attribute *, int *, attribute_def *attr_def);
+extern void update_license_ct();
 
 #ifdef _PBS_JOB_H
 extern int job_set_wait(attribute *, void *, int);
@@ -345,7 +329,8 @@ extern int node_avail_complex(spec_and_context *, int *, int *, int *, int *);
 extern int node_reserve(spec_and_context *, pbs_resource_t);
 extern void node_unreserve(pbs_resource_t);
 extern int node_spec(struct spec_and_context *, int);
-extern void notify_scheds_about_resv(int, resc_resv *);
+extern int notify_scheds_about_resv(int, resc_resv *);
+extern char *create_resv_destination(resc_resv *presv);
 #endif /* _RESERVATION_H */
 
 #ifdef _LIST_LINK_H
@@ -399,8 +384,8 @@ struct stat_cntl {
 	char sc_jobid[PBS_MAXSVRJOBID + 1];
 };
 
-extern int status_job(job *, struct batch_request *, svrattrl *, pbs_list_head *, int *);
-extern int status_subjob(job *, struct batch_request *, svrattrl *, int, pbs_list_head *, int *);
+extern int status_job(job *, struct batch_request *, svrattrl *, pbs_list_head *, int *, int);
+extern int status_subjob(job *, struct batch_request *, svrattrl *, int, pbs_list_head *, int *, int);
 extern int stat_to_mom(job *, struct stat_cntl *);
 
 #endif /* STAT_CNTL */

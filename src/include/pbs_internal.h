@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -46,6 +46,7 @@ extern "C" {
 #endif
 
 #include "pbs_ifl.h"
+#include "portability.h"
 #include "libutil.h"
 #include "auth.h"
 
@@ -192,6 +193,12 @@ extern "C" {
 /* Default value of preempt_sort */
 #define PBS_PREEMPT_SORT_DEFAULT	"min_time_since_start"
 
+/* Structure to store each server instance details */
+typedef struct pbs_server_instance {
+	char name[PBS_MAXSERVERNAME + 1];
+	unsigned int port;
+} psi_t;
+
 struct pbs_config
 {
 	unsigned loaded:1;			/* has the conf file been loaded? */
@@ -211,13 +218,15 @@ struct pbs_config
 	unsigned int batch_service_port_dis;	/* PBS batch_service_port_dis */
 	unsigned int mom_service_port;	/* PBS mom_service_port */
 	unsigned int manager_service_port;	/* PBS manager_service_port */
-	unsigned int scheduler_service_port;	/* PBS scheduler_service_port */
 	unsigned int pbs_data_service_port;    /* PBS data_service port */
 	char *pbs_conf_file;			/* full path of the pbs.conf file */
 	char *pbs_home_path;			/* path to the pbs home dir */
 	char *pbs_exec_path;			/* path to the pbs exec dir */
 	char *pbs_server_name;		/* name of PBS Server, usually hostname of host on which PBS server is executing */
-	char *pbs_server_id;                  /* name of the database PBS server id associated with the server hostname, pbs_server_name */
+	unsigned int pbs_num_servers;	/* currently configured number of instances */
+	psi_t *psi;						/* array of pbs server instances loaded from comma separated host:port[,host:port] */
+	char *psi_str;			/* psi in string format */
+	char *cp_path;			/* path to local copy function */
 	char *scp_path;			/* path to ssh */
 	char *rcp_path;			/* path to pbs_rsh */
 	char *pbs_demux_path;			/* path to pbs demux */
@@ -236,7 +245,6 @@ struct pbs_config
 	char *pbs_output_host_name;	/* name of host to which to stage std out/err */
 	unsigned pbs_use_compression:1;	/* whether pbs should compress communication data */
 	unsigned pbs_use_mcast:1;		/* whether pbs should multicast communication */
-	unsigned pbs_use_ft:1;		/* whether pbs should force use fault tolerant communications */
 	char *pbs_leaf_name;			/* non-default name of this leaf in the communication network */
 	char *pbs_leaf_routers;		/* for this leaf, the optional list of routers to talk to */
 	char *pbs_comm_name;			/* non-default name of this router in the communication network */
@@ -247,6 +255,8 @@ struct pbs_config
 	char *pbs_lr_save_path;		/* path to store undo live recordings */
 	unsigned int pbs_log_highres_timestamp; /* high resolution logging */
 	unsigned int pbs_sched_threads;	/* number of threads for scheduler */
+	char *pbs_daemon_service_user; /* user the scheduler runs as */
+	char current_user[PBS_MAXUSER+1]; /* current running user */
 #ifdef WIN32
 	char *pbs_conf_remote_viewer; /* Remote viewer client executable for PBS GUI jobs, along with launch options */
 #endif
@@ -273,12 +283,10 @@ extern struct pbs_config pbs_conf;
 #define PBS_CONF_BATCH_SERVICE_PORT_DIS	     "PBS_BATCH_SERVICE_PORT_DIS"
 #define PBS_CONF_MOM_SERVICE_PORT	     "PBS_MOM_SERVICE_PORT"
 #define PBS_CONF_MANAGER_SERVICE_PORT	     "PBS_MANAGER_SERVICE_PORT"
-#define PBS_CONF_SCHEDULER_SERVICE_PORT	     "PBS_SCHEDULER_SERVICE_PORT"
 #define PBS_CONF_DATA_SERVICE_PORT           "PBS_DATA_SERVICE_PORT"
 #define PBS_CONF_DATA_SERVICE_HOST           "PBS_DATA_SERVICE_HOST"
 #define PBS_CONF_USE_COMPRESSION     	     "PBS_USE_COMPRESSION"
 #define PBS_CONF_USE_MCAST		     "PBS_USE_MCAST"
-#define PBS_CONF_FORCE_FT_COMM		     "PBS_FORCE_FT_COMM"
 #define PBS_CONF_LEAF_NAME		     "PBS_LEAF_NAME"
 #define PBS_CONF_LEAF_ROUTERS		     "PBS_LEAF_ROUTERS"
 #define PBS_CONF_COMM_NAME		     "PBS_COMM_NAME"
@@ -289,8 +297,10 @@ extern struct pbs_config pbs_conf;
 #define PBS_CONF_EXEC		"PBS_EXEC"		 /* path to pbs exec */
 #define PBS_CONF_DEFAULT_NAME	"PBS_DEFAULT"	  /* old name for PBS_SERVER */
 #define PBS_CONF_SERVER_NAME	"PBS_SERVER"	   /* name of the pbs server */
+#define PBS_CONF_SERVER_INSTANCES	"PBS_SERVER_INSTANCES" /* comma separated list (host:port) of server instances */
 #define PBS_CONF_INSTALL_MODE    "PBS_INSTALL_MODE" /* PBS installation mode */
 #define PBS_CONF_RCP		"PBS_RCP"
+#define PBS_CONF_CP		"PBS_CP"
 #define PBS_CONF_SCP		"PBS_SCP"		      /* path to ssh */
 #define PBS_CONF_ENVIRONMENT    "PBS_ENVIRONMENT" /* path to pbs_environment */
 #define PBS_CONF_PRIMARY	"PBS_PRIMARY"  /* Primary Server in failover */
@@ -311,6 +321,7 @@ extern struct pbs_config pbs_conf;
 #define PBS_CONF_LR_SAVE_PATH	"PBS_LR_SAVE_PATH"
 #define PBS_CONF_LOG_HIGHRES_TIMESTAMP	"PBS_LOG_HIGHRES_TIMESTAMP"
 #define PBS_CONF_SCHED_THREADS	"PBS_SCHED_THREADS"
+#define PBS_CONF_DAEMON_SERVICE_USER "PBS_DAEMON_SERVICE_USER"
 #ifdef WIN32
 #define PBS_CONF_REMOTE_VIEWER "PBS_REMOTE_VIEWER"	/* Executable for remote viewer application alongwith its launch options, for PBS GUI jobs */
 #endif
@@ -385,23 +396,20 @@ enum accrue_types {
 #define ATTR_node_set		"node_set"	    /* job attribute */
 #define ATTR_sched_preempted    "ptime"   /* job attribute */
 #define ATTR_restrict_res_to_release_on_suspend "restrict_res_to_release_on_suspend"	    /* server attr */
+#define ATTR_resv_alter_revert		"reserve_alter_revert"
+#define ATTR_resv_standing_revert	"reserve_standing_revert"
 
 #ifndef IN_LOOPBACKNET
 #define IN_LOOPBACKNET	127
 #endif
 #define LOCALHOST_SHORTNAME "localhost"
-#ifdef WIN32
-#define CLOSESOCKET(X) (void)closesocket(X)
-#define ERRORNO        WSAGetLastError()
-#else
-#define CLOSESOCKET(X) (void)close(X)
-#define ERRORNO        errno
-#endif
 
 #if HAVE__BOOL
 #include "stdbool.h"
 #else
+#ifndef __cplusplus
 typedef enum { false, true } bool;
+#endif
 #endif
 
 #ifdef _USRDLL		/* This is only for building Windows DLLs
@@ -459,7 +467,7 @@ DECLDIR int      parse_depend_list(char *, char **, int);
 DECLDIR int      parse_stage_list(char *);
 DECLDIR int      prepare_path(char *, char*);
 DECLDIR void     prt_job_err(char *, int, char *);
-DECLDIR int		 set_attr(struct attrl **, char *, char *);
+DECLDIR int		 set_attr(struct attrl **, const char *, const char *);
 DECLDIR int      set_attr_resc(struct attrl **, char *, char *, char *);
 DECLDIR int      set_resources(struct attrl **, char *, int, char **);
 DECLDIR int      cnt2server(char *);
@@ -487,6 +495,10 @@ extern char *pbs_submit_with_cred(int, struct attropl *, char *,
 extern int pbs_query_max_connections(void);
 
 extern char *pbs_get_tmpdir(void);
+
+extern char *pbs_get_conf_var(char *);
+
+extern char *get_psi_str();
 
 extern FILE *pbs_popen(const char *, const char *);
 
@@ -536,11 +548,11 @@ extern int      parse_destination_id(char *, char **, char **);
 extern int      parse_stage_list(char *);
 extern int      prepare_path(char *, char*);
 extern void     prt_job_err(char *, int, char *);
-extern int     set_attr(struct attrl **, char *, char *);
+extern int     set_attr(struct attrl **, const char *, const char *);
 #ifndef pbs_get_dataservice_usr
 extern char*    pbs_get_dataservice_usr(char *, int);
 #endif
-extern char*	get_attr(struct attrl *, char *, char *);
+extern char*	get_attr(struct attrl *, const char *, const char *);
 extern int      set_resources(struct attrl **, char *, int, char **);
 extern int      cnt2server(char *server);
 extern int      cnt2server_extend(char *server, char *);
@@ -553,6 +565,8 @@ extern char *convert_time(char *);
 extern struct batch_status *bs_isort(struct batch_status *bs,
 	int (*cmp_func)(struct batch_status*, struct batch_status *));
 extern struct batch_status *bs_find(struct batch_status *, const char *);
+extern void init_bstat(struct batch_status *);
+extern int frame_psi(psi_t *, char *);
 
 
 #endif /* _USRDLL */

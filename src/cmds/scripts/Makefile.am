@@ -1,6 +1,6 @@
 
 #
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -50,7 +50,6 @@ dist_libinit_DATA = \
 libmpidir = $(libdir)/MPI
 
 dist_libmpi_DATA = \
-	pbsrun.bgl.init.in \
 	pbsrun.ch_gm.init.in \
 	pbsrun.ch_mx.init.in \
 	pbsrun.gm_mpd.init.in \
@@ -83,7 +82,8 @@ dist_libexec_SCRIPTS = \
 	pbs_init.d \
 	pbs_postinstall \
 	pbs_preuninstall \
-	pbs_posttrans
+	pbs_posttrans \
+	pbs_reload
 
 dist_bin_SCRIPTS = \
 	pbs_topologyinfo \

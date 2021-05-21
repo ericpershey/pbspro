@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -119,14 +119,16 @@ class Test_run_count(TestFunctional):
         self.server.expect(JOB, {ATTR_state: "H", ATTR_runcount: maxruncount},
                            attrop=PTL_AND, id=sjid)
         ja_comment = "Job Array Held, too many failed attempts to run subjob"
-        self.server.expect(JOB, {ATTR_state: "H", ATTR_comment: (MATCH_RE,
-                           ja_comment)}, attrop=PTL_AND, id=jid)
+        self.server.expect(JOB, {ATTR_state: "H",
+                                 ATTR_comment: (MATCH_RE, ja_comment)},
+                           attrop=PTL_AND, id=jid)
         self.disable_reject_begin_hook()
         self.server.rlsjob(jid, 's')
         self.server.expect(JOB, {ATTR_state: "R"}, id=sjid)
         ja_comment = "Job Array Began at"
-        self.server.expect(JOB, {ATTR_state: "B", ATTR_comment: (MATCH_RE,
-                           ja_comment)}, attrop=PTL_AND, id=jid)
+        self.server.expect(JOB, {ATTR_state: "B",
+                                 ATTR_comment: (MATCH_RE, ja_comment)},
+                           attrop=PTL_AND, id=jid)
 
     def test_run_count_subjob(self):
         """
@@ -141,7 +143,6 @@ class Test_run_count(TestFunctional):
         jid = self.server.submit(j)
         self.subjob_check(jid=jid, sjid=j.create_subjob_id(jid, 1))
 
-    @skipOnCpuSet
     def test_run_count_subjob_in_x(self):
         """
         Submit a job array and check if the subjob and the parent are getting
@@ -182,7 +183,6 @@ class Test_run_count(TestFunctional):
         self.subjob_check(jid, sjid, maxruncount="40")
         return sjid
 
-    @skipOnCpuSet
     def test_large_run_count_subjob_in_x(self):
         """
         Submit a job array and check if the subjob and the parent are getting
@@ -196,12 +196,12 @@ class Test_run_count(TestFunctional):
         j = Job(TEST_USER, a)
         j.set_sleep_time(10)
         jid = self.server.submit(j)
-        time.sleep(9)
         self.server.expect(JOB, {ATTR_state: "R"},
                            id=j.create_subjob_id(jid, 2))
+        self.server.manager(MGR_CMD_SET, SCHED, {"scheduling": "false"})
         # Create an execjob_begin hook that rejects the job
         self.create_reject_begin_hook()
-        time.sleep(8)
+        self.server.manager(MGR_CMD_SET, SCHED, {"scheduling": "true"})
         self.server.expect(JOB, {ATTR_state: "X"},
                            id=j.create_subjob_id(jid, 2))
 

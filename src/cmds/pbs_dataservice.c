@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -82,7 +82,7 @@ main(int argc, char *argv[])
 	while ((i = getopt(argc, argv, "s:")) != EOF) {
 		switch (i) {
 			case 's':
-				strcpy(sopt, optarg);
+				pbs_strncpy(sopt, optarg, sizeof(sopt));
 				break;
 			case '?':
 			default:
@@ -106,12 +106,14 @@ main(int argc, char *argv[])
 	}
 
 	if (pbs_conf.pbs_data_service_host)
-		strncpy(conn_db_host, pbs_conf.pbs_data_service_host, PBS_MAXSERVERNAME);
+		pbs_strncpy(conn_db_host, pbs_conf.pbs_data_service_host, PBS_MAXSERVERNAME);
 	else
-		strncpy(conn_db_host, pbs_default(), PBS_MAXSERVERNAME);
+		pbs_strncpy(conn_db_host, pbs_default(), PBS_MAXSERVERNAME);
 
 	if (strcmp(sopt, PBS_DB_CONTROL_START) == 0) {
 		rc = pbs_start_db(conn_db_host, pbs_conf.pbs_data_service_port);
+		if (rc == PBS_DB_OOM_ERR)
+			rc = 0;	/* Ignore OOM access error */
 	} else if (strcmp(sopt, PBS_DB_CONTROL_STOP) == 0) {
 		rc = pbs_stop_db(conn_db_host, pbs_conf.pbs_data_service_port);
 	} else if (strcmp(sopt, PBS_DB_CONTROL_STATUS) == 0) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -111,13 +111,13 @@ extern unsigned long hostidnum;
 extern char *path_priv;
 extern char *path_svrlive;
 extern char *path_secondaryact;
-extern unsigned int pbs_server_port_dis;
 extern time_t secondary_delay;
 extern time_t time_now;
 extern char server_host[];
 
 extern struct connection *svr_conn;
 extern struct batch_request *saved_takeover_req;
+extern pbs_net_t pbs_server_addr;
 
 int	     pbs_failover_active = 0; /* indicates if Seconary is active */
 /* Private data items */
@@ -202,15 +202,14 @@ primary_handshake(struct work_task *pwt)
 		/* see if Secondary has taken over even though we are up */
 
 		if (stat(path_secondaryact , &sb) != -1) {
-			server.sv_attr[(int)SVR_ATR_State].at_val.at_long = SV_STATE_SECIDLE;  /* cause myself to recycle */
+			set_sattr_l_slim(SVR_ATR_State, SV_STATE_SECIDLE, SET); /* cause myself to recycle */
 			DBPRT(("Primary server found secondary active, restarting\n"))
 		}
 	}
 
 	/* reset work_task to call this again */
 
-	(void)set_task(WORK_Timed, time_now + HANDSHAKE_TIME,
-		primary_handshake, NULL);
+	(void)set_task(WORK_Timed, time_now + HANDSHAKE_TIME, primary_handshake, NULL);
 
 	return;
 }
@@ -260,7 +259,7 @@ secondary_handshake(struct work_task *pwt)
 static void
 fo_shutdown_reply(struct work_task *pwt)
 {
-	server.sv_attr[(int)SVR_ATR_State].at_val.at_long &= ~SV_STATE_PRIMDLY;
+	set_sattr_l_slim(SVR_ATR_State, get_sattr_long(SVR_ATR_State) & ~SV_STATE_PRIMDLY, SET);
 	release_req(pwt);
 }
 /**
@@ -362,6 +361,22 @@ put_failover(int sock, struct batch_request *request)
 	return rc;
 }
 
+/**
+ * @brief
+ *	returning host id.
+ *
+ * @return Host ID
+ */
+unsigned long
+pbs_get_hostid(void)
+{
+	unsigned long hid;
+
+	hid = (unsigned long)gethostid();
+	if (hid == 0)
+		hid = (unsigned long)pbs_server_addr;
+	return hid;
+}
 
 /**
  * @brief
@@ -382,9 +397,10 @@ put_failover(int sock, struct batch_request *request)
 void
 req_failover(struct batch_request *preq)
 {
-	int		 err = 0;
-	char		 hostbuf[PBS_MAXHOSTNAME+1];
-	conn_t		 *conn;
+	int err = 0;
+	char hostbuf[PBS_MAXHOSTNAME + 1];
+	conn_t *conn;
+	unsigned long hostidnum;
 
 	preq->rq_reply.brp_auxcode = 0;
 
@@ -432,6 +448,7 @@ req_failover(struct batch_request *preq)
 			/* return the host id as a text string */
 			/* (make do with existing capability to return data in reply */
 
+			hostidnum = pbs_get_hostid();
 			sprintf(hostbuf, "%ld", hostidnum);
 			(void)reply_text(preq, PBSE_NONE, hostbuf);
 			return;
@@ -455,7 +472,7 @@ req_failover(struct batch_request *preq)
 			 * This is the only failover request normally
 			 * seen by the Secondary while it is active.
 			 */
-			server.sv_attr[(int)SVR_ATR_State].at_val.at_long = SV_STATE_SECIDLE;
+			set_sattr_l_slim(SVR_ATR_State, SV_STATE_SECIDLE, SET);
 			log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_CRIT,
 				msg_daemonname, msg_takeover);
 			(void)unlink(path_secondaryact); /* remove file */
@@ -622,7 +639,6 @@ read_reg_reply(int sock)
 	unsigned long	   hid;
 	char		  *txtm;
 	char		  *txts;
-	extern unsigned long pbs_get_hostid(void);
 
 	fo_reply.brp_code = 0;
 	fo_reply.brp_choice = BATCH_REPLY_CHOICE_NULL;

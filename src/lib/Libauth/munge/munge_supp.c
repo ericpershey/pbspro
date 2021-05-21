@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -37,8 +37,6 @@
  * subject to Altair's trademark licensing policies.
  */
 
-
-#ifndef WIN32
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -429,4 +427,3 @@ pbs_auth_process_handshake_data(void *ctx, void *data_in, size_t len_in, void **
 
 /********* END OF EXPORTED FUNCS *********/
 
-#endif /* WIN32 */

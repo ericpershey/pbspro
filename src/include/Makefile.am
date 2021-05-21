@@ -1,6 +1,6 @@
 
 #
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -94,6 +94,7 @@ noinst_HEADERS = \
 	pbs_python_private.h \
 	pbs_share.h \
 	pbs_undolr.h \
+	pbs_v1_module_common.i \
 	pbs_version.h \
 	placementsets.h \
 	portability.h \
@@ -101,6 +102,7 @@ noinst_HEADERS = \
 	provision.h \
 	qmgr.h \
 	queue.h \
+	range.h \
 	reservation.h \
 	resmon.h \
 	resource.h \

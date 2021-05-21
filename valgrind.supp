@@ -1,4 +1,4 @@
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -641,7 +641,7 @@
 {
    From PBS - Suppress intentional unfreed memory of auth struct inside global tpp_conf struct
    Memcheck:Leak
-   fun:calloc
+   fun:malloc
    fun:make_auth_config
    fun:set_tpp_config
    fun:main
@@ -717,5 +717,24 @@
    fun:malloc
    fun:hook_alloc
    fun:mgr_hook_create
+   ...
+}
+{
+   From PBS - Suppress uninitialized DIS buffer
+   Memcheck:Param
+   write(buf)
+   ...
+   fun:__send_pkt
+   fun:dis_flush
+   ...
+}
+{
+   From PBS - Suppress scheduler query resources leak, it is misreported
+   Memcheck:Leak
+   match-leak-kinds: definite
+   ...
+   fun:*query_resources*
+   fun:*update_resource_def*
+   fun:schedule
    ...
 }

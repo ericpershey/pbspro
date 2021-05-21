@@ -1,5 +1,5 @@
 # coding: utf-8
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -100,12 +100,13 @@ class TestHighResLogging(TestFunctional):
         there in the server logs lines
         """
         self.switch_microsecondlogging(highrestimestamp=0)
+        now = time.time()
 
         j = Job(TEST_USER)
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
         lines = self.server.log_lines(logtype=self.server,
-                                      starttime=self.server.ctime)
+                                      starttime=now)
 
         _msg = 'Found high resolution time stamp in log,' \
                ' it shouldn\'t be there'

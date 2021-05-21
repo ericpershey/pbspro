@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,7 +39,13 @@
 
 
 #ifdef PBS_UNDOLR_ENABLED
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern int sigusr1_flag;
 extern void catch_sigusr1(int);
 extern void undolr();
+#ifdef __cplusplus
+}
+#endif
 #endif

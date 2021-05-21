@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -41,6 +41,7 @@
 #ifndef _RESOURCE_H
 #define _RESOURCE_H
 
+
 /*
  *	query_resources - query a pbs server for the resources it knows about
  *
@@ -48,7 +49,7 @@
  *
  *	returns resdef list of resources
  */
-resdef **query_resources(int pbs_sd);
+std::unordered_map<std::string, resdef *> query_resources(int pbs_sd);
 
 /*
  *	conv_rsc_type - convert server type number into resource_type struct
@@ -56,28 +57,10 @@ resdef **query_resources(int pbs_sd);
  *	  OUT: rtype - resource type structure
  *	returns nothing
  */
-void conv_rsc_type(int type, struct resource_type *rtype);
-
-/* used with filter_array*/
-int def_is_consumable(void *vdef, void *n);
-int def_is_bool(void *vdef, void *n);
-int filter_noncons(void *v, void *arg);
-
-
-/* constructors and destructors for resdef list object */
-resdef *new_resdef(void);				/* constructor */
-resdef *dup_resdef(resdef *olddef);		/* copy constructor */
-resdef **dup_resdef_array(resdef **);	/* list copy constructor */
-void free_resdef(resdef *def);		/* destructor */
-void free_resdef_array(resdef **deflist);
+resource_type conv_rsc_type(int type);
 
 /* find and return a resdef entry by name */
-resdef *find_resdef(resdef **deflist, char *name);
-
-/*
- * does resdef exist in a resdef array?
- */
-int resdef_exists_in_array(resdef **deflist, resdef *def);
+resdef *find_resdef(const std::string& name);
 
 /*
  *  create resdef array based on a str array of resource names
@@ -85,44 +68,26 @@ int resdef_exists_in_array(resdef **deflist, resdef *def);
 resdef** resdef_arr_from_str_arr(resdef **deflist, char **strarr);
 
 /*
- *  safely access allres by index.  This can be used if allres is NULL
- */
-resdef *getallres(enum resource_index ind);
-
-/*
  * query the resource definition from the server and create derived
  * data structures.  Only query if required.
  */
-int update_resource_defs(int pbs_sd);
-
-/*
- * free and clear global resource definition pointers
- */
-void reset_global_resource_ptrs(void);
+bool update_resource_defs(int pbs_sd);
 
 /* checks if a resource avail is set. */
 int is_res_avail_set(schd_resource *res);
 
 /* create a resource signature for a set of resources */
-char *create_resource_signature(schd_resource *reslist, resdef **resources, unsigned int flags);
+char *create_resource_signature(schd_resource *reslist, std::unordered_set<resdef *>& resources, unsigned int flags);
 
 /* collect a unique list of resources from an array of requests */
-resdef **collect_resources_from_requests(resource_resv **resresv_arr);
+std::unordered_set<resdef *>collect_resources_from_requests(resource_resv **resresv_arr);
 
 /* convert an array of string resource names into resdefs */
-resdef **resstr_to_resdef(char **resstr);
+std::unordered_set<resdef *>resstr_to_resdef(const std::unordered_set<std::string>&);
+std::unordered_set<resdef *>resstr_to_resdef(const char * const *resstr);
+
 /* filter function for filter_array().  Used to filter out host and vnode */
 int no_hostvnode(void *v, void *arg);
-
-/* filter function for filter_array().  Used to filter for resources
- * that are at server/queue level and get summed at the job level
- */
-int def_rassn(void *v, void *arg);
-
-/* filter function for filter_array().  Used to filter for resources
- * that are host based and get summed at the job level
- */
-int def_rassn_select(void *v, void *arg);
 
 /* add resdef to resdef array */
 int add_resdef_to_array(resdef ***resdef_arr, resdef *def);
@@ -133,7 +98,6 @@ int add_resdef_to_array(resdef ***resdef_arr, resdef *def);
 resdef **copy_resdef_array(resdef **deflist);
 
 /* update the def member in sort_info structures in conf */
-void update_sorting_defs(int op);
-
+void update_sorting_defs(void);
 
 #endif /* _RESOURCE_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -79,9 +79,9 @@
 #include <Long.h>
 #include "libutil.h"
 
-extern int  comp_size(struct attribute *, struct attribute *);
-extern void from_size(struct size_value *, char *);
-extern int set_size(struct attribute *, struct attribute *, enum batch_op op);
+extern int  comp_size(attribute *, attribute *);
+extern void from_size(const struct size_value *, char *);
+extern int set_size(attribute *, attribute *, enum batch_op op);
 extern int to_size(char *, struct size_value *);
 extern int normalize_size(struct size_value *, struct size_value *,
 	struct size_value *, struct size_value *);
@@ -415,8 +415,8 @@ static PyObject *
 pps_size_richcompare(PPSVR_Size_Object *self, PyObject *with, int op)
 {
 	PyObject *result = Py_False; /* MUST incref result before return */
-	struct attribute attr_self;
-	struct attribute attr_with;
+	attribute attr_self;
+	attribute attr_with;
 	int cmp_result;
 
 	/* basic check make sure only size objects are compared */
@@ -582,7 +582,7 @@ QUIT:
 u_Long
 pps_size_to_kbytes(PyObject *self)
 {
-	struct attribute attr;
+	attribute attr;
 	PPSVR_Size_Object *working_copy;
 	if (!PPSVR_Size_Type_Check(self)) {
 		return 0;

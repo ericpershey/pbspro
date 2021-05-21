@@ -1,6 +1,6 @@
 
 #
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -72,11 +72,11 @@
 %if !%{defined _unitdir}
 %define _unitdir /usr/lib/systemd/system
 %endif
-%if %{_vendor} == debian && %(test -f /etc/os-release && echo 1 || echo 0)
+%if "%{_vendor}" == "debian" && %(test -f /etc/os-release && echo 1 || echo 0)
 %define _vendor_ver %(cat /etc/os-release | awk -F[=\\".] '/^VERSION_ID=/ {print \$3}')
 %define _vendor_id %(cat /etc/os-release | awk -F= '/^ID=/ {print \$2}')
 %endif
-%if 0%{?suse_version} >= 1210 || 0%{?rhel} >= 7 || (x%{?_vendor_id} == xdebian && 0%{?_vendor_ver} >= 8) || (x%{?_vendor_id} == xubuntu && 0%{?_vendor_ver} >= 16)
+%if ( 0%{?suse_version} >= 1210 ) || ( 0%{?rhel} >= 7 ) || ("x%{?_vendor_id}" == "xdebian" && 0%{?_vendor_ver} >= 8) || ("x%{?_vendor_id}" == "xubuntu" && 0%{?_vendor_ver} >= 16)
 %define have_systemd 1
 %endif
 
@@ -98,6 +98,7 @@ Prefix: %{?pbs_prefix}%{!?pbs_prefix:%{_prefix}}
 
 BuildRoot: %{buildroot}
 BuildRequires: gcc
+BuildRequires: gcc-c++
 BuildRequires: make
 BuildRequires: rpm-build
 BuildRequires: autoconf
@@ -119,7 +120,7 @@ BuildRequires: tk-devel
 BuildRequires: swig
 BuildRequires: zlib-devel
 %if %{with pmix}
-BuildRequires: pmix
+BuildRequires: pmix-devel
 %endif
 %if %{defined suse_version}
 BuildRequires: libexpat-devel
@@ -309,7 +310,7 @@ functionality of PBS.
 %if 0%{?opensuse_bs}
 # Do not specify debug_package for OBS builds.
 %else
-%if 0%{?suse_version} || x%{?_vendor_id} == xdebian || x%{?_vendor_id} == xubuntu
+%if 0%{?suse_version} || "x%{?_vendor_id}" == "xdebian" || "x%{?_vendor_id}" == "xubuntu"
 %debug_package
 %endif
 %endif
@@ -404,21 +405,21 @@ ldconfig %{_libdir}
 if [ "$1" != "1" ]; then
 	# This is an uninstall, not an upgrade.
 	${RPM_INSTALL_PREFIX:=%{pbs_prefix}}/libexec/pbs_preuninstall server \
-		%{version} ${RPM_INSTALL_PREFIX:=%{pbs_prefix}} %{defined have_systemd}
+		%{version} ${RPM_INSTALL_PREFIX:=%{pbs_prefix}} %{pbs_home} %{defined have_systemd}
 fi
 
 %preun %{pbs_execution}
 if [ "$1" != "1" ]; then
 	# This is an uninstall, not an upgrade.
 	${RPM_INSTALL_PREFIX:=%{pbs_prefix}}/libexec/pbs_preuninstall execution \
-		%{version} ${RPM_INSTALL_PREFIX:=%{pbs_prefix}} %{defined have_systemd}
+		%{version} ${RPM_INSTALL_PREFIX:=%{pbs_prefix}} %{pbs_home} %{defined have_systemd}
 fi
 
 %preun %{pbs_client}
 if [ "$1" != "1" ]; then
 	# This is an uninstall, not an upgrade.
 	${RPM_INSTALL_PREFIX:=%{pbs_prefix}}/libexec/pbs_preuninstall client \
-		%{version} ${RPM_INSTALL_PREFIX:=%{pbs_prefix}} %{defined have_systemd}
+		%{version} ${RPM_INSTALL_PREFIX:=%{pbs_prefix}} %{pbs_home} %{defined have_systemd}
 fi
 
 %postun %{pbs_server}
@@ -473,10 +474,11 @@ ${RPM_INSTALL_PREFIX:=%{pbs_prefix}}/libexec/pbs_posttrans \
 %exclude %{_sysconfdir}/profile.d/ptl.sh
 %if %{defined have_systemd}
 %attr(644, root, root) %{_unitdir}/pbs.service
+%attr(644, root, root) %{pbs_prefix}/libexec/pbs_reload
 %else
 %exclude %{_unitdir}/pbs.service
+%exclude %{pbs_prefix}/libexec/pbs_reload
 %endif
-%exclude %{pbs_prefix}/unsupported/fw
 %exclude %{pbs_prefix}/unsupported/*.pyc
 %exclude %{pbs_prefix}/unsupported/*.pyo
 %exclude %{pbs_prefix}/lib*/*.a
@@ -519,7 +521,6 @@ ${RPM_INSTALL_PREFIX:=%{pbs_prefix}}/libexec/pbs_posttrans \
 %exclude %{pbs_prefix}/sbin/pbs_server
 %exclude %{pbs_prefix}/sbin/pbs_server.bin
 %exclude %{pbs_prefix}/sbin/pbsfs
-%exclude %{pbs_prefix}/unsupported/fw
 %exclude %{pbs_prefix}/unsupported/*.pyc
 %exclude %{pbs_prefix}/unsupported/*.pyo
 %exclude %{pbs_prefix}/lib*/*.a
@@ -569,7 +570,6 @@ ${RPM_INSTALL_PREFIX:=%{pbs_prefix}}/libexec/pbs_posttrans \
 %exclude %{pbs_prefix}/sbin/pbs_server.bin
 %exclude %{pbs_prefix}/sbin/pbs_upgrade_job
 %exclude %{pbs_prefix}/sbin/pbsfs
-%exclude %{pbs_prefix}/unsupported/fw
 %exclude %{pbs_prefix}/unsupported/*.pyc
 %exclude %{pbs_prefix}/unsupported/*.pyo
 %exclude %{_unitdir}/pbs.service
@@ -596,31 +596,11 @@ ${RPM_INSTALL_PREFIX:=%{pbs_prefix}}/libexec/pbs_posttrans \
 %config(noreplace) %{_sysconfdir}/profile.d/ptl.*
 
 %post %{pbs_ptl}
-installed_pkg="$(pip3 list)"
-IFS=$'\n' required_pkg=($(cat %{ptl_prefix}/fw/requirements.txt))
-for i in "${required_pkg[@]}"; do
-	if [[ "$installed_pkg" =~ "$i" ]]; then
-		continue
-	else
-		pip3 install --trusted-host pypi.org --trusted-host files.pythonhosted.org "$i"
-		if [ $? -eq 0 ]; then
-			echo "$i installed successfully"
-		else
-			echo "Failed to install thirdparty package $i required by PTL"
-		fi
-	fi
-done
+pip3 install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r "%{ptl_prefix}/fw/requirements.txt"
 
 %preun %{pbs_ptl}
-installed_pkg="$(pip3 list)"
-IFS=$'\n' required_pkg=($(cat %{ptl_prefix}/fw/requirements.txt))
-for i in "${required_pkg[@]}"; do
-	if [[ "$installed_pkg" =~ "$i" ]]; then
-		pip3 uninstall --yes "$i"
-	else
-		continue
-	fi
-done
+pip3 uninstall --yes -r "%{ptl_prefix}/fw/requirements.txt"
+
 %endif
 
 %changelog

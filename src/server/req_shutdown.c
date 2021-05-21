@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -128,10 +128,9 @@ extern attribute_def svr_attr_def[];
 void
 svr_shutdown(int type)
 {
-	attribute	  *pattr;
 	job		  *pjob;
 	job		  *pnxt;
-	long		 *state;
+	long		 state;
 	int		  wait_for_secondary = 0;
 
 	/* Lets start by logging shutdown and saving everything */
@@ -139,15 +138,16 @@ svr_shutdown(int type)
       /* Saving server jobid number to the database as server is going to shutdown.
 	 * Once server will come up then it will start jobid/resvid from this number onwards.
 	 */
-	state = &server.sv_attr[(int)SVR_ATR_State].at_val.at_long;
+	state = get_sattr_long(SVR_ATR_State);
 	(void)strcpy(log_buffer, msg_shutdown_start);
 
-	if (*state == SV_STATE_SHUTIMM) {
+	if (state == SV_STATE_SHUTIMM) {
 
 		/* if already shuting down, another Immed/sig will force it */
 
 		if ((type == SHUT_IMMEDIATE) || (type == SHUT_SIG)) {
-			*state = SV_STATE_DOWN;
+			state = SV_STATE_DOWN;
+			set_sattr_l_slim(SVR_ATR_State, state, SET);
 			(void)strcat(log_buffer, "Forced");
 			log_event(PBSEVENT_SYSTEM|PBSEVENT_ADMIN|PBSEVENT_DEBUG,
 				PBS_EVENTCLASS_SERVER, LOG_NOTICE,
@@ -172,27 +172,33 @@ svr_shutdown(int type)
 
 	type = type & SHUT_MASK;
 	if (type == SHUT_IMMEDIATE) {
-		*state = SV_STATE_SHUTIMM;
+		state = SV_STATE_SHUTIMM;
+		set_sattr_l_slim(SVR_ATR_State, state, SET);
 		(void)strcat(log_buffer, "Immediate");
 
 	} else if (type == SHUT_DELAY) {
-		*state = SV_STATE_SHUTDEL;
+		state = SV_STATE_SHUTDEL;
+		set_sattr_l_slim(SVR_ATR_State, state, SET);
 		(void)strcat(log_buffer, "Delayed");
 
 	} else if (type == SHUT_QUICK) {
-		*state = SV_STATE_DOWN; /* set to down to brk pbsd_main loop */
+		state = SV_STATE_DOWN; /* set to down to brk pbsd_main loop */
+		set_sattr_l_slim(SVR_ATR_State, state, SET);
 		(void)strcat(log_buffer, "Quick");
 
 	} else {
-		*state = SV_STATE_DOWN;
+		state = SV_STATE_DOWN;
+		set_sattr_l_slim(SVR_ATR_State, state, SET);
 		(void)strcat(log_buffer, "By Signal");
 		type = SHUT_QUICK;
 	}
 	log_event(PBSEVENT_SYSTEM|PBSEVENT_ADMIN|PBSEVENT_DEBUG,
 		PBS_EVENTCLASS_SERVER, LOG_NOTICE, msg_daemonname, log_buffer);
 
-	if (wait_for_secondary)
-		*state |= SV_STATE_PRIMDLY; /* wait for reply from Secondary */
+	if (wait_for_secondary) {
+		state |= SV_STATE_PRIMDLY; /* wait for reply from Secondary */
+		set_sattr_l_slim(SVR_ATR_State, state, SET);
+	}
 
 	if (type == SHUT_QUICK) /* quick, leave jobs as are */
 		return;
@@ -202,13 +208,12 @@ svr_shutdown(int type)
 	while ((pjob = pnxt) != NULL) {
 		pnxt = (job *)GET_NEXT(pjob->ji_alljobs);
 
-		if (pjob->ji_qs.ji_state == JOB_STATE_RUNNING) {
+		if (check_job_state(pjob, JOB_STATE_LTR_RUNNING)) {
+			char *val = get_jattr_str(pjob, JOB_ATR_chkpnt);
 
 			pjob->ji_qs.ji_svrflags |= JOB_SVFLG_HOTSTART;
 			pjob->ji_qs.ji_svrflags |= JOB_SVFLG_HASRUN;
-			pattr = &pjob->ji_wattr[(int)JOB_ATR_chkpnt];
-			if ((pattr->at_val.at_str) &&
-				(*pattr->at_val.at_str != 'n')) {
+			if (val && (*val != 'n')) {
 				/* do checkpoint of job */
 
 				if (shutdown_preempt_chkpt(pjob) == 0)
@@ -273,7 +278,7 @@ req_shutdown(struct batch_request *preq)
 		(void)failover_send_shutdown(FAILOVER_SecdShutdown);
 
 	if (shutdown_who & SHUT_WHO_SCHED)
-		(void)contact_sched(SCH_QUIT, NULL, dflt_scheduler->pbs_scheduler_addr, dflt_scheduler->pbs_scheduler_port);	/* tell scheduler to quit */
+		send_sched_cmd(dflt_scheduler, SCH_QUIT, NULL);	/* tell scheduler to quit */
 
 	if (shutdown_who & SHUT_WHO_SECDONLY) {
 		reply_ack(preq);
@@ -334,8 +339,8 @@ shutdown_preempt_chkpt(job *pjob)
 
 	if (relay_to_mom(pjob, phold, func) == 0) {
 
-		if (pjob->ji_qs.ji_state == JOB_STATE_TRANSIT)
-			svr_setjobstate(pjob, JOB_STATE_RUNNING, JOB_SUBSTATE_RUNNING);
+		if (check_job_state(pjob, JOB_STATE_LTR_TRANSIT))
+			svr_setjobstate(pjob, JOB_STATE_LTR_RUNNING, JOB_SUBSTATE_RUNNING);
 		pjob->ji_qs.ji_svrflags |= (JOB_SVFLG_HASRUN | JOB_SVFLG_CHKPT | JOB_SVFLG_HASHOLD);
 		(void)job_save_db(pjob);
 		return (0);
@@ -378,9 +383,9 @@ post_chkpt(struct work_task *ptask)
 		/* need to try rerun if possible or just abort the job */
 		if (preq->rq_reply.brp_code != PBSE_CKPBSY) {
 			pjob->ji_qs.ji_svrflags &= ~JOB_SVFLG_CHKPT;
-			pjob->ji_qs.ji_substate = JOB_SUBSTATE_RUNNING;
+			set_job_substate(pjob, JOB_SUBSTATE_RUNNING);
 			job_save_db(pjob);
-			if (pjob->ji_qs.ji_state == JOB_STATE_RUNNING)
+			if (check_job_state(pjob, JOB_STATE_LTR_RUNNING))
 				rerun_or_kill(pjob, msg_on_shutdown);
 		}
 	}
@@ -403,14 +408,14 @@ post_chkpt(struct work_task *ptask)
 static void
 rerun_or_kill(job *pjob, char *text)
 {
-	long server_state = server.sv_attr[(int)SVR_ATR_State].at_val.at_long;
+	long server_state = get_sattr_long(SVR_ATR_State);
 
-	if (pjob->ji_wattr[(int)JOB_ATR_rerunable].at_val.at_long) {
+	if (get_jattr_long(pjob, JOB_ATR_rerunable)) {
 
 		/* job is rerunable, mark it to be requeued */
 
 		(void)issue_signal(pjob, "SIGKILL", release_req, 0);
-		pjob->ji_qs.ji_substate  = JOB_SUBSTATE_RERUN;
+		set_job_substate(pjob, JOB_SUBSTATE_RERUN);
 		(void)strcpy(log_buffer, msg_init_queued);
 		(void)strcat(log_buffer, pjob->ji_qhdr->qu_qs.qu_name);
 		(void)strcat(log_buffer, text);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -78,27 +78,28 @@ int encode_DIS_svrattrl(int sock, svrattrl *psattl);
 static int
 encode_DIS_reply_inner(int sock, struct batch_reply *reply)
 {
-	int		    ct;
-	int		    i;
-	struct brp_select  *psel;
-	struct brp_status  *pstat;
-	svrattrl	   *psvrl;
-	preempt_job_info   *ppj;
+	int ct;
+	int i;
+	struct brp_select *psel;
+	struct brp_status *pstat;
+	struct batch_deljob_status *pdelstat;
+	svrattrl *psvrl;
+	preempt_job_info *ppj;
 
 	int rc;
 
-
 	/* next encode code, auxcode and choice (union type identifier) */
 
-	if ((rc = diswsi(sock, reply->brp_code)) 	||
-		(rc = diswsi(sock, reply->brp_auxcode))	||
-		(rc = diswui(sock, reply->brp_choice)))
-			return rc;
+	if ((rc = diswsi(sock, reply->brp_code)) ||
+	    (rc = diswsi(sock, reply->brp_auxcode)) ||
+	    (rc = diswui(sock, reply->brp_choice)) ||
+	    (rc = diswui(sock, reply->brp_is_part)))
+		return rc;
 
 	switch (reply->brp_choice) {
 
 		case BATCH_REPLY_CHOICE_NULL:
-			break;	/* no more to do */
+			break; /* no more to do */
 
 		case BATCH_REPLY_CHOICE_Queue:
 		case BATCH_REPLY_CHOICE_RdytoCom:
@@ -111,13 +112,7 @@ encode_DIS_reply_inner(int sock, struct batch_reply *reply)
 
 			/* have to send count of number of strings first */
 
-			ct = 0;
-			psel = reply->brp_un.brp_select;
-			while (psel) {
-				++ct;
-				psel = psel->brp_next;
-			}
-			if ((rc = diswui(sock, ct)) != 0)
+			if ((rc = diswui(sock, reply->brp_count)) != 0)
 				return rc;
 
 			psel = reply->brp_un.brp_select;
@@ -135,29 +130,38 @@ encode_DIS_reply_inner(int sock, struct batch_reply *reply)
 			 *
 			 * Server always uses svrattrl form.
 			 * Commands decode into their form.
-			 *
-			 * First need to encode number of status objects and then
-			 * the object itself.
 			 */
 
-			ct = 0;
-			pstat = (struct brp_status *)GET_NEXT(reply->brp_un.brp_status);
-			while (pstat) {
-				++ct;
-				pstat =(struct brp_status *)GET_NEXT(pstat->brp_stlink);
-			}
-			if ((rc = diswui(sock, ct)) != 0)
+			if ((rc = diswui(sock, reply->brp_count)) != 0)
 				return rc;
-			pstat = (struct brp_status *)GET_NEXT(reply->brp_un.brp_status);
+			pstat = (struct brp_status *) GET_NEXT(reply->brp_un.brp_status);
 			while (pstat) {
-				if ((rc = diswui(sock, pstat->brp_objtype))	||
-					(rc = diswst(sock, pstat->brp_objname)))
-						return rc;
+				if ((rc = diswui(sock, pstat->brp_objtype)) || (rc = diswst(sock, pstat->brp_objname)))
+					return rc;
 
-				psvrl = (svrattrl *)GET_NEXT(pstat->brp_attr);
+				psvrl = (svrattrl *) GET_NEXT(pstat->brp_attr);
 				if ((rc = encode_DIS_svrattrl(sock, psvrl)) != 0)
 					return rc;
-				pstat =(struct brp_status *)GET_NEXT(pstat->brp_stlink);
+				pstat = (struct brp_status *) GET_NEXT(pstat->brp_stlink);
+			}
+			break;
+
+		case BATCH_REPLY_CHOICE_Delete:
+
+			/* encode "server version" of status structure.
+			 *
+			 * Server always uses svrattrl form.
+			 * Commands decode into their form.
+			 */
+
+			if ((rc = diswui(sock, reply->brp_count)) != 0)
+				return rc;
+			pdelstat = reply->brp_un.brp_deletejoblist.brp_delstatc;
+			while (pdelstat) {
+				if ((rc = diswst(sock, pdelstat->name)) || (rc = diswui(sock, pdelstat->code)))
+					return rc;
+
+				pdelstat = pdelstat->next;
 			}
 			break;
 
@@ -165,8 +169,7 @@ encode_DIS_reply_inner(int sock, struct batch_reply *reply)
 
 			/* text reply */
 
-			rc = diswcs(sock, reply->brp_un.brp_txt.brp_str,
-				(size_t)reply->brp_un.brp_txt.brp_txtlen);
+			rc = diswcs(sock, reply->brp_un.brp_txt.brp_str, (size_t) reply->brp_un.brp_txt.brp_txtlen);
 			if (rc)
 				return rc;
 			break;
@@ -186,22 +189,26 @@ encode_DIS_reply_inner(int sock, struct batch_reply *reply)
 			ct = reply->brp_un.brp_rescq.brq_number;
 			if ((rc = diswui(sock, ct)) != 0)
 				return rc;
-			for (i=0; (i<ct) && (rc == 0); ++i) {
-				rc =diswui(sock, *(reply->brp_un.brp_rescq.brq_avail+i));
+			for (i = 0; (i < ct) && (rc == 0); ++i) {
+				rc = diswui(sock, *(reply->brp_un.brp_rescq.brq_avail + i));
 			}
-			if (rc) return rc;
-			for (i=0; (i<ct) && (rc == 0); ++i) {
-				rc =diswui(sock, *(reply->brp_un.brp_rescq.brq_alloc+i));
+			if (rc)
+				return rc;
+			for (i = 0; (i < ct) && (rc == 0); ++i) {
+				rc = diswui(sock, *(reply->brp_un.brp_rescq.brq_alloc + i));
 			}
-			if (rc) return rc;
-			for (i=0; (i<ct) && (rc == 0); ++i) {
-				rc =diswui(sock, *(reply->brp_un.brp_rescq.brq_resvd+i));
+			if (rc)
+				return rc;
+			for (i = 0; (i < ct) && (rc == 0); ++i) {
+				rc = diswui(sock, *(reply->brp_un.brp_rescq.brq_resvd + i));
 			}
-			if (rc) return rc;
-			for (i=0; (i<ct) && (rc == 0); ++i) {
-				rc =diswui(sock, *(reply->brp_un.brp_rescq.brq_down+i));
+			if (rc)
+				return rc;
+			for (i = 0; (i < ct) && (rc == 0); ++i) {
+				rc = diswui(sock, *(reply->brp_un.brp_rescq.brq_down + i));
 			}
-			if (rc) return rc;
+			if (rc)
+				return rc;
 			break;
 
 		case BATCH_REPLY_CHOICE_PreemptJobs:
@@ -214,9 +221,8 @@ encode_DIS_reply_inner(int sock, struct batch_reply *reply)
 				return rc;
 
 			for (i = 0; i < ct; i++) {
-				if (((rc = diswst(sock, ppj[i].job_id)) != 0) ||
-					((rc = diswst(sock, ppj[i].order)) != 0))
-						return rc;
+				if (((rc = diswst(sock, ppj[i].job_id)) != 0) || ((rc = diswst(sock, ppj[i].order)) != 0))
+					return rc;
 			}
 
 			break;
@@ -245,17 +251,23 @@ int
 encode_DIS_replyTPP(int sock, char *tppcmd_msgid, struct batch_reply *reply)
 {
 	int rc;
+
 	/* first encode "header" consisting of protocol type and version */
-
-	/* since it TPP connection, write a header */
-	if ((rc = is_compose(sock, IS_CMD_REPLY)) != DIS_SUCCESS)
+	if (reply->brp_choice == BATCH_REPLY_CHOICE_Status) {
+		if ((rc = ps_compose(sock, PS_STAT_RPLY)) != DIS_SUCCESS)
+			return rc;
+		return encode_DIS_reply(sock, reply);
+	} else {
+		if ((rc = is_compose(sock, IS_CMD_REPLY)) != DIS_SUCCESS)
 		return rc;
 
-	/* for IS_CMD_REPLY, also send across the tppcmd_msgid, so that
-	 * server can match the reply with the request it had sent earlier
-	 */
-	if ((rc = diswst(sock, tppcmd_msgid)) != DIS_SUCCESS)
-		return rc;
+		/* 
+		* for IS_CMD_REPLY, also send across the tppcmd_msgid, so that
+		* server can match the reply with the request it had sent earlier
+		*/
+		if ((rc = diswst(sock, tppcmd_msgid)) != DIS_SUCCESS)
+			return rc;
+	}
 
 	return (encode_DIS_reply_inner(sock, reply));
 }

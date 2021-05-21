@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -54,6 +54,8 @@
 #include "libpbs.h"
 #include "pbs_idx.h"
 #include "libutil.h"
+#include "pbs_entlim.h"
+#include "job.h"
 
 /**
  *
@@ -74,7 +76,7 @@
  */
 
 void
-clear_attr(attribute *pattr, struct attribute_def *pdef)
+clear_attr(attribute *pattr, attribute_def *pdef)
 {
 #ifndef NDEBUG
 	if (pdef == 0) {
@@ -102,7 +104,7 @@ clear_attr(attribute *pattr, struct attribute_def *pdef)
  *
  */
 void *
-cr_attrdef_idx(struct attribute_def *adef, int limit)
+cr_attrdef_idx(attribute_def *adef, int limit)
 {
 	int i;
 	void *attrdef_idx = NULL;
@@ -118,7 +120,7 @@ cr_attrdef_idx(struct attribute_def *adef, int limit)
 	for (i = 0; i < limit; i++) {
 		if (pbs_idx_insert(attrdef_idx, adef->at_name, adef) != PBS_IDX_RET_OK)
 			return NULL;
-		
+
 		adef++;
 	}
 	return attrdef_idx;
@@ -142,14 +144,14 @@ cr_attrdef_idx(struct attribute_def *adef, int limit)
  *
  */
 int
-find_attr(void *attrdef_idx, struct attribute_def *attr_def, char *name)
+find_attr(void *attrdef_idx, attribute_def *attr_def, char *name)
 {
 	int index = -1;
-	struct attribute_def *found_def = NULL;
+	attribute_def *found_def = NULL;
 
 	if (pbs_idx_find(attrdef_idx, (void **) &name, (void **)&found_def, NULL) == PBS_IDX_RET_OK)
 		index = (found_def - attr_def);
-		
+
 	return index;
 }
 
@@ -164,7 +166,7 @@ find_attr(void *attrdef_idx, struct attribute_def *attr_def, char *name)
  */
 
 void
-free_svrcache(struct attribute *attr)
+free_svrcache(attribute *attr)
 {
 	struct svrattrl *working;
 	struct svrattrl *sister;
@@ -204,7 +206,7 @@ free_svrcache(struct attribute *attr)
  */
 /*ARGSUSED*/
 void
-free_null(struct attribute *attr)
+free_null(attribute *attr)
 {
 	memset(&attr->at_val, 0, sizeof(attr->at_val));
 	if (attr->at_type == ATR_TYPE_SIZE)
@@ -264,7 +266,7 @@ set_null(attribute *pattr, attribute *new, enum batch_op op)
  */
 
 int
-comp_null(struct attribute *attr, struct attribute *with)
+comp_null(attribute *attr, attribute *with)
 {
 	return 0;
 }
@@ -571,7 +573,7 @@ attrl_fixlink(pbs_list_head *phead)
  */
 
 void
-free_none(struct attribute *attr)
+free_none(attribute *attr)
 {
 	/* do nothing */
 	/* to be used for accrue_type attribute of job */
@@ -755,11 +757,47 @@ copy_svrattrl_list(pbs_list_head *from_head, pbs_list_head *to_head)
 		if (add_to_svrattrl_list(to_head, plist->al_name, plist->al_resc,
 			plist->al_value, plist->al_op, NULL) == -1) {
 			free_attrlist(to_head);
+			CLEAR_HEAD((*to_head));
 			return -1;
 		}
 
 		plist = (svrattrl *)GET_NEXT(plist->al_link);
 	}
+	return 0;
+}
+
+/**
+ * @brief
+ * 	Copies contents of attr list headed by 'from_list' into 'to_head'
+ * 	It does not free the original list
+ *
+ * @param[in]		from_list	- source list
+ * @param[in,out]	to_head		- destination list
+ *
+ * @return int
+ * @retval 0	- success
+ * @retval -1	- failure
+ *
+ */
+int
+convert_attrl_to_svrattrl(struct attrl *from_list, pbs_list_head *to_head) {
+	struct attrl *plist = NULL;
+
+	if ((from_list == NULL) || (to_head == NULL))
+		return -1;
+
+	CLEAR_HEAD((*to_head));
+
+	for (plist = from_list; plist; plist = plist->next) {
+
+		if (add_to_svrattrl_list(to_head, plist->name, plist->resource,
+			plist->value, plist->op, NULL) == -1) {
+			free_attrlist(to_head);
+			CLEAR_HEAD((*to_head));
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
@@ -1596,3 +1634,278 @@ void free_attrl_list(struct attrl *at_list)
 
 }
 
+/**
+ * @brief	Generic attribute setter function, accepts all values as string regardless of the type
+ * 			Tip: use this when you want at_set() and at_decode() to be invoked, otherwise use the
+ * 			type based setters below
+ *
+ * @param[in]	pattr	-	pointer to attribute being set
+ * @param[in]	pdef 	-	attribute definition
+ * @param[in]	value	-	value to be set
+ * @param[in]	resc	-	value of resource, if applicable
+ * @param[in]	op	-	the batch_op op to perform (SET, INCR, etc.)
+ *
+ * @return	int
+ * @retval	0 for success
+ * @retval	!0 for failure
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ *
+ */
+int
+set_attr_generic(attribute *pattr, attribute_def *pdef, char *value, char *rescn, enum batch_op op)
+{
+	int rc;
+	attribute tempat;
+
+	if (pattr == NULL || pdef == NULL) {
+		log_err(-1, __func__, "Invalid pointer to attribute or its definition");
+		return 1;
+	}
+
+	if (! pdef->at_decode)
+		return 1;
+
+	/* Just call decode and set the value of attribute directly */
+	if (op == INTERNAL) {
+		if ((rc = pdef->at_decode(pattr, pdef->at_name, rescn, value)) != 0) {
+			log_errf(rc, __func__, "decode of %s failed", pdef->at_name);
+			return rc;
+		}
+		return 0;
+	}
+
+	clear_attr(&tempat, pdef);
+	if ((rc = pdef->at_decode(&tempat, pdef->at_name, rescn, value)) != 0) {
+		log_errf(rc, __func__, "decode of %s failed", pdef->at_name);
+		return rc;
+	}
+
+	rc = set_attr_with_attr(pdef, pattr, &tempat, op);
+
+	pdef->at_free(&tempat);
+
+	return rc;
+}
+
+
+
+/**
+ * @brief	Set attribute using another attribute
+ *
+ * @param[in]	pdef 	-	attribute definition
+ * @param[in]	oattr	-	pointer to attribute being set
+ * @param[in]	nattr	-	pointer to attribute to set with
+ * @param[in]	op		-	operation to do
+ *
+ * @return	int
+ * @retval	0 for success
+ * @retval	1 for failure
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ *
+ */
+int
+set_attr_with_attr(attribute_def *pdef, attribute *oattr, attribute *nattr, enum batch_op op)
+{
+	int rc;
+
+	if ((rc = pdef->at_set(oattr, nattr, op)) != 0)
+		log_errf(rc, __func__, "set of %s failed", pdef->at_name);
+
+	return rc;
+}
+
+/**
+ * @brief	Mark an attribute as "not set"
+ *
+ * @param[in]	attr	-	pointer to attribute being modified
+ *
+ * @return	void
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ *
+ */
+void
+mark_attr_not_set(attribute *attr)
+{
+	if (attr != NULL)
+		attr->at_flags &= ~ATR_VFLAG_SET;
+}
+
+/**
+ * @brief	Mark an attribute as "set"
+ *
+ * @param[in]	attr	-	pointer to attribute being modified
+ *
+ * @return	void
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ *
+ */
+void
+mark_attr_set(attribute *attr)
+{
+	if (attr != NULL)
+		attr->at_flags |= ATR_VFLAG_SET;
+}
+
+/**
+ * @brief	Check if an attribute is set
+ *
+ * @param[in]	pattr	-	pointer to the attribute
+ *
+ * @return	int
+ * @retval	1 if the attribute is set
+ * @retval	0 otherwise
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ */
+int
+is_attr_set(const attribute *pattr)
+{
+	if (pattr != NULL)
+		return pattr->at_flags & ATR_VFLAG_SET;
+	return 0;
+}
+
+/**
+ * @brief	Common function to update attribute after set action performed.
+ *
+ * @param[in]	attr	-	pointer to the attribute
+ *
+ * @return	void
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ */
+void
+post_attr_set(attribute *attr)
+{
+	attr->at_flags |= ATR_SET_MOD_MCACHE;
+}
+
+/**
+ * @brief
+ *		decode_sandbox - decode sandbox into string attribute
+ *
+ * @param[in,out]	patr - the string attribute that holds the decoded value
+ * @param[in]		name - project attribute name
+ * @param[in]		resc - resource name (unused here)
+ * @param[in]		val - project attribute value
+ *
+ * @return int
+ * @retval	0	- success
+ * @retval	>0	- error number if error.
+ *
+ * @note
+ *		argument rescn is unused here.
+ */
+
+int
+decode_sandbox(attribute *patr, char *name, char *rescn, char *val)
+{
+	char *pc;
+
+	pc = val;
+	while (isspace((int)*pc))
+		++pc;
+	if (*pc == '\0' || !isalpha((int)*pc))
+		return PBSE_BADATVAL;
+
+	/* compare to valid values of sandbox */
+	if ((strcasecmp(pc, "HOME") != 0) &&
+		(strcasecmp(pc, "O_WORKDIR") != 0) &&
+		(strcasecmp(pc, "PRIVATE") != 0)) {
+		return PBSE_BADATVAL;
+	}
+
+	return (decode_str(patr, name, rescn, val));
+}
+
+/**
+ * @brief
+ *	Decode project into string attribute.
+ *
+ * @param[in,out]	patr - the string attribute that holds the decoded value
+ * @param[in]		name - project attribute name
+ * @param[in]		resc - resource name (unused here)
+ * @param[in]		val - project attribute value
+ *
+ * @return	int
+ * @retval      0 if success
+ * @retval      > 0 error number if error
+ * @retval      *patr members set
+ */
+
+int
+decode_project(attribute *patr, char *name, char *rescn, char *val)
+{
+	char *pc;
+
+	pc = val;
+	while (isspace((int)*pc))
+		++pc;
+
+	if (strpbrk(pc, ETLIM_INVALIDCHAR) != NULL)
+		return PBSE_BADATVAL;
+
+	return (decode_str(patr, name, rescn,
+		(*val == '\0')?PBS_DEFAULT_PROJECT:val));
+}
+
+/**
+ * @brief
+ *	Generic function to return the ponter to the attribute.
+ *	Use of this function only within object getter functions.
+ *
+ * @param[in]	list		- Pointer to object's attribute list
+ * @param[in]	attr_idx	- Index of the attribute to be freed.
+ *
+ */
+attribute *
+_get_attr_by_idx(attribute *list, int attr_idx)
+{
+	return &(list[attr_idx]);
+}
+
+/**
+ * @brief
+ *	Generic function to free the attribute with corresponding free routine.
+ *
+ * @param[in]	attr_def	- Pointer to object's attribute defition
+ * @param[in]	pattr 		- Pointer to attribute list
+ * @param[in]	attr_idx	- Index of the attribute to be freed.
+ *
+ */
+void
+free_attr(attribute_def *attr_def, attribute *pattr, int attr_idx)
+{
+	if (attr_def != NULL && pattr != NULL && attr_def[attr_idx].at_free != NULL)
+		attr_def[attr_idx].at_free(pattr);
+}
+
+/**
+ * @brief	Generic getter for attribute's list value
+ * 
+ *
+ * @param[in]	pattr - pointer to the object
+ *
+ * @return	pbs_list_head
+ * @retval	value of attribute
+ * @retval	dummy pbs_list_head if pattr is NULL. This is to avoid GET_NEXT failing.
+ */
+pbs_list_head
+get_attr_list(const attribute *pattr)
+{
+	const pbs_list_head dummy = {(pbs_list_link *)&dummy, (pbs_list_link *)&dummy, NULL};
+	if (pattr)
+		return pattr->at_val.at_list;
+	else
+		return dummy;
+}

@@ -1,6 +1,6 @@
 
 #
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -43,7 +43,7 @@ lib_LIBRARIES = libsite.a
 
 libsite_a_CPPFLAGS = \
 	-I$(top_srcdir)/src/include \
-	-I$(top_srcdir)/src/resmom/${PBS_MACH} \
+	-I$(top_srcdir)/src/resmom/linux \
 	@KRB5_CFLAGS@
 
 libsite_a_SOURCES = \

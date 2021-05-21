@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_JOB_INFO_H
 #define	_JOB_INFO_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include <pbs_ifl.h>
 #include "data_types.h"
@@ -57,7 +54,7 @@ resource_resv *query_job(struct batch_status *job, server_info *sinfo, schd_erro
 void query_jobs_chunk(th_data_query_jinfo *data);
 
 /* create an array of jobs for a particular queue */
-resource_resv **query_jobs(status *policy, int pbs_sd, queue_info *qinfo, resource_resv **pjobs, char *queue_name);
+resource_resv **query_jobs(status *policy, int pbs_sd, queue_info *qinfo, resource_resv **pjobs, const std::string& queue_name);
 
 
 /*
@@ -79,18 +76,22 @@ void free_job_info(job_info *jinfo);
  *      set_job_state - set the state flag in a job_info structure
  *                      i.e. the is_* bit
  */
-int set_job_state(char *state, job_info *jinfo);
+int set_job_state(const char *state, job_info *jinfo);
 
 /* update_job_attr - update job attributes on the server */
 int
-update_job_attr(int pbs_sd, resource_resv *resresv, char *attr_name,
-	char *attr_resc, char *attr_value, struct attrl *extra, unsigned int flags );
+update_job_attr(int pbs_sd, resource_resv *resresv, const char *attr_name,
+	const char *attr_resc, const char *attr_value, struct attrl *extra, unsigned int flags );
 
 /* send delayed job attribute updates for job using send_attr_updates() */
 int send_job_updates(int pbs_sd, resource_resv *job);
 
 /* send delayed attributes to the server for a job */
-int send_attr_updates(int pbs_sd, char *job_name, struct attrl *pattr);
+int send_attr_updates(int virtual_fd, resource_resv *resresv, struct attrl *pattr);
+
+preempt_job_info *send_preempt_jobs(int virtual_sd, char **preempt_jobs_list);
+
+int send_sigjob(int virtual_sd, resource_resv *resresv, const char *signal, char *extend);
 
 
 /*
@@ -111,7 +112,7 @@ int send_attr_updates(int pbs_sd, char *job_name, struct attrl *pattr);
  *
  */
 int
-unset_job_attr(int pbs_sd, resource_resv *resresv, char *attr_name, unsigned int flags);
+unset_job_attr(int pbs_sd, resource_resv *resresv, const char *attr_name, unsigned int flags);
 
 /*
  *      update_jobs_cant_run - update an array of jobs which can not run
@@ -172,7 +173,7 @@ select_index_to_preempt(status *policy, resource_resv *hjob,
  *      preempt_level - take a preemption priority and return a preemption
  *                      level
  */
-int preempt_level(int prio);
+int preempt_level(unsigned int prio);
 
 /*
  *      set_preempt_prio - set a job's preempt field to the correct value
@@ -187,7 +188,7 @@ void set_preempt_prio(resource_resv *job, queue_info *qinfo, server_info *sinfo)
  *
  * return created subjob name
  */
-char *create_subjob_name(char *array_id, int index);
+std::string create_subjob_name(const std::string& array_id, int index);
 
 /*
  *	create_subjob_from_array - create a resource_resv structure for a subjob
@@ -195,8 +196,7 @@ char *create_subjob_name(char *array_id, int index);
  *				   will be in state 'Q'
  */
 resource_resv *
-create_subjob_from_array(resource_resv *array, int index, char
-	*subjob_name);
+create_subjob_from_array(resource_resv *array, int index, const std::string& subjob_name);
 
 /*
  *	update_array_on_run - update a job array object when a subjob is run
@@ -247,7 +247,7 @@ queue_subjob(resource_resv *array, server_info *sinfo,
  *		NOTE: currently done through embedded python interpreter
  */
 
-sch_resource_t formula_evaluate(char *formula, resource_resv *resresv, resource_req *resreq);
+sch_resource_t formula_evaluate(const char *formula, resource_resv *resresv, resource_req *resreq);
 
 /*
  *
@@ -264,7 +264,7 @@ sch_resource_t formula_evaluate(char *formula, resource_resv *resresv, resource_
  *
  */
 
-void update_accruetype(int pbs_sd, server_info *sinfo, enum update_accruetype_mode mode, enum sched_error err_code, resource_resv *resresv);
+void update_accruetype(int pbs_sd, server_info *sinfo, enum update_accruetype_mode mode, enum sched_error_code err_code, resource_resv *resresv);
 
 /**
  * @brief
@@ -289,29 +289,6 @@ char * getaoename(selspec *select);
  * @retval	eoe name string
  */
 char * geteoename(selspec *select);
-
-/**
- *	job_starving - returns if a job is starving, and if the job is
- *		       starving, it returns a notion of how starving the
- *		       job is.  The higher the number, the more starving.
- *
- *	  \param sjob - the job to check if it's starving
- *
- *	\return starving number or 0 if not starving
- *
- */
-long job_starving(status *policy, resource_resv *sjob);
-
-/*
- *	mark_job_starving - mark a job starving and handle setting all the
- *			    approprate elements and bits which go with it.
- *
- *	  sjob - the starving job
- *	  sch_priority - the sch_priority of the starving job
- *
- *	return nothing
- */
-void mark_job_starving(resource_resv *sjob, long sch_priority);
 
 /*
  *
@@ -377,7 +354,7 @@ int find_resresv_set(status *policy, resresv_set **rsets, char *user, char *grou
 int find_resresv_set_by_resresv(status *policy, resresv_set **rsets, resource_resv *resresv);
 
 /* create the array of resdef's to use to create resresv->req*/
-resdef **create_resresv_sets_resdef(status *policy, server_info *sinfo);
+std::unordered_set<resdef *> create_resresv_sets_resdef(status *policy);
 
 /* Create an array of resresv_sets based on sinfo*/
 resresv_set **create_resresv_sets(status *policy, server_info *sinfo);
@@ -387,12 +364,12 @@ resresv_set **create_resresv_sets(status *policy, server_info *sinfo);
  *  The string created will be similar to how exec_vnode is presented
  *  example: (node1:ncpus=8)+(node2:ncpus=8)
  */
-void create_res_released( status *policy, resource_resv *pjob);
+void create_res_released(status *policy, resource_resv *pjob);
 
 /*
  *This function populates resreleased job structure for a particular job.
  */
-nspec **create_res_released_array( status *policy, resource_resv *resresv);
+nspec **create_res_released_array(status *policy, resource_resv *resresv);
 
 /*
  * @brief create a resource_rel array for a job by accumulating all of the RASSN
@@ -406,9 +383,13 @@ long extend_soft_walltime(resource_resv *resresv, time_t server_time);
 /* Returns a list of preemptable candidates */
 resource_resv **filter_preemptable_jobs(resource_resv **arr, resource_resv *job, schd_error *err);
 
+/*
+ * This function processes every job's depend attribute and
+ * associate the jobs with runone dependency to its dependent_jobs list.
+ */
 void associate_dependent_jobs(server_info *sinfo);
 
-#ifdef	__cplusplus
-}
-#endif
+/* This function associated the job passed in to its parent job */
+int associate_array_parent(resource_resv *pjob, server_info *sinfo);
+
 #endif	/* _JOB_INFO_H */

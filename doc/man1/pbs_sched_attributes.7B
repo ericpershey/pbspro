@@ -1,5 +1,5 @@
 .\"
-.\" Copyright (C) 1994-2020 Altair Engineering, Inc.
+.\" Copyright (C) 1994-2021 Altair Engineering, Inc.
 .\" For more information, contact Altair at www.altair.com.
 .\"
 .\" This file is part of both the OpenPBS software ("OpenPBS")
@@ -36,7 +36,7 @@
 .\" "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
 .\" subject to Altair's trademark licensing policies.
 .\"
-.TH pbs_sched_attributes 7B "6 May 2020" Local "PBS Professional"
+.TH pbs_sched_attributes 7B "4 March 2020" Local "PBS Professional"
 .SH NAME
 .B pbs_sched_attributes
 \- attributes of default PBS scheduler and multischeds
@@ -428,15 +428,7 @@ Default:
 .I $PBS_HOME/sched_logs_<scheduler name>
 
 .IP sched_port 8
-Port on which this scheduler listens.  Cannot be set on default scheduler.
-Must be set by administrator.  
-.br
-Format: 
-.I String
-.br
-Default: None
-.br
-Python type: No Python type
+.B Removed. 
 
 .IP sched_preempt_enforce_resumption 8
 Controls whether the scheduler treats preempted jobs as top jobs.  

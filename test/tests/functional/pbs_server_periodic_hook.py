@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -296,9 +296,9 @@ pbs.logmsg(pbs.LOG_DEBUG, "periodic hook ended at %%d" %% time.time())
         """
         hook_name = "medium_hook"
         scr = self.create_hook(accept=True, sleep_time=10)
-        attrs = {'event': 'periodic', 'alarm': 15, 'freq': 5}
+        attrs = {'event': 'periodic', 'alarm': 15, 'freq': 6}
         self.server.create_import_hook(hook_name, attrs, scr, overwrite=True)
-        self.check_next_occurances(2, freq=5, hook_run_time=10,
+        self.check_next_occurances(2, freq=6, hook_run_time=10,
                                    check_for_hook_end=True, alarm=15)
 
     def test_check_for_negative_freq(self):
@@ -386,7 +386,6 @@ pbs.logmsg(pbs.LOG_DEBUG, "periodic hook ended at %%d" %% time.time())
         j = Job(TEST_USER, attrs=a)
         j.set_sleep_time(3)
         jid1 = self.server.submit(j)
-        self.server.expect(JOB, {'job_state': 'R'}, id=jid1)
         self.server.expect(JOB, 'queue', id=jid1, op=UNSET, offset=3)
         self.server.log_match(jid1 + ";Exit_status=0")
         j1 = Job(TEST_USER)

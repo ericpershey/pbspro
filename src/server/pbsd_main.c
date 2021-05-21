@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -88,6 +88,7 @@
 #include "pbs_idx.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
+#include <libutil.h>
 #include "tracking.h"
 #include "acct.h"
 #include "sched_cmds.h"
@@ -107,6 +108,8 @@
 #include "auth.h"
 #include "libutil.h"
 
+#include "pbs_v1_module_common.i"
+
 /* External functions called */
 
 extern int  pbsd_init(int);
@@ -119,8 +122,6 @@ extern void stop_db();
 #ifdef NAS /* localmod 005 */
 extern int chk_and_update_db_svrhost();
 #endif /* localmod 005 */
-
-extern int put_sched_cmd(int sock, int cmd, char *jobid);
 
 /* External data items */
 extern  pbs_list_head svr_requests;
@@ -148,125 +149,39 @@ char		*path_usedlicenses;
 char		path_log[MAXPATHLEN+1];
 char		*path_priv;
 char		*path_jobs;
-char		*path_hooks;
-char		*path_hooks_workdir;
 char		*path_hooks_tracking;
 char		*path_users;
-char		*path_rescdef;
 char		*path_hooks_rescdef;
 char		*path_spool;
 char		*path_track;
 char		*path_svrlive;
 extern char	*path_prov_track;
 char		*path_secondaryact;
-attribute	*pbs_float_lic;
 char		*pbs_o_host = "PBS_O_HOST";
 pbs_net_t	pbs_mom_addr;
 unsigned int	pbs_mom_port;
 unsigned int	pbs_rm_port;
 pbs_net_t	pbs_server_addr;
 unsigned int	pbs_server_port_dis;
-/*
- * the names of the Server:
- *    pbs_server_name - from PBS_SERVER_HOST_NAME
- *	  server_name - from PBS_SERVER
- *	  server_host - Set as follows:
- *	  		1. FQDN of pbs_server_name if set
- *	  		2. FQDN of server_name if set
- *	  		3. Call gethostname()
- *
- * The following is an excerpt from the EDD for SPID 4534 that explains
- * how PBS_SERVER_HOST_NAME is used:
- *
- * I.1.2.3	Synopsis:
- * Add new optional entry in PBS Configuration whose value is the fully
- * qualified domain name (FQDN) of the host on which the PBS Server is
- * running.
- *	I.1.2.3.1	This name is used by clients to contact the Server.
- *	I.1.2.3.2	If PBS Failover is configured (PBS_PRIMARY and
- *			PBS_SECONDARY in the PBS Configuration), this symbol
- *			and its value will be ignored and the values of
- *			PBS_PRIMARY and PBS_SECONDARY will be use as per
- *			sectionI.1.1.1.
- *	I.1.2.3.3	When  PBS failover is not configured and
- *			PBS_SERVER_HOST_NAME is specified, if the server_name
- *			is not specified by the client or is specified and
- *			matches the value of PBS_SERVER, then the value of
- *			PBS_SERVER_HOST_NAME is used as the name of the Server
- *			to contact.
- *	I.1.2.3.4	Note: When PBS_SERVER_HOST_NAME is not specified,
- *			the current behavior for determining the name of the
- *			Server to contact will still apply.
- *	I.1.2.3.5	The value of the configuration variable should be a
- *			fully qualified host name to avoid the possibility of
- *			host name collisions (e.g. master.foo.domain.name and
- *			master.bar.domain.name).
- */
-
-char	       *pbs_server_name;
-char		server_name[PBS_MAXSERVERNAME+1]; /* host_name[:service|port] */
-char		server_host[PBS_MAXHOSTNAME+1];	  /* host_name of this svr */
 int		reap_child_flag = 0;
 time_t		secondary_delay = 30;
-struct server	server = {{0}};		/* the server structure */
 pbs_sched	*dflt_scheduler = NULL; /* the default scheduler */
 int		shutdown_who;		/* see req_shutdown() */
 char		*mom_host = server_host;
 long		new_log_event_mask = 0;
 int		server_init_type = RECOV_WARM;
-int		svr_delay_entry = 0;
 pbs_list_head	svr_deferred_req;
-pbs_list_head	svr_queues;            /* list of queues                   */
-pbs_list_head	svr_alljobs;           /* list of all jobs in server       */
 pbs_list_head	svr_newjobs;           /* list of incomming new jobs       */
-pbs_list_head	svr_allresvs;          /* all reservations in server */
-pbs_list_head	task_list_immed;
-pbs_list_head	task_list_timed;
-pbs_list_head	task_list_event;
-pbs_list_head	svr_allhooks;
-pbs_list_head	svr_queuejob_hooks;
-pbs_list_head	svr_modifyjob_hooks;
-pbs_list_head	svr_resvsub_hooks;
-pbs_list_head	svr_movejob_hooks;
-pbs_list_head	svr_runjob_hooks;
-pbs_list_head	svr_management_hooks;
-pbs_list_head	svr_provision_hooks;
-pbs_list_head	svr_periodic_hooks;
-pbs_list_head	svr_resv_end_hooks;
-pbs_list_head	svr_execjob_begin_hooks;
-pbs_list_head	svr_execjob_prologue_hooks;
-pbs_list_head	svr_execjob_epilogue_hooks;
-pbs_list_head	svr_execjob_preterm_hooks;
-pbs_list_head	svr_execjob_launch_hooks;
-pbs_list_head	svr_execjob_end_hooks;
-pbs_list_head	svr_exechost_periodic_hooks;
-pbs_list_head	svr_exechost_startup_hooks;
-pbs_list_head	svr_execjob_attach_hooks;
-pbs_list_head	svr_execjob_resize_hooks;
-pbs_list_head	svr_execjob_abort_hooks;
-pbs_list_head	svr_execjob_postsuspend_hooks;
-pbs_list_head	svr_execjob_preresume_hooks;
 pbs_list_head	svr_allscheds;
 extern pbs_list_head	svr_creds_cache; /* all credentials available to send */
-time_t		time_now;
 struct batch_request	*saved_takeover_req;
-struct python_interpreter_data  svr_interp_data;
 int svr_unsent_qrun_req = 0;	/* Set to 1 for scheduling unsent qrun requests */
 
 void *jobs_idx;
 void *queues_idx;
 void *resvs_idx;
 
-void *job_attr_idx;
-void *resv_attr_idx;
-void *node_attr_idx;
-void *que_attr_idx;
-void *svr_attr_idx;
-void *sched_attr_idx;
-
 sigset_t	allsigs;
-
-int	have_blue_gene_nodes = 0;	/* BLUE GENE only */
 
 /* private data */
 static char    *suffix_slash = "/";
@@ -294,8 +209,7 @@ int tpp_network_up = 0;
 void
 net_restore_handler(void *data)
 {
-	if (tpp_log_func)
-		tpp_log_func(LOG_INFO, NULL, "net restore handler called");
+	log_event(PBSEVENT_ERROR | PBSEVENT_FORCE, PBS_EVENTCLASS_SERVER, LOG_ALERT,  __func__, "net restore handler called");
 	tpp_network_up = 1;
 }
 
@@ -314,15 +228,14 @@ net_down_handler(void *data)
 	if (tpp_network_up == 1) {
 		tpp_network_up = 0;
 		/* now loop and set all nodes to down */
-		if (tpp_log_func)
-			tpp_log_func(LOG_CRIT, NULL, "marking all nodes unknown");
+		log_event(PBSEVENT_ERROR | PBSEVENT_FORCE, PBS_EVENTCLASS_SERVER, LOG_ALERT, __func__, "marking all nodes unknown");
 		mark_nodes_unknown(1);
 	}
 }
 
 static int lockfds = -1;
 static int already_forked = 0; /* we check this variable even in non-debug mode, so dont condition compile it */
-static int background = 0; 
+static int background = 0;
 
 #ifndef DEBUG
 /**
@@ -376,6 +289,7 @@ do_tpp(int stream)
 {
 	int			ret, proto, version;
 	void			is_request(int, int);
+	void			ps_request(int, int);
 	void			stream_eof(int, int, char *);
 
 	DIS_tpp_funcs();
@@ -397,6 +311,11 @@ do_tpp(int stream)
 		case	IS_PROTOCOL:
 			DBPRT(("%s: got an inter-server request\n", __func__))
 			is_request(stream, version);
+			break;
+
+		case	PS_PROTOCOL:
+			DBPRT(("%s: got a peer-server request\n", __func__))
+			ps_request(stream, version);
 			break;
 
 		default:
@@ -428,8 +347,8 @@ tpp_request(int fd)
 	 * appear sluggish if not interleaved.
 	 *
 	 */
-	if (server.sv_attr[(int) SVR_ATR_rpp_max_pkt_check].at_flags & ATR_VFLAG_SET)
-		rpp_max_pkt_check = server.sv_attr[(int) SVR_ATR_rpp_max_pkt_check].at_val.at_long;
+	if (is_sattr_set(SVR_ATR_rpp_max_pkt_check))
+		rpp_max_pkt_check = get_sattr_long(SVR_ATR_rpp_max_pkt_check);
 
 	for (iloop = 0; iloop < rpp_max_pkt_check; iloop++) {
 		int	stream;
@@ -504,7 +423,6 @@ void
 pbs_close_stdfiles(void)
 {
 	static int already_done = 0;
-#define NULL_DEVICE "/dev/null"
 
 	if (!already_done) {
 		FILE *dummyfile;
@@ -534,7 +452,6 @@ pbs_close_stdfiles(void)
  *		shut down may have there exec_vnode left to assist in HOT start.
  *		If left set, the job is trapped into requiring those nodes.
  *		Clear on any job not running and without a restart file.
- *		Also clear "pset" for BlueGene
  */
 static void
 clear_exec_vnode()
@@ -543,22 +460,14 @@ clear_exec_vnode()
 
 	for (pjob = (job *)GET_NEXT(svr_alljobs); pjob;
 		pjob = (job *)GET_NEXT(pjob->ji_alljobs)) {
-		if ((pjob->ji_qs.ji_state != JOB_STATE_RUNNING) &&
-			(pjob->ji_qs.ji_state != JOB_STATE_FINISHED) &&
-			(pjob->ji_qs.ji_state != JOB_STATE_MOVED) &&
-			(pjob->ji_qs.ji_state != JOB_STATE_EXITING)) {
-			if (((pjob->ji_wattr[(int)JOB_ATR_exec_vnode].at_flags &
-				ATR_VFLAG_SET) != 0) &&
-				((pjob->ji_qs.ji_svrflags & JOB_SVFLG_CHKPT) == 0)) {
-
-				job_attr_def[(int)JOB_ATR_exec_vnode].at_free(
-					&pjob->ji_wattr[(int)JOB_ATR_exec_vnode]);
-				job_attr_def[(int)JOB_ATR_exec_host].at_free(
-					&pjob->ji_wattr[(int)JOB_ATR_exec_host]);
-				job_attr_def[(int)JOB_ATR_exec_host2].at_free(
-					&pjob->ji_wattr[(int)JOB_ATR_exec_host2]);
-				job_attr_def[(int)JOB_ATR_pset].at_free(
-					&pjob->ji_wattr[(int)JOB_ATR_pset]);
+		if ((!check_job_state(pjob, JOB_STATE_LTR_RUNNING)) &&
+			(!check_job_state(pjob, JOB_STATE_LTR_FINISHED)) &&
+			(!check_job_state(pjob, JOB_STATE_LTR_MOVED)) &&
+			(!check_job_state(pjob, JOB_STATE_LTR_EXITING))) {
+			if (is_jattr_set(pjob, JOB_ATR_exec_vnode) && (pjob->ji_qs.ji_svrflags & JOB_SVFLG_CHKPT) == 0) {
+				free_jattr(pjob, JOB_ATR_exec_vnode);
+				free_jattr(pjob, JOB_ATR_exec_host);
+				free_jattr(pjob, JOB_ATR_exec_host2);
 			}
 
 		}
@@ -603,23 +512,9 @@ reap_child(void)
 				ptask->wt_aux = (int)statloc;	/* exit status */
 				svr_delay_entry++;	/* see next_task() */
 			}
-			ptask = (struct work_task *)GET_NEXT(ptask->wt_linkall);
+			ptask = (struct work_task *)GET_NEXT(ptask->wt_linkevent);
 		}
 	}
-}
-
-/**
- * @brief
- * 		checks if PBS server can schedule jobs
- *
- * @return	int
- * @return	1	- PBS server can schedule jobs
- * @return	0	- can't schedule jobs
- */
-static int
-can_schedule()
-{
-	return (1);
 }
 
 
@@ -719,10 +614,8 @@ main(int argc, char **argv)
 	char hook_msg[HOOK_MSG_SIZE];
 	pbs_sched *psched;
 	char *keep_daemon_name = NULL;
-	job *pjob;
-	resc_resv *presv;
 	pid_t sid = -1;
-	long *state;
+	long state;
 	time_t waittime;
 #ifdef _POSIX_MEMLOCK
 	int do_mlockall = 0;
@@ -741,9 +634,6 @@ main(int argc, char **argv)
 		{ "",		RECOV_Invalid }
 	};
 	static int		first_run = 1;
-
-	pbs_net_t		pbs_scheduler_addr;
-	unsigned int		pbs_scheduler_port;
 
 	extern int		optind;
 	extern char		*optarg;
@@ -830,7 +720,6 @@ main(int argc, char **argv)
 	/* initialize service port numbers for self, Scheduler, and MOM */
 
 	pbs_server_port_dis = pbs_conf.batch_service_port;
-	pbs_scheduler_port = pbs_conf.scheduler_service_port;
 	pbs_mom_port = pbs_conf.mom_service_port;
 	pbs_rm_port = pbs_conf.manager_service_port;
 
@@ -847,22 +736,12 @@ main(int argc, char **argv)
 	pbs_server_addr = get_hostaddr(server_host);
 	pbs_mom_addr = pbs_server_addr;		/* assume on same host */
 
-	if ((pbs_conf.pbs_secondary == NULL) && (pbs_conf.pbs_primary == NULL)) {
-		/* if not a failover configuration, by default the */
-		/* Scheduler is on the same host as the Server */
-		pbs_scheduler_addr = pbs_server_addr;
-	} else {
-		/* in a failover configuration, the default */
-		/* Scheduler is on the primary host */
-		pbs_scheduler_addr = get_hostaddr(pbs_conf.pbs_primary);
-	}
-
 	/* parse the parameters from the command line */
 
-	while ((c = getopt(argc, argv, "A:a:Cd:e:F:p:t:lL:M:NR:S:g:G:s:P:-:")) != -1) {
+	while ((c = getopt(argc, argv, "A:a:Cd:e:F:p:t:lL:M:NR:g:G:s:P:-:")) != -1) {
 		switch (c) {
 			case 'a':
-				if (decode_b(&server.sv_attr[(int)SVR_ATR_scheduling], NULL,
+				if (decode_b(get_sattr(SVR_ATR_scheduling), NULL,
 					NULL, optarg) != 0) {
 					(void)fprintf(stderr, "%s: bad -a option\n", argv[0]);
 					return (1);
@@ -950,13 +829,6 @@ main(int argc, char **argv)
 					return 1;
 				}
 				break;
-			case 'S':
-				if (get_port(optarg, &pbs_scheduler_port,
-					&pbs_scheduler_addr)) {
-					(void)fprintf(stderr, "%s: bad -S %s\n", argv[0], optarg);
-					return (1);
-				}
-				break;
 
 			case '-':
 				(void)fprintf(stderr, "%s: bad - mistyped or specified more than --version\n", argv[0]);
@@ -997,10 +869,9 @@ main(int argc, char **argv)
 		return (2);
 	}
 
-	server.sv_started = time(&time_now);	/* time server started */
-
 	CLEAR_HEAD(svr_requests);
 	CLEAR_HEAD(task_list_immed);
+	CLEAR_HEAD(task_list_interleave);
 	CLEAR_HEAD(task_list_timed);
 	CLEAR_HEAD(task_list_event);
 	CLEAR_HEAD(svr_queues);
@@ -1015,6 +886,7 @@ main(int argc, char **argv)
 	CLEAR_HEAD(svr_movejob_hooks);
 	CLEAR_HEAD(svr_runjob_hooks);
 	CLEAR_HEAD(svr_management_hooks);
+	CLEAR_HEAD(svr_modifyvnode_hooks);
 	CLEAR_HEAD(svr_periodic_hooks);
 	CLEAR_HEAD(svr_provision_hooks);
 	CLEAR_HEAD(svr_resv_end_hooks);
@@ -1033,6 +905,7 @@ main(int argc, char **argv)
 	CLEAR_HEAD(svr_execjob_preresume_hooks);
 	CLEAR_HEAD(svr_allscheds);
 	CLEAR_HEAD(svr_creds_cache);
+	CLEAR_HEAD(unlicensed_nodes_list);
 
 	/* initialize paths that we will need */
 	path_priv       = build_path(pbs_conf.pbs_home_path, PBS_SVR_PRIVATE,
@@ -1045,8 +918,8 @@ main(int argc, char **argv)
 	path_acct	= build_path(path_priv, PBS_ACCT, suffix_slash);
 	path_track	= build_path(path_priv, PBS_TRACKING, NULL);
 	path_prov_track	= build_path(path_priv, PBS_PROV_TRACKING, NULL);
-	path_usedlicenses=build_path(path_priv, "usedlic", NULL);
-	path_secondaryact=build_path(path_priv, "secondary_active", NULL);
+	path_usedlicenses = build_path(path_priv, "usedlic", NULL);
+	path_secondaryact = build_path(path_priv, "secondary_active", NULL);
 	path_hooks       = build_path(path_priv, PBS_HOOKDIR, suffix_slash);
 	path_hooks_workdir = build_path(path_priv, PBS_HOOK_WORKDIR,
 		suffix_slash);
@@ -1065,9 +938,8 @@ main(int argc, char **argv)
 	 * set log_event_mask to point to the log_event attribute value so
 	 * it controls which events are logged.
 	 */
-	server.sv_attr[(int)SVR_ATR_log_events].at_val.at_long = PBSEVENT_MASK;
-	server.sv_attr[(int)SVR_ATR_log_events].at_flags = ATR_SET_MOD_MCACHE;
-	log_event_mask = &server.sv_attr[SVR_ATR_log_events].at_val.at_long;
+	set_sattr_l_slim(SVR_ATR_log_events, PBSEVENT_MASK, SET);
+	*log_event_mask = get_sattr_long(SVR_ATR_log_events);
 	(void)sprintf(path_log, "%s/%s", pbs_conf.pbs_home_path, PBS_LOGFILES);
 
 	(void)log_open(log_file, path_log);
@@ -1211,13 +1083,6 @@ main(int argc, char **argv)
 	/* Python world, which are made  complete after call to pbsd_init()! */
 	pbs_python_ext_quick_start_interpreter();
 
-	if (pbsd_init(server_init_type) != 0) {
-		log_err(-1, msg_daemonname, "pbsd_init failed");
-		pbs_python_ext_quick_shutdown_interpreter();
-		stop_db();
-		return (3);
-	}
-
 	/* The real pbs_python_ext_start_interpreter() will be called later  */
 	/* for the permanent interpreter start.				     */
 	pbs_python_ext_quick_shutdown_interpreter();
@@ -1235,8 +1100,8 @@ main(int argc, char **argv)
 
 	if ((sock = init_network(pbs_server_port_dis)) < 0) {
 		(void) sprintf(log_buffer,
-			"init_network failed using ports Server:%u Scheduler:%u MOM:%u RM:%u",
-			pbs_server_port_dis, pbs_scheduler_port, pbs_mom_port, pbs_rm_port);
+			"init_network failed using ports Server:%u MOM:%u RM:%u",
+			pbs_server_port_dis, pbs_mom_port, pbs_rm_port);
 		log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
 			LOG_ERR, msg_daemonname, log_buffer);
 		fprintf(stderr, "%s\n", log_buffer);
@@ -1325,7 +1190,7 @@ main(int argc, char **argv)
 	}
 
 	/* set tpp config */
-	rc = set_tpp_config(NULL, &pbs_conf, &tpp_conf, nodename, pbs_server_port_dis, pbs_conf.pbs_leaf_routers);
+	rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_server_port_dis, pbs_conf.pbs_leaf_routers);
 	free(nodename);
 	if (rc == -1) {
 		(void) sprintf(log_buffer, "Error setting TPP config");
@@ -1346,6 +1211,16 @@ main(int argc, char **argv)
 
 	(void)add_conn(tppfd, TppComm, (pbs_net_t)0, 0, NULL, tpp_request);
 
+	tfree2(&ipaddrs);
+	tfree2(&streams);
+
+	if (pbsd_init(server_init_type) != 0) {
+		log_err(-1, msg_daemonname, "pbsd_init failed");
+		pbs_python_ext_quick_shutdown_interpreter();
+		stop_db();
+		return (3);
+	}
+
 	/* record the fact that the Secondary is up and active (running) */
 
 	if (pbs_failover_active) {
@@ -1358,10 +1233,9 @@ main(int argc, char **argv)
 		(void)set_task(WORK_Timed, time_now, secondary_handshake, NULL);
 
 		svr_mailowner(0, 0, 1, log_buffer);
-		if (server.sv_attr[(int)SVR_ATR_scheduling].at_val.at_long) {
+		if (get_sattr_long(SVR_ATR_scheduling)) {
 			/* Bring up scheduler here */
-			pbs_scheduler_addr = get_hostaddr(pbs_conf.pbs_secondary);
-			if (contact_sched(SCH_SCHEDULE_NULL, NULL, pbs_scheduler_addr, pbs_scheduler_port) < 0) {
+			if (dflt_scheduler->sc_primary_conn == -1) {
 				char **workenv;
 				char schedcmd[MAXPATHLEN + 1];
 				/* save the current, "safe", environment.
@@ -1389,27 +1263,20 @@ main(int argc, char **argv)
 		(void)set_task(WORK_Timed, time_now, primary_handshake, NULL);
 
 	}
-	dflt_scheduler->pbs_scheduler_addr = pbs_scheduler_addr;
-	dflt_scheduler->pbs_scheduler_port = pbs_scheduler_port;
 
-	sprintf(log_buffer, msg_startup2, sid, pbs_server_port_dis,
-		pbs_scheduler_port, pbs_mom_port, pbs_rm_port);
-
-	log_event(PBSEVENT_SYSTEM | PBSEVENT_FORCE, PBS_EVENTCLASS_SERVER,
-		LOG_INFO, msg_daemonname, log_buffer);
-
+	log_eventf(PBSEVENT_SYSTEM | PBSEVENT_FORCE, PBS_EVENTCLASS_SERVER, LOG_INFO,
+		   msg_daemonname, msg_startup2,
+		   sid, pbs_server_port_dis, pbs_mom_port, pbs_rm_port);
 
 	/*
 	 * Now at last, we are read to do some batch work, the
 	 * following section constitutes the "main" loop of the server
 	 */
 
-	state  = &server.sv_attr[(int)SVR_ATR_State].at_val.at_long;
 	if (server_init_type == RECOV_HOT)
-		*state = SV_STATE_HOT;
+		set_sattr_l_slim(SVR_ATR_State, SV_STATE_HOT, SET);
 	else
-		*state = SV_STATE_RUN;
-
+		set_sattr_l_slim(SVR_ATR_State, SV_STATE_RUN, SET);
 
 	/* Can start the python interpreter this late, before the main loop,*/
 	/* which is when requests are actually read and processed           */
@@ -1452,14 +1319,6 @@ main(int argc, char **argv)
 	}
 	process_hooks(periodic_req, hook_msg, sizeof(hook_msg), pbs_python_set_interrupt);
 	/*
-	 * Make the scheduler (re)-read the configuration
-	 * and fairshare usage.
-	 */
-	(void)contact_sched(SCH_CONFIGURE, NULL, pbs_scheduler_addr, pbs_scheduler_port);
-	(void)contact_sched(SCH_SCHEDULE_NULL, NULL, pbs_scheduler_addr, pbs_scheduler_port);
-
-
-	/*
 	 * main loop of server
 	 * stays in this loop until server's state is either
 	 * 	_DOWN - time to complete shutdown and exit, or
@@ -1468,7 +1327,7 @@ main(int argc, char **argv)
 	 * If state includes SV_STATE_PRIMDLY, stay in loop; this will be
 	 * cleared when Secondary Server responds to a request.
 	 */
-	while ((*state != SV_STATE_DOWN) && (*state != SV_STATE_SECIDLE)) {
+	while ((state = get_sattr_long(SVR_ATR_State)) != SV_STATE_DOWN && state != SV_STATE_SECIDLE) {
 
 		/*
 		 * double check that if we are an active Secondary Server, that
@@ -1479,7 +1338,7 @@ main(int argc, char **argv)
 			if (stat(path_secondaryact, &sb_sa) == -1) {
 				if (errno == ENOENT) {
 					/* file gone, restart to go idle */
-					server.sv_attr[(int)SVR_ATR_State].at_val.at_long = SV_STATE_SECIDLE;
+					set_sattr_l_slim(SVR_ATR_State, SV_STATE_SECIDLE, SET);
 					break;
 				}
 			}
@@ -1488,7 +1347,7 @@ main(int argc, char **argv)
 		/* first process any task whose time delay has expired */
 		waittime = next_task();
 
-		if (*state == SV_STATE_RUN) {	/* In normal Run State */
+		if ((state = get_sattr_long(SVR_ATR_State)) == SV_STATE_RUN) {	/* In normal Run State */
 
 			if (first_run) {
 
@@ -1499,40 +1358,22 @@ main(int argc, char **argv)
 				clear_exec_vnode();
 				first_run = 0;
 			}
-			for (psched = (pbs_sched*) GET_NEXT(svr_allscheds); psched; psched = (pbs_sched*) GET_NEXT(psched->sc_link)) {
-				/* if time or event says to run scheduler, do it */
+			for (psched = (pbs_sched *) GET_NEXT(svr_allscheds); psched; psched = (pbs_sched *) GET_NEXT(psched->sc_link)) {
+
+				/* schedule anything only if sched is connected */
+				if (psched->sc_primary_conn == -1 || psched->sc_secondary_conn == -1)
+					continue;
 
 				/* if we have a high prio sched command, send it 1st */
 				if (psched->svr_do_sched_high != SCH_SCHEDULE_NULL)
 					schedule_high(psched);
 				if (psched->svr_do_schedule == SCH_SCHEDULE_RESTART_CYCLE) {
-
-					/* send only to existing connection */
-					/* since it is for interrupting current */
-					/* cycle */
-					/* NOTE: both primary and secondary scheduler */
-					/* connect must have been setup to be valid */
-					if ((psched->scheduler_sock2 != -1) &&
-						(psched->scheduler_sock != -1)) {
-
-						if (put_sched_cmd(psched->scheduler_sock2,
-								psched->svr_do_schedule, NULL) == 0) {
-							sprintf(log_buffer, "sent scheduler restart scheduling cycle request to %s", psched->sc_name);
-							log_event(PBSEVENT_DEBUG2,
-								PBS_EVENTCLASS_SERVER,
-								LOG_NOTICE, msg_daemonname, log_buffer);
-						}
-					} else {
-						sprintf(log_buffer, "no valid secondary connection to scheduler %s: restart scheduling cycle request ignored",
-								psched->sc_name);
-						log_event(PBSEVENT_DEBUG3,
-							PBS_EVENTCLASS_SERVER,
-							LOG_NOTICE, msg_daemonname, log_buffer);
-					}
-					psched->svr_do_schedule = SCH_SCHEDULE_NULL;
-				} else if (((svr_unsent_qrun_req) || ((psched->svr_do_schedule != SCH_SCHEDULE_NULL) &&
-					psched->sch_attr[(int)SCHED_ATR_scheduling].at_val.at_long))
-					&& can_schedule()) {
+					if (!send_sched_cmd(psched, psched->svr_do_schedule, NULL)) {
+						log_eventf(PBSEVENT_DEBUG2, PBS_EVENTCLASS_SERVER, LOG_NOTICE, msg_daemonname,
+							   "sent scheduler restart scheduling cycle request to %s", psched->sc_name);
+					} else
+						psched->svr_do_schedule = SCH_SCHEDULE_NULL;
+				} else if (svr_unsent_qrun_req || (psched->svr_do_schedule != SCH_SCHEDULE_NULL && get_sched_attr_long(psched, SCHED_ATR_scheduling))) {
 					/*
 					 * If svr_unsent_qrun_req is set to one there are pending qrun
 					 * request, then do schedule_jobs irrespective of the server scheduling
@@ -1541,13 +1382,12 @@ main(int argc, char **argv)
 					 * scheduling only if server scheduling is turned on.
 					 */
 
-					psched->sch_next_schedule = time_now +
-							psched->sch_attr[(int)	SCHED_ATR_schediteration].at_val.at_long;
-					if ((schedule_jobs(psched) == 0) && (svr_unsent_qrun_req))
+					psched->sch_next_schedule = time_now + get_sched_attr_long(psched, SCHED_ATR_schediteration);
+					if (schedule_jobs(psched) == 0 && svr_unsent_qrun_req)
 						svr_unsent_qrun_req = 0;
 				}
 			}
-		} else if (*state == SV_STATE_HOT) {
+		} else if (state == SV_STATE_HOT) {
 
 			/* Are there HOT jobs to rerun */
 			/* only try every _CYCLE seconds */
@@ -1562,7 +1402,8 @@ main(int argc, char **argv)
 			if ((c == 0) ||
 				(time_now > server.sv_started + SVR_HOT_LIMIT)) {
 				server_init_type = RECOV_WARM;
-				*state = SV_STATE_RUN;
+				set_sattr_l_slim(SVR_ATR_State, SV_STATE_RUN, SET);
+				state = SV_STATE_RUN;
 			}
 		}
 
@@ -1591,7 +1432,7 @@ main(int argc, char **argv)
 			undolr();
 #endif
 
-		if (*state == SV_STATE_SHUTSIG)
+		if ((state = get_sattr_long(SVR_ATR_State)) == SV_STATE_SHUTSIG)
 			(void)svr_shutdown(SHUT_SIG);	/* caught sig */
 
 		/*
@@ -1599,12 +1440,14 @@ main(int argc, char **argv)
 		 * and all children are done, change state to DOWN
 		 */
 
-		if ((*state > SV_STATE_RUN) &&
-			(*state < SV_STATE_SECIDLE) &&
+		if ((state > SV_STATE_RUN) &&
+			(state < SV_STATE_SECIDLE) &&
 			(server.sv_jobstates[JOB_STATE_RUNNING] == 0) &&
 			(server.sv_jobstates[JOB_STATE_EXITING] == 0) &&
-			((void *)GET_NEXT(task_list_event) == NULL))
-			*state = SV_STATE_DOWN;
+			((void *)GET_NEXT(task_list_event) == NULL)) {
+			set_sattr_l_slim(SVR_ATR_State, SV_STATE_DOWN, SET);
+			state = SV_STATE_DOWN;
+		}
 	}
 	DBPRT(("Server out of main loop, state is %ld\n", *state))
 
@@ -1613,24 +1456,14 @@ main(int argc, char **argv)
 	svr_save_db(&server);	/* final recording of server */
 	track_save(NULL);	/* save tracking data	     */
 
-	/* save any jobs that need saving */
-	for (pjob = (job *)GET_NEXT(svr_alljobs); pjob; pjob = (job *)GET_NEXT(pjob->ji_alljobs))
-		job_save_db(pjob);
-
-	/* save any reservations that need saving */
-	for (presv = (resc_resv *)GET_NEXT(svr_allresvs); presv; presv = (resc_resv *)GET_NEXT(presv->ri_allresvs))
-		resv_save_db(presv);
-
-	save_nodes_db(0, NULL);
-
 	/* if brought up the Secondary Scheduler, take it down */
 
 	if (brought_up_alt_sched == 1)
-		(void)contact_sched(SCH_QUIT, NULL, pbs_scheduler_addr, pbs_scheduler_port);
+		send_sched_cmd(dflt_scheduler, SCH_QUIT, NULL);
 
 	/* if Moms are to to down as well, tell them */
 
-	if ((*state != SV_STATE_SECIDLE) && (shutdown_who & SHUT_WHO_MOM))
+	if (state != SV_STATE_SECIDLE && (shutdown_who & SHUT_WHO_MOM))
 		shutdown_nodes();
 
 	/* if brought up the DB, take it down */
@@ -1640,7 +1473,7 @@ main(int argc, char **argv)
 		/* we are the secondary server */
 		(void)unlink(path_secondaryact); /* remove file */
 
-		if ((*state == SV_STATE_SECIDLE) && (saved_takeover_req != NULL)) {
+		if (state == SV_STATE_SECIDLE && saved_takeover_req != NULL) {
 			/*
 			 * If we are the secondary server that is
 			 * going inactive AND there is a batch request struct,
@@ -1705,7 +1538,7 @@ main(int argc, char **argv)
 	(void)unlink(lockfile);
 	unload_auths();
 
-	if (*state == SV_STATE_SECIDLE) {
+	if (state == SV_STATE_SECIDLE) {
 		/*
 		 * Secondary Server going inactive, or the Primary needs to
 		 * recycle itself (found Secondary active);
@@ -1817,13 +1650,12 @@ start_hot_jobs()
 
 	pjob = (job *)GET_NEXT(svr_alljobs);
 	while (pjob) {
-		if ((pjob->ji_qs.ji_substate == JOB_SUBSTATE_QUEUED) &&
+		if ((check_job_substate(pjob, JOB_SUBSTATE_QUEUED)) &&
 			(pjob->ji_qs.ji_svrflags & JOB_SVFLG_HOTSTART)) {
-			if ((pjob->ji_wattr[(int)JOB_ATR_exec_vnode].at_flags &
-				ATR_VFLAG_SET) != 0) {
+			if (is_jattr_set(pjob, JOB_ATR_exec_vnode)) {
 				ct++;
 				/* find Mother Superior node and see if she is up */
-				nodename = parse_servername(pjob->ji_wattr[(int)JOB_ATR_exec_vnode].at_val.at_str, NULL);
+				nodename = parse_servername(get_jattr_str(pjob, JOB_ATR_exec_vnode), NULL);
 				if (is_vnode_up(nodename)) {
 					/* she is up so can send her the job */
 					/* else we will try later            */

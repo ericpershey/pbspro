@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -194,9 +194,9 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
             if mom.has_vnode_defs():
                 mom.delete_vnode_defs()
             start_time = time.time()
-            self.server.create_vnodes(mom.shortname, conf.a, conf.vnode_ct,
-                                      mom, delall=False,
-                                      usenatvnode=conf.usenatvnode)
+            mom.create_vnodes(conf.a, conf.vnode_ct,
+                              delall=False,
+                              usenatvnode=conf.usenatvnode)
             self.vnode_dict[mom.shortname] = {'mom': mom,
                                               'res': conf}
             vn_ct = conf.vnode_ct
@@ -301,7 +301,8 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         passed using the 'tc' argument
         """
         # 1. submit the job wih select spec
-        job = Job(TEST_USER, attrs={'Resource_List.select': tc.qsub_sel})
+        a = {'Resource_List.select': tc.qsub_sel, ATTR_S: '/bin/bash'}
+        job = Job(TEST_USER, attrs=a)
         if tc.use_script is True:
             job.create_script(self.jobscript)
         else:
@@ -342,6 +343,7 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
                                          runas=tc.rel_user)
             self.assertEqual(ret['rc'], 0)
         else:
+            time.sleep(2)
             self.server.sigjob(jid, 'INT')
 
         # 9. verify job state and attributes are as expected
@@ -381,7 +383,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         # 16. validate PBS_NODEFILE again
         self.pbs_nodefile_match_exec_host(jid, mlist_new, tc.sched_sel_after)
 
-    @skipOnCpuSet
     def test_basic_use_case_ncpus(self, rel_user=TEST_USER, use_script=False):
         """
         submit job with below select string
@@ -433,7 +434,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_basic_use_case_ncpus_as_root(self):
         """
         submit job with below select string
@@ -443,7 +443,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_basic_use_case_ncpus(rel_user=ROOT_USER)
 
-    @skipOnCpuSet
     def test_basic_use_case_ncpus_using_script(self):
         """
         Like test_basic_use_case_ncpus test except instead of calling
@@ -453,12 +452,11 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         self.jobscript = \
             "#!/bin/sh\n" + \
             "trap 'pbs_release_nodes -k select=ncpus=2+ncpus=3:mpiprocs=2" + \
-            ";sleep 1000;exit 0' 2\n" + \
+            ";sleep 1000;exit 0' INT\n" + \
             "sleep 1000\n" + \
             "exit 0"
         self.test_basic_use_case_ncpus(use_script=True)
 
-    @skipOnCpuSet
     def test_with_a_custom_str_res(self, partial_res_list=False):
         """
         submit job with select string containing a custom string resource
@@ -533,7 +531,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_with_a_custom_str_res_partial_list(self, partial_res_list=False):
         """
         submit job with select string containing a custom string resource
@@ -545,7 +542,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_with_a_custom_str_res(partial_res_list=True)
 
-    @skipOnCpuSet
     def test_with_a_custom_bool_res(self, partial_res_list=False):
         """
         submit job with select string containing a custom boolean resource
@@ -611,7 +607,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_with_a_custom_bool_res_partial_list(self,
                                                  partial_res_list=False):
         """
@@ -624,7 +619,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_with_a_custom_bool_res(partial_res_list=True)
 
-    @skipOnCpuSet
     def test_with_a_custom_long_res(self, partial_res_list=False):
         """
         submit job with select string containing a custom long resource
@@ -697,7 +691,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_with_a_custom_long_partial_list(self, partial_res_list=False):
         """
         submit job with select string containing a custom long resource
@@ -709,7 +702,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_with_a_custom_long_res(partial_res_list=True)
 
-    @skipOnCpuSet
     def test_with_a_custom_size_res(self, partial_res_list=False):
         """
         submit job with select string containing a custom size resource
@@ -783,7 +775,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_with_a_custom_size_partial_list(self, partial_res_list=False):
         """
         submit job with select string containing a custom size resource
@@ -795,7 +786,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_with_a_custom_size_res(partial_res_list=True)
 
-    @skipOnCpuSet
     def test_with_a_custom_float_res(self, partial_res_list=False):
         """
         submit job with select string containing a custom float resource
@@ -870,7 +860,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_with_a_custom_float_partial_list(self, partial_res_list=False):
         """
         submit job with select string containing a custom float resource
@@ -882,7 +871,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_with_a_custom_float_res(partial_res_list=True)
 
-    @skipOnCpuSet
     def test_with_mixed_custom_res(self, partial_res_list=False):
         """
         submit job with select string containing a mix of all types of
@@ -1011,7 +999,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_with_mixed_custom_res_partial_list(self, partial_res_list=False):
         """
         submit job with select string containing a mix of all types of
@@ -1026,7 +1013,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_with_mixed_custom_res(partial_res_list=True)
 
-    @skipOnCpuSet
     def test_schunk_use_case(self, release_partial_schunk=False):
         """
         submit job with below select string
@@ -1088,7 +1074,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_schunk_partial_release_use_case(self):
         """
         submit job with below select string
@@ -1100,7 +1085,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_schunk_use_case(release_partial_schunk=True)
 
-    @skipOnCpuSet
     def test_release_nodes_error(self):
         """
         Tests erroneous cases:
@@ -1182,7 +1166,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         self.assertTrue(ret['err'][0].startswith(
             'pbs_release_nodes: Server returned error 15010 for job'))
 
-    @skipOnCpuSet
     def test_node_count(self, rel_user=TEST_USER, use_script=False):
         """
         submit job with below select string
@@ -1232,7 +1215,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_node_count_as_root(self):
         """
         submit job with below select string
@@ -1241,7 +1223,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         """
         self.test_node_count(rel_user=ROOT_USER)
 
-    @skipOnCpuSet
     def test_node_count_using_script(self):
         """
         Like test_node_count test except instead of calling
@@ -1251,12 +1232,11 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         self.jobscript = \
             "#!/bin/sh\n" + \
             "trap 'pbs_release_nodes -k 2" + \
-            ";sleep 1000;exit 0' 2\n" + \
+            ";sleep 1000;exit 0' INT\n" + \
             "sleep 1000\n" + \
             "exit 0"
         self.test_node_count(use_script=True)
 
-    @skipOnCpuSet
     def test_node_count_with_mixed_custom_res(self):
         """
         submit job with select string containing a mix of all types of
@@ -1373,7 +1353,6 @@ class TestPbsNodeRampDownKeepSelect(TestFunctional):
         tc = test_config(**args)
         self.common_tc_flow(tc)
 
-    @skipOnCpuSet
     def test_node_count_schunk_use_case(self):
         """
         submit job with below select string

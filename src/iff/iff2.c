@@ -35,7 +35,7 @@
  *		The parent_connection_port is required unless -t (for test) is given.
  */
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -154,11 +154,8 @@ main(int argc, char *argv[], char *envp[])
 		return (1);
 	}
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 	/* first, make sure we have a valid server (host), and ports */
 
@@ -264,7 +261,7 @@ main(int argc, char *argv[], char *envp[])
 		return (1);
 	}
 
-	(void)pbs_disconnect(sock);
+	(void)close(sock);
 	(void)fclose(stdout);
 	return (0);
 }

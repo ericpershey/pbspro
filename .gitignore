@@ -11,6 +11,7 @@
 
 # Libraries
 *.lib
+*.libs
 *.a
 *.la
 *.lo
@@ -157,6 +158,7 @@ src/cmds/pbs_tmrsh
 src/cmds/pbsdsh
 src/cmds/pbsnodes
 src/cmds/pbs_release_nodes
+src/cmds/pbs_dataservice.bin
 src/cmds/pbsrun
 src/cmds/pbsrun_unwrap
 src/cmds/pbsrun_wrap
@@ -186,10 +188,12 @@ src/cmds/scripts/pbs_init.d
 src/cmds/scripts/pbs_poerun
 src/cmds/scripts/pbs_postinstall
 src/cmds/scripts/pbsrun.poe
+src/cmds/scripts/pbs_reload
 src/iff/pbs_iff
 src/mom_rcp/pbs_rcp
 src/resmom/pbs_mom
 src/scheduler/pbs_sched
+src/scheduler/pbs_sched_bare
 src/scheduler/pbsfs
 src/server/pbs_comm
 src/server/pbs_server.bin
@@ -239,6 +243,8 @@ src/include/stamp-h1
 src/lib/Libpython/pbs_ifl.i
 src/lib/Libpython/pbs_ifl.py
 src/lib/Libpython/pbs_ifl_wrap.c
+src/lib/Libifl/pbs_ifl.py
+src/lib/Libifl/pbs_ifl_wrap.c
 src/include/job_attr_enum.h
 src/include/node_attr_enum.h
 src/include/queue_attr_enum.h
@@ -286,3 +292,6 @@ src/lib/Libpbs/pbs.pc
 *.cpio
 *.rpm
 *.deb
+
+# Generated directories by autotools
+*.libs

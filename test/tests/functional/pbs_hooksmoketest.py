@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -54,7 +54,7 @@ class TestHookSmokeTest(TestFunctional):
 
         self.script = []
         self.script += ['echo Hello World\n']
-        self.script += ['/bin/sleep 5\n']
+        self.script += ['/bin/sleep 30\n']
         if self.du.get_platform() == "cray" or \
            self.du.get_platform() == "craysim":
             self.script += ['aprun -b -B /bin/sleep 10']
@@ -134,7 +134,7 @@ e.accept()"""
         exp_hook_body = imp_hook_body
         attrs = {'event': 'queuejob'}
         self.server.create_import_hook(self.hook_name, attrs, hook_body)
-        fn = self.du.create_temp_file()
+        fn = self.du.create_temp_file(asuser=ROOT_USER)
         hook_attrs = 'application/x-config default %s' % fn
         rc = self.server.manager(MGR_CMD_EXPORT, HOOK, hook_attrs,
                                  self.hook_name)

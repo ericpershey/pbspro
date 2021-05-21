@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -62,12 +62,10 @@ class TestMaintenanceReservations(TestFunctional):
         h = [self.mom.shortname]
         r = Reservation(TEST_USER, attrs=a, hosts=h)
 
-        msg = ""
-
-        try:
+        with self.assertRaises(PbsSubmitError) as err:
             self.server.submit(r)
-        except PbsSubmitError as err:
-            msg = err.msg[0].strip()
+
+        msg = err.exception.msg[0].strip()
 
         self.assertEqual("pbs_rsub: Unauthorized Request", msg)
 
@@ -86,12 +84,10 @@ class TestMaintenanceReservations(TestFunctional):
         h = [self.mom.shortname]
         r = Reservation(TEST_USER, attrs=a, hosts=h)
 
-        msg = ""
-
-        try:
+        with self.assertRaises(PbsSubmitError) as err:
             self.server.submit(r)
-        except PbsSubmitError as err:
-            msg = err.msg[0].strip()
+
+        msg = err.exception.msg[0].strip()
 
         self.assertEqual("pbs_rsub: can't use -l with --hosts", msg)
 
@@ -101,12 +97,10 @@ class TestMaintenanceReservations(TestFunctional):
         h = [self.mom.shortname]
         r = Reservation(TEST_USER, attrs=a, hosts=h)
 
-        msg = ""
-
-        try:
+        with self.assertRaises(PbsSubmitError) as err:
             self.server.submit(r)
-        except PbsSubmitError as err:
-            msg = err.msg[0].strip()
+
+        msg = err.exception.msg[0].strip()
 
         self.assertEqual("pbs_rsub: can't use -l with --hosts", msg)
 
@@ -116,12 +110,10 @@ class TestMaintenanceReservations(TestFunctional):
         h = [self.mom.shortname]
         r = Reservation(TEST_USER, attrs=a, hosts=h)
 
-        msg = ""
-
-        try:
+        with self.assertRaises(PbsSubmitError) as err:
             self.server.submit(r)
-        except PbsSubmitError as err:
-            msg = err.msg[0].strip()
+
+        msg = err.exception.msg[0].strip()
 
         self.assertEqual("pbs_rsub: can't use -I with --hosts", msg)
 
@@ -155,12 +147,10 @@ class TestMaintenanceReservations(TestFunctional):
         h = [self.mom.shortname, "foo"]
         r = Reservation(TEST_USER, attrs=a, hosts=h)
 
-        msg = ""
-
-        try:
+        with self.assertRaises(PbsSubmitError) as err:
             self.server.submit(r)
-        except PbsSubmitError as err:
-            msg = err.msg[0].strip()
+
+        msg = err.exception.msg[0].strip()
 
         self.assertEqual("pbs_rsub: Host with resources not found: foo", msg)
 
@@ -169,12 +159,10 @@ class TestMaintenanceReservations(TestFunctional):
         h = [""]
         r = Reservation(TEST_USER, attrs=a, hosts=h)
 
-        msg = ""
-
-        try:
+        with self.assertRaises(PbsSubmitError) as err:
             self.server.submit(r)
-        except PbsSubmitError as err:
-            msg = err.msg[0].strip()
+
+        msg = err.exception.msg[0].strip()
 
         self.assertEqual("pbs_rsub: missing host(s)", msg)
 
@@ -192,16 +180,13 @@ class TestMaintenanceReservations(TestFunctional):
         h = ["foo", "foo"]
         r = Reservation(TEST_USER, attrs=a, hosts=h)
 
-        msg = ""
-
-        try:
+        with self.assertRaises(PbsSubmitError) as err:
             self.server.submit(r)
-        except PbsSubmitError as err:
-            msg = err.msg[0].strip()
+
+        msg = err.exception.msg[0].strip()
 
         self.assertEqual("pbs_rsub: Duplicate host: foo", msg)
 
-    @skipOnCpuSet
     def test_maintenance_confirm(self):
         """
         Test if the maintenance (prefixed with 'M') is immediately
@@ -216,13 +201,14 @@ class TestMaintenanceReservations(TestFunctional):
                             {'managers': '%s@*' % TEST_USER})
 
         a = {'resources_available.ncpus': 2}
-        self.server.create_vnodes('vn', a, num=2, mom=self.mom)
+        self.mom.create_vnodes(a, num=2)
+        vn = self.mom.shortname
 
         a = {'resv_enable': False}
         self.server.manager(MGR_CMD_SET, NODE, a,
                             id=self.mom.shortname, runas=TEST_USER)
-        self.server.manager(MGR_CMD_SET, NODE, a, 'vn[0]', runas=TEST_USER)
-        self.server.manager(MGR_CMD_SET, NODE, a, 'vn[1]', runas=TEST_USER)
+        self.server.manager(MGR_CMD_SET, NODE, a, vn + '[0]', runas=TEST_USER)
+        self.server.manager(MGR_CMD_SET, NODE, a, vn + '[1]', runas=TEST_USER)
 
         a = {'reserve_start': now + 3600,
              'reserve_end': now + 7200}
@@ -232,12 +218,12 @@ class TestMaintenanceReservations(TestFunctional):
         rid = self.server.submit(r)
 
         self.assertTrue(rid.startswith('M'))
-
+        resv_vnodes = '(' + vn + '[0]:ncpus=2)+(' + vn + '[1]:ncpus=2)'
         exp_attr = {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2'),
                     'Resource_List.select':
                     'host=%s:ncpus=4' % self.mom.shortname,
                     'Resource_List.place': 'exclhost',
-                    'resv_nodes': '(vn[0]:ncpus=2)+(vn[1]:ncpus=2)'}
+                    'resv_nodes': resv_vnodes}
         self.server.expect(RESV, exp_attr, id=rid)
 
     def test_maintenance_delete(self):
@@ -262,12 +248,10 @@ class TestMaintenanceReservations(TestFunctional):
         self.server.manager(MGR_CMD_SET, SERVER,
                             {'managers': (DECR, '%s@*' % TEST_USER)})
 
-        msg = ""
-
-        try:
+        with self.assertRaises(PbsDeleteError) as err:
             self.server.delete(rid, runas=TEST_USER)
-        except PbsDeleteError as err:
-            msg = err.msg[0].strip()
+
+        msg = err.exception.msg[0].strip()
 
         self.assertEqual("pbs_rdel: Unauthorized Request  " + rid, msg)
 
@@ -613,10 +597,14 @@ class TestMaintenanceReservations(TestFunctional):
 
         self.server.submit(r2)
 
-        exp_attr = {'resv_nodes': '(%s:ncpus=1)' % self.momB.shortname,
-                    'reserve_state': (MATCH_RE, 'RESV_DEGRADED|12'),
+        exp_attr = {'reserve_state': (MATCH_RE, 'RESV_DEGRADED|12'),
                     'reserve_substate': 12}
         self.server.expect(RESV, exp_attr, id=rid1)
+        self.server.status(RESV, id=rid1)
+        vnodes = r1.get_vnodes()
+        self.assertEqual(len(vnodes), 1)
+        vnode = self.server.status(NODE, id=vnodes[0])[0]
+        self.assertEqual(vnode['Mom'], self.momB.hostname)
 
         self.logger.info("Wait for reservation to start (2 minutes)")
         time.sleep(120)
@@ -640,23 +628,17 @@ class TestMaintenanceReservations(TestFunctional):
 
         self.server.expect(JOB, {'job_state': 'Q'}, id=jid1)
 
-    @requirements(num_moms=2)
     def test_maintenance_degrade_reservation_jobs_dont_run(self):
         """
         Test if the reservation is degraded by overlapping
         maintenance reservation the jobs inside that degraded reservations do
-        not run when the reservation starts running.
-        Two moms (-p "servers=M1,moms=M1:M2") are needed for this test.
+        not run when the maintenance reservation starts running.
         """
-
-        if len(self.moms) != 2:
-            cmt = "need 2 mom hosts: -p servers=<m1>,moms=<m1>:<m2>"
-            self.skip_test(reason=cmt)
 
         now = int(time.time())
 
         self.server.manager(MGR_CMD_SET, SERVER,
-                            {'managers': '%s@*' % TEST_USER})
+                            {'managers': (INCR, '%s@*' % TEST_USER)})
 
         a1 = {'reserve_start': now + 30,
               'reserve_end': now + 1200}
@@ -671,11 +653,15 @@ class TestMaintenanceReservations(TestFunctional):
         resv_node_list = self.server.reservations[rid1].get_vnodes()
         resv_node = resv_node_list[0]
 
+        # On a cpuset machine the resv_node could be a vnode,
+        # always pull the hostname from the node attribute
+        status = self.server.status(NODE, id=resv_node)
+        h2 = [status[0]['resources_available.host']]
+
         jid = self.server.submit(Job(attrs={ATTR_q: resv_name}))
 
         a2 = {'reserve_start': now + 35,
               'reserve_end': now + 1000}
-        h2 = [resv_node]
         r2 = Reservation(TEST_USER, attrs=a2, hosts=h2)
         rid2 = self.server.submit(r2)
 
@@ -691,6 +677,26 @@ class TestMaintenanceReservations(TestFunctional):
                            offset=offset)
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': True})
-        a = {'comment': 'Can Never Run: Reservation is in an invalid state',
+        a = {'comment': 'Not Running: Queue not started.',
              'job_state': 'Q'}
         self.server.expect(JOB, a, id=jid)
+
+    def test_maintenance_parse_numerous_hosts(self):
+        """
+        Test if the parsing of numerous hosts succeed.
+        """
+        now = int(time.time())
+
+        a = {'reserve_start': now + 3600,
+             'reserve_end': now + 7200}
+        chars = 'abcdefghijklmnopqrstuvwxyz'
+        h = [''.join(random.choices(chars, k=8)) for i in range(200)]
+        r = Reservation(TEST_USER, attrs=a, hosts=h)
+
+        with self.assertRaises(PbsSubmitError) as err:
+            self.server.submit(r)
+
+        msg = err.exception.msg[0].strip()
+
+        regex = "^pbs_rsub: Host with resources not found: .*"
+        self.assertTrue(re.search(regex, msg))

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -1736,15 +1736,14 @@ Tcl_Obj	*CONST	objv[];
 	static const char *subCmds[] = {
 		"batch_service_port", "batch_service_port_dis",
 		"mom_service_port", "manager_service_port",
-		"scheduler_service_port", NULL};
+		NULL};
 	enum ISubCmdIdx {
 		IBatchSvcIdx, IBatchSvcDisIdx,
-		IMomSvcIdx, IManSvcIdx,
-		ISchedSvcIdx
+		IMomSvcIdx, IManSvcIdx
 	};
 
 	if (objc != 2) {
-		Tcl_WrongNumArgs(interp, 1, objv, "batch_service_port|batch_service_port_dis|mom_service_port|manager_service_port|scheduler_service_port");
+		Tcl_WrongNumArgs(interp, 1, objv, "batch_service_port|batch_service_port_dis|mom_service_port|manager_service_port");
 		return TCL_ERROR;
 	}
 
@@ -1765,9 +1764,6 @@ Tcl_Obj	*CONST	objv[];
 			break;
 		case IManSvcIdx:
 			result = pbs_conf.manager_service_port;
-			break;
-		case ISchedSvcIdx:
-			result = pbs_conf.scheduler_service_port;
 			break;
 	}
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -51,15 +51,34 @@ import importlib
 import ptl
 import nose
 from nose.plugins.base import Plugin
+from nose.plugins.manager import PluginManager
 from ptl.lib.pbs_testlib import PtlConfig
 from distutils.version import LooseVersion
 from ptl.utils.pbs_cliutils import CliUtils
+from ptl.utils.pbs_dshutils import TimeOut
 from ptl.utils.plugins.ptl_test_loader import PTLTestLoader
 from ptl.utils.plugins.ptl_test_runner import PTLTestRunner
 from ptl.utils.plugins.ptl_test_db import PTLTestDb
 from ptl.utils.plugins.ptl_test_info import PTLTestInfo
 from ptl.utils.plugins.ptl_test_tags import PTLTestTags
 from ptl.utils.plugins.ptl_test_data import PTLTestData
+
+
+class PTLNoseConfig(nose.config.Config):
+    def __init__(self, log_format=None, outfile_handler=None, **kw):
+        super().__init__(**kw)
+        self.outfile_handler = outfile_handler
+        self.log_format = log_format
+
+    def configureLogging(self):
+        super().configureLogging()
+        nose_logger = logging.getLogger('nose')
+        if self.log_format:
+            formatter = logging.Formatter(self.log_format)
+            for handler in nose_logger.handlers:
+                handler.setFormatter(formatter)
+        if self.outfile_handler:
+            nose_logger.addHandler(self.outfile_handler)
 
 
 # trap SIGINT and SIGPIPE
@@ -77,6 +96,10 @@ sys.excepthook = trap_exceptions
 def sighandler(signum, frames):
     signal.alarm(0)
     raise KeyboardInterrupt('Signal %d received' % (signum))
+
+
+def timeout_handler(signum, frames):
+    raise TimeOut('pbs_benchpress timed out by signal %d' % (signum))
 
 
 # join process group of caller makes it possible to programmatically interrupt
@@ -246,7 +269,7 @@ if __name__ == '__main__':
     try:
         opts, args = getopt.getopt(
             sys.argv[1:], 'f:il:t:o:p:g:hLF', largs)
-    except:
+    except Exception:
         sys.stderr.write('Unrecognized option. Exiting\n')
         usage()
         sys.exit(1)
@@ -293,7 +316,7 @@ if __name__ == '__main__':
         elif o == '--exclude':
             excludes = val
         elif o == '-F':
-            fmt = '%(asctime)-15s %(levelname)-8s %(message)s'
+            fmt = '%(asctime)-15s %(levelname)-8s %(name)s %(message)s'
         elif o == '-p':
             testparam = val
         elif o == '-g':
@@ -362,20 +385,24 @@ if __name__ == '__main__':
     if nosedebug:
         level = 'DEBUG'
 
-    l = CliUtils.get_logging_level(level)
+    log_lvl = CliUtils.get_logging_level(level)
     if logconf:
         logging.config.fileConfig(logconf)
     else:
-        logging.basicConfig(filename=outfile, filemode='w+', level=l,
-                            format=fmt)
+        logging.basicConfig(level=log_lvl, format=fmt)
 
-    if outfile is not None:
-        stream_hdlr = logging.StreamHandler()
-        stream_hdlr.setLevel(l)
-        stream_hdlr.setFormatter(logging.Formatter(fmt))
+    if not log_lvl and level:
+        logging.error('Invalid log level:%s', level)
+        sys.exit(1)
+    if outfile:
+        outfile_hdlr = logging.FileHandler(outfile)
+        outfile_hdlr.setLevel(log_lvl)
+        outfile_hdlr.setFormatter(logging.Formatter(fmt))
         ptl_logger = logging.getLogger('ptl')
-        ptl_logger.addHandler(stream_hdlr)
-        ptl_logger.setLevel(l)
+        ptl_logger.addHandler(outfile_hdlr)
+        ptl_logger.setLevel(log_lvl)
+    else:
+        outfile_hdlr = None
 
     pyver = platform.python_version()
     if minpyver is not None and LooseVersion(pyver) < LooseVersion(minpyver):
@@ -396,7 +423,7 @@ if __name__ == '__main__':
         tc_failure_threshold = int(tc_failure_threshold)
         if tc_failure_threshold < 0:
             raise ValueError
-    except:
+    except ValueError:
         _msg = 'Invalid value provided for testcase failure threshold, '
         _msg += 'please provide integer'
         logging.error(_msg)
@@ -406,7 +433,7 @@ if __name__ == '__main__':
         cumulative_tc_failure_threshold = int(cumulative_tc_failure_threshold)
         if cumulative_tc_failure_threshold < 0:
             raise ValueError
-    except:
+    except ValueError:
         _msg = 'Invalid value provided for cumulative-tc-failure-threshold, '
         _msg += 'please provide integer'
         logging.error(_msg)
@@ -422,7 +449,7 @@ if __name__ == '__main__':
         max_postdata_threshold = int(max_postdata_threshold)
         if max_postdata_threshold < 0:
             raise ValueError
-    except:
+    except ValueError:
         _msg = 'Invalid value provided for max-postdata-threshold, '
         _msg += 'please provide integer'
         logging.error(_msg)
@@ -432,7 +459,8 @@ if __name__ == '__main__':
         os.mkdir(os.path.dirname(outfile))
 
     if timeout is not None:
-        signal.signal(signal.SIGALRM, sighandler)
+        PTLTestRunner.timeout = timeout
+        signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
 
     if list_test:
@@ -508,12 +536,13 @@ if __name__ == '__main__':
             plugins += (_plugin(),)
     test_regex = r'(^(?:[\w]+|^)Test|pbs_|^test_[\(]*)'
     os.environ['NOSE_TESTMATCH'] = test_regex
-    if nosedebug:
-        os.environ['NOSE_VERBOSE'] = '7'
-        if outfile:
-            os.environ['NOSE_DEBUG_LOG'] = outfile
-    else:
-        os.environ['NOSE_VERBOSE'] = '2'
-    if stoponfail:
-        os.environ['NOSE_STOP'] = '1'
-    nose.main(defaultTest=tests, argv=[sys.argv[0]], plugins=plugins)
+    nose_config = PTLNoseConfig(
+        env=os.environ,
+        log_format=fmt,
+        outfile_handler=outfile_hdlr,
+        plugins=PluginManager(plugins=plugins),
+        verbosity=7 if nosedebug else 2,
+        stopOnError=stoponfail)
+    nose.main(defaultTest=tests, argv=[sys.argv[0]], config=nose_config)
+    if outfile_hdlr:
+        outfile_hdlr.close()

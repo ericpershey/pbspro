@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -540,6 +540,7 @@ pbs_python_ext_namespace_init(
 #ifdef PYTHON                        /* --- BEGIN PYTHON BLOCK --- */
 
 	PyObject *namespace_dict = NULL;
+	PyObject *py_v1_module = NULL;
 
 	namespace_dict = PyDict_New(); /* New Refrence MUST Decref */
 	if (!namespace_dict) {
@@ -560,16 +561,22 @@ pbs_python_ext_namespace_init(
 	/*
 	 * Now, add our extension object/module to the namespace.
 	 */
+	py_v1_module = pbs_v1_module_init();
+	if (py_v1_module == NULL)
+		goto ERROR_EXIT;
 	if ((PyDict_SetItemString(namespace_dict,
 		PBS_PYTHON_V1_MODULE_EXTENSION_NAME,
-		pbs_v1_module_init()) == -1)
+		py_v1_module) == -1)
 		) {
+		Py_XDECREF(py_v1_module);
 		snprintf(log_buffer, LOG_BUF_SIZE-1, "%s|adding extension object",
 			__func__);
 		log_buffer[LOG_BUF_SIZE-1] = '\0';
 		pbs_python_write_error_to_log(__func__);
 		goto ERROR_EXIT;
 	}
+
+	Py_XDECREF(py_v1_module);
 
 	return namespace_dict;
 

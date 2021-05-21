@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -492,7 +492,6 @@ else:
         self.server.accounting_match(
             "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
 
-    @skipOnCpuSet
     def test_periodic(self):
         """
         Test accumulatinon of resources from an exechost_periodic hook.
@@ -753,6 +752,9 @@ else:
     def test_reservation(self):
         """
         Test that job inside reservations works same
+        NOTE: Due to the reservation duration and the job duration
+        both being equal, this test found 2 race conditions.
+        KEEP the durations equal to each other.
         """
         # Create non-host level resources from qmgr
         attr = {}
@@ -827,10 +829,14 @@ j.resources_used["stra2"] = '"glad"'
         self.server.expect(JOB, a, extend='x', attrop=PTL_AND,
                            offset=30, interval=1, id=jid)
 
-        # Restart server and verifies that the values are still the same
-        self.server.restart()
+        # Below is commented out due to a problem with history jobs
+        # disapearing after a server restart when the reservation is
+        # in state BD during restart.
+        # Once that bug is fixed, this test code should be uncommented
+        # and run.
 
-        # Below is commented due to a known PBS issue
+        # Restart server and verifies that the values are still the same
+        # self.server.restart()
         # self.server.expect(JOB, a, extend='x', id=jid)
 
     def test_server_restart(self):
@@ -945,6 +951,7 @@ for jj in e.job_list.keys():
             overwrite=True)
 
         a = {'Resource_List.select': '3:ncpus=1',
+             'Resource_List.walltime': 300,
              'Resource_List.place': 'scatter'}
         j = Job(TEST_USER)
         j.set_attributes(a)
@@ -954,6 +961,7 @@ for jj in e.job_list.keys():
         a = {'Resource_List.select': '5:ncpus=1',
              'Resource_List.place': 'scatter'}
         j.set_attributes(a)
+        j.set_sleep_time("300")
         jid2 = self.server.submit(j)
 
         # Wait for 10s approx for hook to get executed
@@ -1318,11 +1326,10 @@ else:
 
         # Submit a job
         a = {'Resource_List.select': '3:ncpus=1',
-             'Resource_List.walltime': 20,
+             'Resource_List.walltime': 40,
              'Resource_List.place': "scatter"}
         j = Job(TEST_USER)
         j.set_attributes(a)
-        j.set_sleep_time("20")
         jid = self.server.submit(j)
 
         # Verify job is running

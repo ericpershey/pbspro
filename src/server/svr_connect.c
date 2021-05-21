@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -86,13 +86,13 @@
 #include "work_task.h"
 #include "log.h"
 #include "libutil.h"
+#include "server.h"
 
 
 
 /* global data */
 extern int		 errno;
 extern int		 pbs_errno;
-extern unsigned int	 pbs_server_port_dis;
 extern unsigned int	 pbs_mom_port;
 extern char		*msg_daemonname;
 extern char		*msg_noloopbackif;
@@ -128,19 +128,33 @@ int
 svr_connect(pbs_net_t hostaddr, unsigned int port, void (*func)(int), enum conn_type cntype, int prot)
 {
 	int sock;
-	mominfo_t *pmom = 0;
+	mominfo_t *pmom = NULL;
 	conn_t *conn = NULL;
+	dmn_info_t *pdmninfo;
 
 	/* First, determine if the request is to another server or ourselves */
 
 	if ((hostaddr == pbs_server_addr) && (port == pbs_server_port_dis))
 		return (PBS_LOCAL_CONNECTION);	/* special value for local */
 	pmom = tfind2((unsigned long)hostaddr, port, &ipaddrs);
-	if ((pmom != NULL) && (port == pmom->mi_port)) {
-		if ((((mom_svrinfo_t *)(pmom->mi_data))->msr_state & INUSE_DOWN)
-							&& (open_momstream(pmom) < 0)) {
-			pbs_errno = PBSE_NORELYMOM;
-			return (PBS_NET_RC_FATAL);
+
+	if (pmom && (port == pmom->mi_port)) {
+		pdmninfo = pmom->mi_dmn_info;
+		if (is_peersvr(pmom)) {
+			if (connect_to_peersvr(pmom) < 0) {
+				pbs_errno = PBSE_NORELYMOM;
+				return (PBS_NET_RC_FATAL);
+			}
+		} else if (pdmninfo->dmn_state & INUSE_DOWN) {
+			if (pdmninfo->dmn_state & INUSE_NEEDS_HELLOSVR) {
+				if (open_conn_stream(pmom) < 0) {
+					pbs_errno = PBSE_NORELYMOM;
+					return (PBS_NET_RC_FATAL);
+				}
+			} else {
+				pbs_errno = PBSE_NORELYMOM;
+				return (PBS_NET_RC_FATAL);
+			}
 		}
 	}
 
@@ -149,7 +163,7 @@ svr_connect(pbs_net_t hostaddr, unsigned int port, void (*func)(int), enum conn_
 			pbs_errno = PBSE_SYSTEM;
 			return (PBS_NET_RC_RETRY);
 		}
-		return ((mom_svrinfo_t *) (pmom->mi_data))->msr_stream;
+		return pmom->mi_dmn_info->dmn_stream;
 	}
 
 	/* obtain the connection to the other server */

@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -54,6 +54,15 @@ class TestQsub_direct_write(TestFunctional):
         self.msg = "Job is sleeping for 10 secs as job should  be running"
         self.msg += " at the time we check for directly written files"
 
+    def checks_available_ncpus(self, ncpus=1):
+        nodes = self.server.counter(NODE, 'resources_available.ncpus',
+                                    grandtotal=True, level=logging.DEBUG)
+        if nodes and 'resources_available.ncpus' in nodes:
+            total_ncpus = nodes['resources_available.ncpus']
+            if total_ncpus < ncpus:
+                self.skip_test(reason="need %d available ncpus" % ncpus)
+
+    @requirements(mom_on_server=True)
     def test_direct_write_when_job_succeeds(self):
         """
         submit a sleep job and make sure that the std_files
@@ -65,7 +74,7 @@ class TestQsub_direct_write(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -76,6 +85,7 @@ class TestQsub_direct_write(TestFunctional):
         self.assertEqual(2, file_count)
         self.server.expect(JOB, {ATTR_k: 'doe'}, id=jid)
 
+    @requirements(mom_on_server=True)
     def test_direct_write_when_job_succeeds_controlled(self):
         """
         submit a sleep job and make sure that the std_files
@@ -88,13 +98,13 @@ class TestQsub_direct_write(TestFunctional):
                 (but is a gid that the user is a member of)
         3) not accessible via other permissions
         """
-        j = Job(TEST_USER4, attrs={ATTR_k: 'doe'})
+        j = Job(TEST_USER2, attrs={ATTR_k: 'doe'})
         j.set_sleep_time(10)
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER5)
         mapping_dir = self.du.create_temp_dir(
-            asuser=TEST_USER4, asgroup=TSTGRP5, mode=0o770)
+            asuser=TEST_USER2, asgroup=TSTGRP0, mode=0o770)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -105,6 +115,7 @@ class TestQsub_direct_write(TestFunctional):
         self.assertEqual(2, file_count)
         self.server.expect(JOB, {ATTR_k: 'doe'}, id=jid)
 
+    @requirements(mom_on_server=True)
     def test_direct_write_output_file(self):
         """
         submit a sleep job and make sure that the output file
@@ -116,7 +127,7 @@ class TestQsub_direct_write(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -133,6 +144,7 @@ class TestQsub_direct_write(TestFunctional):
         self.assertEqual(1, file_count)
         self.server.expect(JOB, {ATTR_k: 'do'}, id=jid)
 
+    @requirements(mom_on_server=True)
     def test_direct_write_error_file(self):
         """
         submit a sleep job and make sure that the error file
@@ -144,7 +156,7 @@ class TestQsub_direct_write(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -161,6 +173,7 @@ class TestQsub_direct_write(TestFunctional):
         self.assertEqual(1, file_count)
         self.server.expect(JOB, {ATTR_k: 'de'}, id=jid)
 
+    @requirements(mom_on_server=True)
     def test_direct_write_error_custom_path(self):
         """
         submit a sleep job and make sure that the files
@@ -176,7 +189,7 @@ class TestQsub_direct_write(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -187,6 +200,7 @@ class TestQsub_direct_write(TestFunctional):
         self.assertEqual(2, file_count)
         self.server.expect(JOB, {ATTR_k: 'doe'}, id=jid)
 
+    @requirements(mom_on_server=True)
     def test_direct_write_error_custom_dir(self):
         """
         submit a sleep job and make sure that the files
@@ -200,7 +214,7 @@ class TestQsub_direct_write(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -211,6 +225,7 @@ class TestQsub_direct_write(TestFunctional):
         self.assertEqual(2, file_count)
         self.server.expect(JOB, {ATTR_k: 'doe'}, id=jid)
 
+    @requirements(mom_on_server=True)
     def test_direct_write_default_qsub_arguments(self):
         """
         submit a sleep job and make sure that the std_files
@@ -224,7 +239,7 @@ class TestQsub_direct_write(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -235,6 +250,7 @@ class TestQsub_direct_write(TestFunctional):
         self.assertEqual(2, file_count)
         self.server.expect(JOB, {ATTR_k: 'doe'}, id=jid)
 
+    @requirements(mom_on_server=True)
     def test_direct_write_without_config_entry(self):
         """
         submit a sleep job and make sure that the std_files
@@ -294,6 +310,7 @@ class TestQsub_direct_write(TestFunctional):
                 'Cannot modify attribute while job running  Keep_Files'
                 in e.msg[0])
 
+    @requirements(mom_on_server=True)
     def test_direct_write_qrerun(self):
         """
         submit a sleep job and make sure that the std_files
@@ -308,7 +325,7 @@ class TestQsub_direct_write(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -323,6 +340,7 @@ class TestQsub_direct_write(TestFunctional):
             mapping_dir) if os.path.isfile(os.path.join(mapping_dir, name))])
         self.assertEqual(2, file_count)
 
+    @requirements(mom_on_server=True)
     def test_direct_write_job_array(self):
         """
         submit a job array and make sure that the std_files
@@ -330,6 +348,7 @@ class TestQsub_direct_write(TestFunctional):
         accessible from mom and direct_files option is used
         but submission directory is not mapped in mom config file.
         """
+        self.checks_available_ncpus(4)
         a = {'resources_available.ncpus': 4}
         self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
         j = Job(TEST_USER, attrs={ATTR_k: 'doe', ATTR_J: '1-4'})
@@ -351,12 +370,14 @@ class TestQsub_direct_write(TestFunctional):
                     raise self.failureException("std file " + f_name +
                                                 " not found")
 
+    @requirements(mom_on_server=True)
     def test_direct_write_job_array_custom_dir(self):
         """
         submit a job array and make sure that the files
         are getting directly written to the custom dir
         provided in -e and -o option even when -doe is set.
         """
+        self.checks_available_ncpus(4)
         a = {'resources_available.ncpus': 4}
         self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
         tmp_dir = self.du.create_temp_dir(asuser=TEST_USER)
@@ -366,7 +387,7 @@ class TestQsub_direct_write(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -46,9 +46,8 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
-#ifndef WIN32
 #include <stdint.h>
-#endif
+
 #include "portability.h"
 #include "libpbs.h"
 #include "dis.h"
@@ -79,6 +78,42 @@ is_compose(int stream, int command)
 	if (ret != DIS_SUCCESS)
 		goto done;
 	ret = diswsi(stream, IS_PROTOCOL_VER);
+	if (ret != DIS_SUCCESS)
+		goto done;
+	ret = diswsi(stream, command);
+	if (ret != DIS_SUCCESS)
+		goto done;
+
+	return DIS_SUCCESS;
+
+done:
+	return ret;
+}
+
+/**
+ * @brief - Start a standard peer-server message.
+ *
+ * @param[in] stream  - The TPP stream on which to send message
+ * @param[in] command - The message type (cmd) to encode
+ *
+ * @return error code
+ * @retval  DIS_SUCCESS - Success
+ * @retval !DIS_SUCCESS - Failure
+ */
+int
+ps_compose(int stream, int command)
+{
+	int	ret;
+
+	if (stream < 0)
+		return DIS_EOF;
+
+	DIS_tpp_funcs();
+
+	ret = diswsi(stream, PS_PROTOCOL);
+	if (ret != DIS_SUCCESS)
+		goto done;
+	ret = diswsi(stream, PS_PROTOCOL_VER);
 	if (ret != DIS_SUCCESS)
 		goto done;
 	ret = diswsi(stream, command);
@@ -154,76 +189,24 @@ int
 is_compose_cmd(int stream, int command, char **ret_msgid)
 {
 	int ret;
+	char *temp_id = NULL;
 
 	if ((ret = is_compose(stream, command)) != DIS_SUCCESS)
 		return ret;
 
-	if (ret_msgid == NULL || *ret_msgid == NULL || *ret_msgid[0] == '\0') /* NULL or empty id provided */
+	/* Create a temp msg id, when there is no buffer passed */
+	if (ret_msgid == NULL)
+		ret = get_msgid(&temp_id);
+	else if (*ret_msgid == NULL || *ret_msgid[0] == '\0') /* buffer passed but NULL or empty id provided */
 		if ((ret = get_msgid(ret_msgid)) != 0)
 			return ret;
 
-	if ((ret = diswst(stream, *ret_msgid)) != DIS_SUCCESS)
+	if ((ret = diswst(stream, ret_msgid ? *ret_msgid : temp_id)) != DIS_SUCCESS)
 		return ret;
 
+	free(temp_id);
+
 	return DIS_SUCCESS;
-}
-
-/**
- * @brief
- *	-PBSD_rdytocmt This function does the Ready To Commit sub-function of
- *	the Queue Job request.
- *
- * @param[in] c - socket fd
- * @param[in] jobid - job identifier
- * @param[in] prot - PROT_TCP or PROT_TPP
- * @param[in] msgid - message id
- *
- * @return	int
- * @retval	0		success
- * @retval	!0(pbs_errno)	failure
- *
- */
-int
-PBSD_rdytocmt(int c, char *jobid, int prot, char **msgid)
-{
-	int     rc;
-	struct batch_reply *reply;
-
-	if (prot == PROT_TCP) {
-		DIS_tcp_funcs();
-	} else {
-		if ((rc = is_compose_cmd(c, IS_CMD, msgid)) != DIS_SUCCESS)
-			return rc;
-	}
-
-	if ((rc=encode_DIS_ReqHdr(c, PBS_BATCH_RdytoCommit, pbs_current_user)) ||
-		(rc = encode_DIS_JobId(c, jobid))  ||
-		(rc = encode_DIS_ReqExtend(c, NULL))) {
-		if (prot == PROT_TCP) {
-			if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {
-				return (pbs_errno = PBSE_SYSTEM);
-			}
-		}
-		return (pbs_errno = PBSE_PROTOCOL);
-	}
-
-	if (prot == PROT_TPP) {
-		pbs_errno = PBSE_NONE;
-		if (dis_flush(c))
-			pbs_errno = PBSE_PROTOCOL;
-		return pbs_errno;
-	}
-
-	if (dis_flush(c))
-		return (pbs_errno = PBSE_PROTOCOL);
-
-	/* read reply */
-
-	reply = PBSD_rdrpy(c);
-
-	PBSD_FreeReply(reply);
-
-	return get_conn_errno(c);
 }
 
 /**
@@ -235,6 +218,7 @@ PBSD_rdytocmt(int c, char *jobid, int prot, char **msgid)
  * @param[in] jobid - job identifier
  * @param[in] prot - PROT_TCP or PROT_TPP
  * @param[in] msgid - message id
+ * @param[in] extend - extend field, comma separated key value pair
  *
  * @return      int
  * @retval      0               success
@@ -242,7 +226,7 @@ PBSD_rdytocmt(int c, char *jobid, int prot, char **msgid)
  *
  */
 int
-PBSD_commit(int c, char *jobid, int prot, char **msgid)
+PBSD_commit(int c, char *jobid, int prot, char **msgid, char *extend)
 {
 	struct batch_reply *reply;
 	int rc;
@@ -256,7 +240,7 @@ PBSD_commit(int c, char *jobid, int prot, char **msgid)
 
 	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_Commit, pbs_current_user)) ||
 		(rc = encode_DIS_JobId(c, jobid)) ||
-		(rc = encode_DIS_ReqExtend(c, NULL))) {
+		(rc = encode_DIS_ReqExtend(c, extend))) {
 		if (prot == PROT_TCP) {
 			if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {
 				return (pbs_errno = PBSE_SYSTEM);

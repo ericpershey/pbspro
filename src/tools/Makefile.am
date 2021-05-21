@@ -1,6 +1,6 @@
 
 #
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -59,13 +59,12 @@ EXTRA_PROGRAMS = \
 	chk_tree \
 	rstester
 
-
 common_cflags = \
 	-I$(top_srcdir)/src/include \
 	@KRB5_CFLAGS@
 
 common_libs = \
-	$(top_builddir)/src/lib/Libpbs/.libs/libpbs.a \
+	$(top_builddir)/src/lib/Libpbs/libpbs.la \
 	$(top_builddir)/src/lib/Libutil/libutil.a \
 	$(top_builddir)/src/lib/Libnet/libnet.a \
 	$(top_builddir)/src/lib/Libsec/libsec.a \
@@ -81,11 +80,9 @@ chk_tree_LDADD = ${common_libs}
 chk_tree_SOURCES = chk_tree.c
 
 pbs_ds_monitor_CPPFLAGS = ${common_cflags}
-pbs_ds_monitor_LDFLAGS = "-Wl,-rpath,$(DESTDIR)$(libdir)"
 pbs_ds_monitor_LDADD = \
-	$(top_builddir)/src/lib/Libdb/libdb.so \
+	$(top_builddir)/src/lib/Libdb/libpbsdb.la \
 	${common_libs} \
-	@database_ldflags@ \
 	-lssl \
 	-lcrypto
 
@@ -111,7 +108,7 @@ pbs_probe_LDADD = \
 	@libz_lib@ \
 	@PYTHON_LDFLAGS@ \
 	@PYTHON_LIBS@
-pbs_probe_SOURCES = pbs_probe.c
+pbs_probe_SOURCES = pbs_probe.c $(top_srcdir)/src/lib/Libcmds/cmds_common.c
 
 pbs_python_CPPFLAGS =  \
 	-DPBS_PYTHON=1.1 \
@@ -127,14 +124,11 @@ pbs_python_LDADD = \
 	@PYTHON_LIBS@
 
 pbs_python_SOURCES = \
-	$(top_builddir)/src/lib/Libattr/job_attr_def.c \
-	$(top_builddir)/src/lib/Libattr/node_attr_def.c \
-	$(top_builddir)/src/lib/Libattr/queue_attr_def.c \
-	$(top_builddir)/src/lib/Libattr/resc_def_all.c \
-	$(top_builddir)/src/lib/Libattr/resv_attr_def.c \
-	$(top_builddir)/src/lib/Libattr/svr_attr_def.c \
-	$(top_srcdir)/src/server/svr_attr.c \
 	$(top_srcdir)/src/server/resc_attr.c \
+	$(top_srcdir)/src/server/jattr_get_set.c \
+	$(top_srcdir)/src/server/sattr_get_set.c \
+	$(top_srcdir)/src/server/qattr_get_set.c \
+	$(top_srcdir)/src/server/nattr_get_set.c \
 	$(top_srcdir)/src/server/setup_resc.c \
 	$(top_srcdir)/src/server/vnparse.c \
 	$(top_srcdir)/src/lib/Libcmds/cmds_common.c \
@@ -197,19 +191,18 @@ printjob_bin_SOURCES = printjob.c $(top_srcdir)/src/lib/Libcmds/cmds_common.c
 printjob_svr_bin_CPPFLAGS = \
 	${common_cflags} \
 	-I$(top_srcdir)/src/lib/Libdb \
-	@database_inc@ \
 	-DPRINTJOBSVR
 
-printjob_svr_bin_LDFLAGS = "-Wl,-rpath,$(DESTDIR)$(libdir)"
-
 printjob_svr_bin_LDADD = \
-	$(top_builddir)/src/lib/Libdb/libdb.so \
+	$(top_builddir)/src/lib/Libdb/libpbsdb.la \
 	${common_libs} \
-	@database_ldflags@ \
 	-lssl \
 	-lcrypto
 
-printjob_svr_bin_SOURCES = printjob.c $(top_srcdir)/src/lib/Libcmds/cmds_common.c
+printjob_svr_bin_SOURCES = \
+	$(top_srcdir)/src/server/jattr_get_set.c \
+	$(top_srcdir)/src/lib/Libcmds/cmds_common.c \
+	printjob.c
 
 rstester_CPPFLAGS = ${common_cflags}
 rstester_LDADD = ${common_libs}

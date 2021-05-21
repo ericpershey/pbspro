@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -67,17 +67,13 @@ main(int argc, char **argv, char **envp)
 	int connect;
 	int stat=0;
 	int rc = 0;
-	extern char *PBS_get_server();
 
 	/*test for real deal or just version and exit*/
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 	if (argc != 3) {
 		static char usage[]="usage: qorder job_identifier job_identifier\n";
@@ -87,8 +83,8 @@ main(int argc, char **argv, char **envp)
 		exit(2);
 	}
 
-	strcpy(job_id1, argv[1]);
-	strcpy(job_id2, argv[2]);
+	pbs_strncpy(job_id1, argv[1], sizeof(job_id1));
+	pbs_strncpy(job_id2, argv[2], sizeof(job_id2));
 	svrtmp[0] = '\0';
 	if (get_server(job_id1, job_id1_out, svrtmp)) {
 		fprintf(stderr, "qorder: illegally formed job identifier: %s\n", job_id1);
@@ -96,7 +92,7 @@ main(int argc, char **argv, char **envp)
 	}
 	if (*svrtmp == '\0') {
 		if ((pn = pbs_default()) != NULL) {
-			(void)strcpy(svrtmp, pn);
+			pbs_strncpy(svrtmp, pn, sizeof(svrtmp));
 		} else {
 			fprintf(stderr, "qorder: could not get default server: %s\n", job_id1);
 			exit(1);
@@ -119,7 +115,7 @@ main(int argc, char **argv, char **envp)
 	}
 	if (*svrtmp == '\0') {
 		if ((pn = pbs_default()) != NULL) {
-			(void)strcpy(svrtmp, pn);
+			pbs_strncpy(svrtmp, pn, sizeof(svrtmp));
 		} else {
 			fprintf(stderr, "qorder: could not get default server: %s\n", job_id1);
 			exit(1);
@@ -152,7 +148,8 @@ main(int argc, char **argv, char **envp)
 		fprintf(stderr, "qorder: cannot connect to server %s (errno=%d)\n",
 			pbs_server, pbs_errno);
 		exit(1);;
-	}
+	} else if (pbs_errno)
+		show_svr_inst_fail(connect, argv[0]);
 
 	stat = pbs_orderjob(connect, job_id1_out, job_id2_out, NULL);
 	if (stat) {

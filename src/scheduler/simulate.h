@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_SIMULATE_H
 #define	_SIMULATE_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include "data_types.h"
 #include "constant.h"
@@ -135,11 +132,12 @@ void set_timed_event_disabled(timed_event *te, int disabled);
  *
  */
 timed_event *
-find_timed_event(timed_event *te_list, int ignore_disabled, char *name,
-	enum timed_event_types event_type, time_t event_time);
-
-
-
+find_timed_event(timed_event *te_list, const std::string &name, int ignore_disabled,
+		 enum timed_event_types event_type, time_t event_time);
+timed_event *find_timed_event(timed_event *te_list, int ignore_disabled, enum timed_event_types event_type, time_t event_time);
+timed_event *find_timed_event(timed_event *te_list, enum timed_event_types event_type);
+timed_event *find_timed_event(timed_event *te_list, const std::string &name, enum timed_event_types event_type, time_t event_time);
+timed_event *find_timed_event(timed_event *te_list, time_t event_time);
 
 /*
  *      next_event - move an event_list to the next event and return it
@@ -345,7 +343,7 @@ create_event(enum timed_event_types event_type,
  *	returns time_t of when the job will run
  *		or -1 on error
  */
-time_t calc_run_time(char *job_name, server_info *sinfo, int flags);
+time_t calc_run_time(const std::string& name, server_info *sinfo, int flags);
 
 /*
  *
@@ -417,7 +415,7 @@ simulate_resmin(schd_resource *reslist, time_t end, event_list *calendar,
  *
  *	return printable string name of policy change event
  */
-char *policy_change_to_str(timed_event *te);
+const char *policy_change_to_str(timed_event *te);
 
 
 /*
@@ -458,7 +456,4 @@ int add_te_list(te_list **tel, timed_event *te);
 int remove_te_list(te_list **tel, timed_event *e);
 
 
-#ifdef	__cplusplus
-}
-#endif
 #endif /* _SIMULATE_H */

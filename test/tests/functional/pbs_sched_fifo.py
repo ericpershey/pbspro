@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -45,7 +45,7 @@ class TestSchedFifo(TestFunctional):
     """
     Test suite for FIFO scheduling
     """
-    @skipOnCpuSet
+
     def test_sched_fifo(self):
         """
         Check that FIFO works.
@@ -53,8 +53,7 @@ class TestSchedFifo(TestFunctional):
 
         # Configure sched for FIFO
         self.scheduler.set_sched_config({'strict_ordering': 'True',
-                                         'by_queue': 'False',
-                                         'help_starving_jobs': 'False'})
+                                         'by_queue': 'False'})
 
         # Create a new queue to test FIFO
         queue_attrib = {ATTR_qtype: 'execution',

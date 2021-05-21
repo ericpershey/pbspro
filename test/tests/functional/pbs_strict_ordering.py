@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -51,16 +51,14 @@ class TestStrictOrderingAndBackfilling(TestFunctional):
     Test strict ordering when backfilling is truned off
     """
     @timeout(1800)
-    @skipOnCpuSet
     def test_t1(self):
 
         a = {'resources_available.ncpus': 4}
-        self.server.create_vnodes('vn', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
 
         rv = self.scheduler.set_sched_config(
             {'round_robin': 'false all', 'by_queue': 'false all',
-             'strict_ordering': 'true all',
-             'help_starving_jobs': 'false all'})
+             'strict_ordering': 'true all'})
         self.assertTrue(rv)
 
         a = {'backfill_depth': 0}
@@ -99,7 +97,6 @@ class TestStrictOrderingAndBackfilling(TestFunctional):
     backfilling is off
     """
 
-    @skipOnCpuSet
     def test_t2(self):
         rv = self.scheduler.set_sched_config(
             {'by_queue': 'false prime', 'strict_ordering': 'true all'})
@@ -160,19 +157,17 @@ class TestStrictOrderingAndBackfilling(TestFunctional):
                            max_attempts=30,
                            interval=2)
 
-    @skipOnCpuSet
     def test_zero_backfill_depth_on_queue(self):
         """
         Test if scheduler tries to run a job when strict ordering is enabled
         and backfill_depth is set to 0 on the queue
         """
         a = {'resources_available.ncpus': 2}
-        self.server.create_vnodes('vn', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
 
         rv = self.scheduler.set_sched_config(
             {'round_robin': 'false all', 'by_queue': 'false all',
-             'strict_ordering': 'true all',
-             'help_starving_jobs': 'false all'})
+             'strict_ordering': 'true all'})
         self.assertTrue(rv)
 
         a = {'backfill_depth': 0}
@@ -239,7 +234,6 @@ class TestStrictOrderingAndBackfilling(TestFunctional):
         self.server.expect(JOB, {'job_state': 'R'}, id=jid6)
         self.scheduler.log_match(jid5 + ";Job is a top job")
 
-    @skipOnCpuSet
     def test_zero_backfill_depth_on_one_queue(self):
         """
         Test if scheduler tries to run a job when strict ordering is enabled
@@ -247,12 +241,11 @@ class TestStrictOrderingAndBackfilling(TestFunctional):
         enabled on another queue.
         """
         a = {'resources_available.ncpus': 1}
-        self.server.create_vnodes('vn', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
 
         rv = self.scheduler.set_sched_config(
             {'round_robin': 'false all', 'by_queue': 'false all',
-             'strict_ordering': 'true all',
-             'help_starving_jobs': 'false all'})
+             'strict_ordering': 'true all'})
         self.assertTrue(rv)
 
         a = {'backfill_depth': 0}

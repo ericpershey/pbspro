@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -61,8 +61,8 @@ e.accept()
         self.server.manager(MGR_CMD_CREATE, RSC, attr, id='NewRes')
         self.scheduler.add_resource('NewRes', apply=True)
         attr = {'resources_available.ncpus': 1}
-        self.server.create_vnodes('vnode', attr, 6, mom=self.mom,
-                                  attrfunc=self.cust_attr, usenatvnode=False)
+        self.mom.create_vnodes(attr, 6, attrfunc=self.cust_attr,
+                               usenatvnode=False)
 
     def cust_attr(self, name, totnodes, numnode, attrib):
         res_str = "ver" + str(numnode)
@@ -84,7 +84,6 @@ e.accept()
             for job_list in check_dl:
                 self.assertIn(job, job_list)
 
-    @skipOnCpuSet
     def test_runone_depend_basic(self):
         """
         Test basic runone dependency tests
@@ -143,7 +142,6 @@ e.accept()
         self.server.expect(JOB, {ATTR_state: 'H', ATTR_h: 's'}, id=j3)
         self.assert_dependency(j1, j2, j3)
 
-    @skipOnCpuSet
     def test_runone_depend_basic_on_job_array(self):
         """
         Test basic runone dependency tests on job arrays
@@ -280,7 +278,6 @@ e.accept()
         job = Job()
         job.set_sleep_time(5)
         j1 = self.server.submit(job)
-        self.server.expect(JOB, {ATTR_state: 'R'}, id=j1)
         self.server.expect(JOB, {ATTR_state: 'F'}, id=j1, extend='x')
         accept_msg = j1 + " Job has finished, dependency satisfied"
         reject_msg = j1 + " Finished job did not satisfy dependency"
@@ -321,9 +318,8 @@ e.accept()
         a = {'job_history_enable': 'True'}
         self.server.manager(MGR_CMD_SET, SERVER, a)
         job = Job()
-        job.set_sleep_time(5)
+        job.set_sleep_time(1)
         j1 = self.server.submit(job)
-        self.server.expect(JOB, {ATTR_state: 'R'}, id=j1)
         self.server.expect(JOB, {ATTR_state: 'F'}, id=j1, extend='x')
         job = Job()
         job.set_sleep_time(500)

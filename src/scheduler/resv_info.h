@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_RESV_INFO_H
 #define	_RESV_INFO_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include <pbs_config.h>
 #include "data_types.h"
@@ -113,12 +110,15 @@ node_info **create_resv_nodes(nspec **nspec_arr, server_info *sinfo);
  *	release_running_resv_nodes - adjust nodes resources for reservations that
  *				  that are being altered or are degraded.
  */
-void release_running_resv_nodes(resource_resv *resv, node_info **all_nodes);
+void release_running_resv_nodes(resource_resv *resv, server_info *sinfo);
+
+/* Reduce resv_nodes of a reservation on pbs_ralter -lselect for running jobs */
+int ralter_reduce_chunks(resource_resv *resv);
 
 /* Will we try and confirm this reservation in this cycle */
 int will_confirm(resource_resv *resv, time_t server_time);
 
-#ifdef	__cplusplus
-}
-#endif
+/* wrapper for pbs_confirmresv */
+int send_confirmresv(int virtual_sd, resource_resv *resv, const char *location, unsigned long start, const char *extend);
+
 #endif /* _RESV_INFO_H */

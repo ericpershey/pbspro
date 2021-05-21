@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -208,7 +208,8 @@ pbs_db_load_svr(void *conn, pbs_db_obj_info_t *obj)
 	int rc;
 	char *raw_array;
 	pbs_db_svr_info_t *ps = obj->pbs_db_un.pbs_db_svr;
-	static int sv_jobidnumber_fnum, attributes_fnum;
+	static int sv_jobidnumber_fnum;
+	static int attributes_fnum;
 	static int fnums_inited = 0;
 
 	if ((rc = db_query(conn, STMT_SELECT_SVR, 0, &res)) != 0)

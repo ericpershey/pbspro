@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -121,7 +121,7 @@ class TestQmgr(TestFunctional):
             long_string += blah
             # Create a new vnode
             attrs = {ATTR_rescavail + ".ncpus": 2}
-            self.server.create_vnodes(node_prefix, attrs, 1, self.mom)
+            self.mom.create_vnodes(attrs, 1, vname=node_prefix)
             # Set 'comment' attribute to the long string we created above
             attrs = {ATTR_comment: long_string}
             self.server.manager(MGR_CMD_SET, VNODE, attrs, nodename)

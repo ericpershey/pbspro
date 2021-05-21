@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -51,8 +51,6 @@
 #include <sys/socket.h>
 
 #include <arpa/inet.h>
-
-#include "libpbs.h"
 #include <ctype.h>
 #include <memory.h>
 #include <string.h>
@@ -60,6 +58,8 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <errno.h>
+
+#include "libpbs.h"
 #include "server_limits.h"
 #include "list_link.h"
 #include "work_task.h"
@@ -89,8 +89,6 @@
 #include "sched_cmds.h"
 #include "pbs_sched.h"
 #include "pbs_share.h"
-#include "pbs_license.h"
-#include <arpa/inet.h>
 
 
 #define PERM_MANAGER (ATR_DFLAG_MGWR | ATR_DFLAG_MGRD)
@@ -233,7 +231,6 @@ void
 warnings_update(int wcode, pbsnode **wnodes, int *widx, pbsnode *np)
 {
 	resource		*resc;
-	attribute		*pattr;
 	struct pbssubn		*psub;
 
 	static int		ngrp_had = 0;
@@ -245,9 +242,8 @@ warnings_update(int wcode, pbsnode **wnodes, int *widx, pbsnode *np)
 		case WARN_ngrp_init:
 		case WARN_ngrp:
 		case WARN_ngrp_ck:
-			if (server.sv_attr[SVR_ATR_NodeGroupKey].at_flags & ATR_VFLAG_SET) {
+			if (is_sattr_set(SVR_ATR_NodeGroupKey))
 				warning_ok = 1;
-			}
 			break;
 
 		default:
@@ -259,7 +255,7 @@ warnings_update(int wcode, pbsnode **wnodes, int *widx, pbsnode *np)
 		 * initialize some static data
 		 */
 
-		rname = server.sv_attr[SVR_ATR_NodeGroupKey].at_val.at_str;
+		rname = get_sattr_str(SVR_ATR_NodeGroupKey);
 		if ((rname != NULL) && (*rname != '\0'))
 			rscdef = find_resc_def(svr_resc_def, rname);
 		return;
@@ -267,8 +263,7 @@ warnings_update(int wcode, pbsnode **wnodes, int *widx, pbsnode *np)
 	} else if (warning_ok == 1 && wcode == WARN_ngrp  && wnodes != NULL) {
 
 		if (rscdef != NULL) {
-			pattr = &np->nd_attr[ND_ATR_ResourceAvail];
-			resc = find_resc_entry(pattr, rscdef);
+			resc = find_resc_entry(get_nattr(np, ND_ATR_ResourceAvail), rscdef);
 			if (resc != NULL) {
 				if (resc->rs_value.at_flags & ATR_VFLAG_MODIFY) {
 					if (np->nd_resvp) {
@@ -298,8 +293,7 @@ warnings_update(int wcode, pbsnode **wnodes, int *widx, pbsnode *np)
 		}
 	} else if (warning_ok == 1 && wcode == WARN_ngrp_ck) {
 		if (rscdef != NULL) {
-			pattr = &np->nd_attr[ND_ATR_ResourceAvail];
-			resc = find_resc_entry(pattr, rscdef);
+			resc = find_resc_entry(get_nattr(np, ND_ATR_ResourceAvail), rscdef);
 			if (resc != NULL)
 				ngrp_had = 1;
 			else
@@ -377,7 +371,7 @@ check_que_attr(pbs_queue *pque)
 
 	type = pque->qu_qs.qu_type;		/* current type of queue */
 	for (i=0; i<(int)QA_ATR_LAST; ++i) {
-		if (pque->qu_attr[i].at_flags & ATR_VFLAG_SET) {
+		if (is_qattr_set(pque, i)) {
 			if (que_attr_def[i].at_parent == PARENT_TYPE_QUE_ALL) {
 				continue;
 			} else if (que_attr_def[i].at_parent == PARENT_TYPE_QUE_EXC) {
@@ -447,8 +441,6 @@ set_resources_min_max(attribute *old, attribute *new, enum batch_op op)
 int
 check_que_enable(attribute *pattr, void *pque, int mode)
 {
-	attribute *datr;
-
 	if (pattr->at_val.at_long != 0) {
 
 		/*
@@ -459,9 +451,7 @@ check_que_enable(attribute *pattr, void *pque, int mode)
 		if (((pbs_queue *)pque)->qu_qs.qu_type == QTYPE_Unset)
 			return (PBSE_QUENOEN);
 		else if (((pbs_queue *)pque)->qu_qs.qu_type==QTYPE_RoutePush) {
-			datr = &((pbs_queue *)pque)->qu_attr[(int)QR_ATR_RouteDestin];
-			if (!(datr->at_flags & ATR_VFLAG_SET) ||
-				(datr->at_val.at_arst->as_usedptr == 0))
+			if (!is_qattr_set((pbs_queue *)pque, QR_ATR_RouteDestin) || (get_qattr_arst((pbs_queue *)pque ,QR_ATR_RouteDestin))->as_usedptr == 0)
 				return (PBSE_QUENOEN);
 		}
 	}
@@ -498,7 +488,7 @@ set_queue_type(attribute *pattr, void *pque, int mode)
 		{ QTYPE_Execution, "Execution" },
 		{ QTYPE_RoutePush, "Route" } };
 
-	if ((pattr->at_flags & ATR_VFLAG_SET) == 0)
+	if (!is_attr_set(pattr))
 		/* better be set or we shouldn't be here */
 		return (PBSE_BADATVAL);
 
@@ -523,11 +513,11 @@ set_queue_type(attribute *pattr, void *pque, int mode)
 			/* If not an Execution queue, cannot */
 			/* have nodes allocated to it        */
 			if ((spectype != QTYPE_Execution) &&
-				(((pbs_queue *)pque)->qu_attr[(int)QE_ATR_HasNodes].at_flags & ATR_VFLAG_SET) &&
-				(((pbs_queue *)pque)->qu_attr[(int)QE_ATR_HasNodes].at_val.at_long != 0)) {
+				is_qattr_set((pbs_queue *)pque, QE_ATR_HasNodes) &&
+				get_qattr_long((pbs_queue *)pque, QE_ATR_HasNodes) != 0) {
 				return (PBSE_ATTRTYPE);
 			} else {
-				if (((pbs_queue *)pque)->qu_attr[(int)QA_ATR_partition].at_flags & ATR_VFLAG_SET &&
+				if (is_qattr_set((pbs_queue *)pque, QA_ATR_partition) &&
 						(spectype == QTYPE_RoutePush)) {
 					return PBSE_CANNOT_SET_ROUTE_QUE;
 				}
@@ -607,7 +597,6 @@ static void
 unset_indirect(resource *presc, void *pidx, attribute_def *pdef, char *name, void *pobj, int objtype)
 {
 	int i;
-	attribute *pattr;
 	struct pbsnode *pnode;
 	resource_def *prdef;
 
@@ -628,9 +617,8 @@ unset_indirect(resource *presc, void *pidx, attribute_def *pdef, char *name, voi
 	if (i < 0)
 		return;
 
-	pattr = &pnode->nd_attr[i];
 	prdef = presc->rs_defin;
-	presc = find_resc_entry(pattr, prdef);
+	presc = find_resc_entry(get_nattr(pnode, i), prdef);
 	if (presc) {
 		if (presc->rs_value.at_flags & ATR_VFLAG_INDIRECT) {
 			(void)fix_indirect_resc_targets(pnode, presc, ND_ATR_ResourceAssn, 0);
@@ -966,11 +954,11 @@ mgr_unset_attr(attribute *pattr, void *pidx, attribute_def *pdef, int limit, svr
 
 		/* have we privilege to unset the attribute ? */
 
-		if ((privil != -1) && ((pdef+index)->at_flags & privil & ATR_DFLAG_WRACC) == 0) {
+		if ((privil != -1) && ((pdef + index)->at_flags & privil & ATR_DFLAG_WRACC) == 0) {
 			*bad = ord;
 			return (PBSE_ATTRRO);
 		}
-		if (((pdef+index)->at_type == ATR_TYPE_RESC) &&
+		if (((pdef + index)->at_type == ATR_TYPE_RESC) &&
 			(pl->al_resc != NULL)) {
 
 			/* check the individual resource */
@@ -984,7 +972,7 @@ mgr_unset_attr(attribute *pattr, void *pidx, attribute_def *pdef, int limit, svr
 				*bad = ord;
 				return (PBSE_PERM);
 			}
-			presc = find_resc_entry(pattr+index, prsdef);
+			presc = find_resc_entry(pattr + index, prsdef);
 			if (presc &&
 				(presc->rs_value.at_flags & ATR_VFLAG_TARGET)) {
 				if (rflag == INDIRECT_RES_UNLINK) {
@@ -1001,7 +989,7 @@ mgr_unset_attr(attribute *pattr, void *pidx, attribute_def *pdef, int limit, svr
 			}
 		}
 		if ((pnode->nd_state & INUSE_PROV) &&
-			!strcmp((pdef+index)->at_name, ATTR_NODE_current_aoe)) {
+			!strcmp((pdef + index)->at_name, ATTR_NODE_current_aoe)) {
 			*bad = ord;
 			return (PBSE_NODEPROV_NOACTION);
 		}
@@ -1018,14 +1006,14 @@ mgr_unset_attr(attribute *pattr, void *pidx, attribute_def *pdef, int limit, svr
 		if (encode_single_attr_db((pdef + index), (pattr + index), &db_attr_list) != 0)
 			return (PBSE_NOATTR);
 
-		if (((pdef+index)->at_type == ATR_TYPE_RESC) &&
+		if (((pdef + index)->at_type == ATR_TYPE_RESC) &&
 			(plist->al_resc != NULL)) {
 
 			/* attribute of type resource and specified resource */
 			/* free resource member, not the attribute */
 
 			prsdef = find_resc_def(svr_resc_def, plist->al_resc);
-			presc = find_resc_entry(pattr+index, prsdef);
+			presc = find_resc_entry(pattr + index, prsdef);
 			if (presc) {
 				if ((ptype != PARENT_TYPE_SERVER) ||
 					(index != (int)SVR_ATR_resource_cost)) {
@@ -1043,28 +1031,28 @@ mgr_unset_attr(attribute *pattr, void *pidx, attribute_def *pdef, int limit, svr
 			}
 			/* If the last resource has been delinked from  */
 			/* the attribute,  "unset" the attribute itself */
-			presc = (resource *)GET_NEXT((pattr+index)->at_val.at_list);
+			presc = (resource *)GET_NEXT((pattr + index)->at_val.at_list);
 			if (presc == NULL)
-				(pattr+index)->at_flags &= ~ATR_VFLAG_SET;
+				mark_attr_not_set(pattr+index);
 			(pattr+index)->at_flags |= ATR_MOD_MCACHE;
 
-		} else if (((pdef+index)->at_type == ATR_TYPE_ENTITY) &&
+		} else if (((pdef + index)->at_type == ATR_TYPE_ENTITY) &&
 			(plist->al_resc != NULL)) {
 
 			/* attribute of type ENTITY and specifed resource */
 			/* unset the entity limit on that resource for    */
 			/* all entities */
 
-			unset_entlim_resc(pattr+index, plist->al_resc);
+			unset_entlim_resc(pattr + index, plist->al_resc);
 
 		} else {
 
 			/* either the attribute is not of type ENTITY or RESC */
 			/* or there is no specific resource specified         */
-			if ((pdef+index)->at_type == ATR_TYPE_RESC) {
+			if ((pdef + index)->at_type == ATR_TYPE_RESC) {
 
 				/* if a resource type, check each for being indirect */
-				presc = (resource *)GET_NEXT((pattr+index)->at_val.at_list);
+				presc = (resource *)GET_NEXT((pattr + index)->at_val.at_list);
 				while (presc) {
 					if (presc->rs_value.at_flags & ATR_VFLAG_INDIRECT) {
 						unset_indirect(presc, pidx, pdef, plist->al_name, pobj, ptype);
@@ -1076,8 +1064,8 @@ mgr_unset_attr(attribute *pattr, void *pidx, attribute_def *pdef, int limit, svr
 
 			/* now free the whole attribute */
 
-			(pdef+index)->at_free(pattr+index);
-			(pattr+index)->at_flags |= ATR_VFLAG_MODIFY;
+			(pdef + index)->at_free(pattr + index);
+			(pattr + index)->at_flags |= ATR_VFLAG_MODIFY;
 		}
 		plist = (svrattrl *)GET_NEXT(plist->al_link);
 	}
@@ -1271,10 +1259,9 @@ mgr_queue_delete(struct batch_request *preq)
 		}
 
 		if (rc == 0) {
-			char queue_name[PBS_MAXQUEUENAME];
+			char queue_name[PBS_MAXQUEUENAME + 1];
 			/* Save the queue name before we purge it so it will appear in the log.  */
-			strncpy(queue_name, pque->qu_qs.qu_name, sizeof(queue_name));
-			queue_name[(sizeof(queue_name) - 1)] = '\0';
+			pbs_strncpy(queue_name, pque->qu_qs.qu_name, sizeof(queue_name));
 			if ((rc = que_purge(pque)) != 0) {
 				rc = PBSE_OBJBUSY;
 			} else
@@ -1362,12 +1349,15 @@ mgr_server_set(struct batch_request *preq, conn_t *conn)
 	svrattrl *ulist;
 	pbs_list_head unsetlist;
 	int	  rc;
+	int has_log_events = 0;
 
 	CLEAR_HEAD(unsetlist);
 
 	plist = (svrattrl *)GET_NEXT(preq->rq_ind.rq_manager.rq_attr);
 	/*Only root at server host can set server attribute "acl_roots".*/
 	while (plist) {
+		if (strcmp(plist->al_name, ATTR_logevents) == 0)
+			has_log_events = 1;
 		if (strcasecmp(plist->al_name, ATTR_aclroot) == 0) {
 			if (!is_local_root(preq->rq_user, preq->rq_host)) {
 				reply_badattr(PBSE_ATTRRO, bad_attr, plist, preq);
@@ -1414,6 +1404,8 @@ mgr_server_set(struct batch_request *preq, conn_t *conn)
 	else {
 		svr_save_db(&server);
 done:
+		if (has_log_events)
+			*log_event_mask = get_sattr_long(SVR_ATR_log_events);
 		log_eventf(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER, LOG_INFO, msg_daemonname, msg_manager, msg_man_set, preq->rq_user, preq->rq_host);
 		mgr_log_attr(msg_man_set, plist, PBS_EVENTCLASS_SERVER, msg_daemonname, NULL);
 		reply_ack(preq);
@@ -1490,8 +1482,7 @@ mgr_server_unset(struct batch_request *preq, conn_t *conn)
 		} else if (strcasecmp(plist->al_name,
 				ATTR_scheduling) == 0) {
 			if (dflt_scheduler) {
-				dflt_scheduler->sch_attr[SCHED_ATR_scheduling].at_val.at_long = 0;
-				dflt_scheduler->sch_attr[SCHED_ATR_scheduling].at_flags |= ATR_SET_MOD_MCACHE;
+				set_sched_attr_l_slim(dflt_scheduler, SCHED_ATR_scheduling, 0, SET);
 				sched_save_db(dflt_scheduler);
 			}
 		}  else if (strcasecmp(plist->al_name, ATTR_schediteration) == 0) {
@@ -1525,50 +1516,43 @@ mgr_server_unset(struct batch_request *preq, conn_t *conn)
 	if (rc != 0)
 		reply_badattr(rc, bad_attr, plist, preq);
 	else {
-		if (server.sv_attr[SVR_ATR_DefaultChunk].at_flags & ATR_VFLAG_MODIFY) {
-			(void)deflt_chunk_action(&server.sv_attr[SVR_ATR_DefaultChunk], (void *)&server, ATR_ACTION_ALTER);
+		attribute *pattr = get_sattr(SVR_ATR_DefaultChunk);
+		if (pattr->at_flags & ATR_VFLAG_MODIFY) {
+			(void)deflt_chunk_action(pattr, (void *)&server, ATR_ACTION_ALTER);
 		}
 		/* Now set the default values on some of the unset attributes */
 		plist = (svrattrl *)GET_NEXT(preq->rq_ind.rq_manager.rq_attr);
 		for (plist = (svrattrl *)GET_NEXT(preq->rq_ind.rq_manager.rq_attr);
 			plist != NULL; plist = (struct svrattrl *)GET_NEXT(plist->al_link)) {
 			if (strcasecmp(plist->al_name, ATTR_logevents) == 0) {
-				char dflt_log_event[22];
-				snprintf(dflt_log_event, sizeof(dflt_log_event), "%d", SVR_LOG_DFLT);
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_log_events]), &svr_attr_def[(int) SVR_ATR_log_events],
-					     dflt_log_event);
-			}
+				set_sattr_l_slim(SVR_ATR_log_events, SVR_LOG_DFLT, SET);
+				*log_event_mask = get_sattr_long(SVR_ATR_log_events);
+			} else if (strcasecmp(plist->al_name, ATTR_mailer) == 0)
+				set_sattr_str_slim(SVR_ATR_mailer, SENDMAIL_CMD, NULL);
 			else if (strcasecmp(plist->al_name, ATTR_mailfrom) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_mailfrom]),
-					    &svr_attr_def[(int)SVR_ATR_mailfrom], PBS_DEFAULT_MAIL);
+				set_sattr_str_slim(SVR_ATR_mailfrom, PBS_DEFAULT_MAIL, NULL);
 			else if (strcasecmp(plist->al_name, ATTR_queryother) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_query_others]),
-					    &svr_attr_def[(int)SVR_ATR_query_others], "TRUE");
+				set_sattr_l_slim(SVR_ATR_query_others, 1, SET);
 			else if (strcasecmp(plist->al_name, ATTR_schediteration) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_scheduler_iteration]),
-					    &svr_attr_def[(int)SVR_ATR_scheduler_iteration], TOSTR(PBS_SCHEDULE_CYCLE));
+				set_sattr_str_slim(SVR_ATR_scheduler_iteration, TOSTR(PBS_SCHEDULE_CYCLE), NULL);
 			else if(strcasecmp(plist->al_name, ATTR_ResvEnable) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_ResvEnable]),
-					    &svr_attr_def[(int)SVR_ATR_ResvEnable], "TRUE");
+				set_sattr_l_slim(SVR_ATR_ResvEnable, 1, SET);
 			else if(strcasecmp(plist->al_name, ATTR_maxarraysize) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_maxarraysize]),
-					    &svr_attr_def[(int)SVR_ATR_maxarraysize], TOSTR(PBS_MAX_ARRAY_JOB_DFL));
+				set_sattr_str_slim(SVR_ATR_maxarraysize, TOSTR(PBS_MAX_ARRAY_JOB_DFL), NULL);
 			else if(strcasecmp(plist->al_name, ATTR_max_concurrent_prov) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_max_concurrent_prov]),
-					    &svr_attr_def[(int)SVR_ATR_max_concurrent_prov], TOSTR(PBS_MAX_CONCURRENT_PROV));
+				set_sattr_str_slim(SVR_ATR_max_concurrent_prov, TOSTR(PBS_MAX_CONCURRENT_PROV), NULL);
 			else if(strcasecmp(plist->al_name, ATTR_EligibleTimeEnable) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_EligibleTimeEnable]),
-					    &svr_attr_def[(int)SVR_ATR_EligibleTimeEnable], "FALSE");
-			else if(strcasecmp(plist->al_name, ATTR_license_linger) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_license_linger]),
-					    &svr_attr_def[(int)SVR_ATR_license_linger], TOSTR(PBS_LIC_LINGER_TIME));
-			else if(strcasecmp(plist->al_name, ATTR_license_max) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_license_max]),
-					    &svr_attr_def[(int)SVR_ATR_license_max], TOSTR(PBS_MAX_LICENSING_LICENSES));
-			else if(strcasecmp(plist->al_name, ATTR_license_min) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_license_min]),
-					    &svr_attr_def[(int)SVR_ATR_license_min], TOSTR(PBS_MIN_LICENSING_LICENSES));
-			else if (strcasecmp(plist->al_name, ATTR_rescdflt) == 0) {
+				set_sattr_l_slim(SVR_ATR_EligibleTimeEnable, 0, SET);
+			else if(strcasecmp(plist->al_name, ATTR_license_linger) == 0) {
+				set_sattr_l_slim(SVR_ATR_license_linger, PBS_LIC_LINGER_TIME, SET);
+				licensing_control.licenses_linger_time = PBS_LIC_LINGER_TIME;
+			} else if(strcasecmp(plist->al_name, ATTR_license_max) == 0) {
+				set_sattr_l_slim(SVR_ATR_license_max, PBS_MAX_LICENSING_LICENSES, SET);
+				licensing_control.licenses_max = PBS_MAX_LICENSING_LICENSES;
+			} else if(strcasecmp(plist->al_name, ATTR_license_min) == 0) {
+				set_sattr_l_slim(SVR_ATR_license_min, PBS_MIN_LICENSING_LICENSES, SET);
+				licensing_control.licenses_min = PBS_MIN_LICENSING_LICENSES;
+			} else if (strcasecmp(plist->al_name, ATTR_rescdflt) == 0) {
 				if (plist->al_resc != NULL && strcasecmp(plist->al_resc, "ncpus") == 0) {
 					svrattrl *tm_list;
 					tm_list = attrlist_create(plist->al_name, "ncpus", 8);
@@ -1588,8 +1572,7 @@ mgr_server_unset(struct batch_request *preq, conn_t *conn)
 					free_svrattrl(tm_list);
 				}
 			} else if (strcasecmp(plist->al_name, ATTR_scheduling) == 0)
-				set_attr_svr(&(server.sv_attr[(int)SVR_ATR_scheduling]),
-					    &svr_attr_def[(int) SVR_ATR_scheduling], "TRUE");
+				set_sattr_l_slim(SVR_ATR_scheduling, 1, SET);
 		}
 		svr_save_db(&server);
 		log_eventf(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER, LOG_INFO,
@@ -1619,6 +1602,7 @@ mgr_sched_set(struct batch_request *preq)
 	pbs_list_head unsetlist;
 	int	  rc;
 	pbs_sched *psched;
+	int only_scheduling = 1;
 
 	psched = find_sched(preq->rq_ind.rq_manager.rq_objname);
 	if (!psched) {
@@ -1629,6 +1613,9 @@ mgr_sched_set(struct batch_request *preq)
 	CLEAR_HEAD(unsetlist);
 	plist = (svrattrl *)GET_NEXT(preq->rq_ind.rq_manager.rq_attr);
 	while (plist) {
+		if (strcmp(plist->al_atopl.name, ATTR_scheduling)) {
+			only_scheduling = 0;
+		}
 		if (plist->al_atopl.value == NULL || plist->al_atopl.value[0] == '\0') {
 			tmp = (struct svrattrl *)GET_NEXT(plist->al_link);
 			delete_link(&plist->al_link);
@@ -1662,8 +1649,8 @@ mgr_sched_set(struct batch_request *preq)
 		reply_badattr(rc, bad_attr, plist, preq);
 		return;
 	}
-
-	set_scheduler_flag(SCH_CONFIGURE, psched);
+	if (only_scheduling != 1)
+		set_scheduler_flag(SCH_CONFIGURE, psched);
 
 	sched_save_db(psched);
 
@@ -1802,7 +1789,7 @@ mgr_queue_set(struct batch_request *preq)
 				free_attrlist(&unsetlist);
 				return;
 			}
-			free_attrlist(&unsetlist); /* since this is not part of plist anymore, we must free separately */	
+			free_attrlist(&unsetlist); /* since this is not part of plist anymore, we must free separately */
 		}
 
 		plist = (svrattrl *)GET_NEXT(preq->rq_ind.rq_manager.rq_attr);
@@ -1898,13 +1885,12 @@ mgr_queue_unset(struct batch_request *preq)
 			reply_badattr(rc, bad_attr, plist, preq);
 			return;
 		} else {
-			if (pque->qu_attr[QE_ATR_DefaultChunk].at_flags & ATR_VFLAG_MODIFY) {
-				(void)deflt_chunk_action(&pque->qu_attr[QE_ATR_DefaultChunk], (void *)pque, ATR_ACTION_ALTER);
-			}
+			attribute *attr;
+			if ((attr = get_qattr(pque, QE_ATR_DefaultChunk))->at_flags & ATR_VFLAG_MODIFY)
+				(void)deflt_chunk_action(attr, (void *)pque, ATR_ACTION_ALTER);
 			que_save_db(pque);
 			mgr_log_attr(msg_man_uns, plist, PBS_EVENTCLASS_QUEUE, pque->qu_qs.qu_name, NULL);
-			if ((pque->qu_attr[(int)QA_ATR_QType].at_flags &
-				ATR_VFLAG_SET) == 0)
+			if (is_qattr_set(pque, QA_ATR_QType) == 0)
 				pque->qu_qs.qu_type = QTYPE_Unset;
 		}
 		if (allques)
@@ -2022,7 +2008,7 @@ mgr_node_set(struct batch_request *preq)
 	plist = (svrattrl *)GET_NEXT(preq->rq_ind.rq_manager.rq_attr);
 	while (plist) {
 		tmp = (struct svrattrl *)GET_NEXT(plist->al_link);
-		
+
 		delete_link(&plist->al_link);
 		if (plist->al_atopl.value == NULL || plist->al_atopl.value[0] == '\0')
 			append_link(&unsetlist, &plist->al_link, plist);
@@ -2093,13 +2079,13 @@ mgr_node_set(struct batch_request *preq)
 								break;
 							case PBSE_QUE_NOT_IN_PARTITION:
 								(void)snprintf(log_buffer, LOG_BUF_SIZE, msg_queue_not_in_partition,
-									pnode->nd_attr[ND_ATR_Queue].at_val.at_str);
+									get_nattr_str(pnode, ND_ATR_Queue));
 								log_err(-1, __func__, log_buffer);
 								reply_text(preq, PBSE_QUE_NOT_IN_PARTITION, log_buffer);
 								break;
 							case PBSE_PARTITION_NOT_IN_QUE:
 								(void)snprintf(log_buffer, LOG_BUF_SIZE, msg_partition_not_in_queue,
-									pnode->nd_attr[ND_ATR_partition].at_val.at_str);
+									get_nattr_str(pnode, ND_ATR_partition));
 								log_err(-1, __func__, log_buffer);
 								reply_text(preq, PBSE_PARTITION_NOT_IN_QUE, log_buffer);
 								break;
@@ -2139,7 +2125,7 @@ mgr_node_set(struct batch_request *preq)
 					int imom;
 					for (imom = 0; imom < pnode->nd_nummoms; ++imom) {
 						unsigned long mstate;
-						mstate = ((mom_svrinfo_t *)(pnode->nd_moms[imom]->mi_data))->msr_state;
+						mstate = pnode->nd_moms[imom]->mi_dmn_info->dmn_state;
 						if ((mstate & (INUSE_DOWN | INUSE_OFFLINE)) == 0)  {
 							/* If another mom is up (i.e. not down or offline)
 							 * then do not set the vnode state of the children
@@ -2424,19 +2410,19 @@ mgr_node_unset(struct batch_request *preq)
 				}
 
 				/* if resources_avail.ncpus unset, reset to default */
-				patr = &pnode->nd_attr[(int)ND_ATR_ResourceAvail];
+				patr = get_nattr(pnode, ND_ATR_ResourceAvail);
 				prd  = &svr_resc_def[RESC_NCPUS];
 				prc  = find_resc_entry(patr, prd);
 				if (prc == NULL) {
 					prc = add_resource_entry(patr, prd);
 				}
-				if ((prc->rs_value.at_flags & ATR_VFLAG_SET) == 0) {
+				if (!is_attr_set(&prc->rs_value)) {
 					prc->rs_value.at_val.at_long = pnode->nd_ncpus;
 					prc->rs_value.at_flags |= ATR_VFLAG_DEFLT | ATR_SET_MOD_MCACHE;
 				}
 
 				/* If the Mom attribute is unset, reset to default */
-				if ((pnode->nd_attr[(int)ND_ATR_Mom].at_flags & ATR_VFLAG_SET) == 0) {
+				if (is_nattr_set(pnode, ND_ATR_Mom) == 0) {
 					attribute tmp;
 					if (get_fullhostname(pnode->nd_name, hostname,
 							(sizeof(hostname) - 1)) != 0) {
@@ -2445,8 +2431,8 @@ mgr_node_unset(struct batch_request *preq)
 					clear_attr(&tmp, &node_attr_def[(int)ND_ATR_Mom]);
 					rc = decode_arst(&tmp, ATTR_NODE_Mom, NULL, hostname);
 					if (rc == 0) {
-						set_arst(&pnode->nd_attr[(int)ND_ATR_Mom], &tmp, INCR);
-						pnode->nd_attr[(int)ND_ATR_Mom].at_flags |= ATR_VFLAG_DEFLT;
+						set_arst(get_nattr(pnode, ND_ATR_Mom), &tmp, INCR);
+						(get_nattr(pnode, ND_ATR_Mom))->at_flags |= ATR_VFLAG_DEFLT;
 						free_arst(&tmp);
 					}
 				}
@@ -2533,7 +2519,7 @@ mgr_node_unset(struct batch_request *preq)
  * @retval	PBS error	- error
  */
 
-static int
+int
 make_host_addresses_list(char *phost, u_long **pul)
 {
 	int		i;
@@ -2614,12 +2600,14 @@ make_host_addresses_list(char *phost, u_long **pul)
 	tpul = malloc(sizeof(struct pul_store));
 	if (!tpul) {
 		strcat(log_buffer, "out of  memory");
+		free(*pul);
 		return (PBSE_SYSTEM);
 	}
 	tpul->len = len;
 	tpul->pul = (u_long *) malloc(tpul->len);
 	if (!tpul->pul) {
 		free(tpul);
+		free(*pul);
 		strcat(log_buffer, "out of  memory");
 		return (PBSE_SYSTEM);
 	}
@@ -2629,6 +2617,7 @@ make_host_addresses_list(char *phost, u_long **pul)
 		if ((hostaddr_idx = pbs_idx_create(0, 0)) == NULL) {
 			free(tpul->pul);
 			free(tpul);
+			free(*pul);
 			strcat(log_buffer, "out of  memory");
 			return (PBSE_SYSTEM);
 		}
@@ -2636,6 +2625,7 @@ make_host_addresses_list(char *phost, u_long **pul)
 	if (pbs_idx_insert(hostaddr_idx, phost, tpul) != PBS_IDX_RET_OK) {
 		free(tpul->pul);
 		free(tpul);
+		free(*pul);
 		return (PBSE_SYSTEM);
 	}
 	return 0;
@@ -2737,7 +2727,7 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 		return (rc);
 
 
-	if ((pnode=find_nodebyname(pname)) == NULL) {
+	if ((pnode = find_nodebyname(pname)) == NULL) {
 
 		/* need to create the pbs_node entry */
 
@@ -2754,18 +2744,18 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 		if (tmpndlist != NULL) {
 			/*add in the new entry etc*/
 			pbsndlist = tmpndlist;
-			pnode->nd_index = svr_totnodes;
+			/* nd_index = 0 (regular node, single parent mom), nd_index = 1 (multiple parent moms, usually Cray) */
+			pnode->nd_index = 0;
 			pnode->nd_arr_index = svr_totnodes; /* this is only in mem, not from db */
 			pbsndlist[svr_totnodes++] = pnode;
 		} else {
-			free_pnode(pnode);
 			free(pname);
+			free_pnode(pnode);
 			return (PBSE_SYSTEM);
 		}
 		if (initialize_pbsnode(pnode, pname, ntype) != PBSE_NONE) {
 			svr_totnodes--;
 			free_pnode(pnode);
-			free(pname);
 			return (PBSE_SYSTEM);
 		}
 
@@ -2774,7 +2764,6 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 		if (create_subnode(pnode, NULL) == NULL) {
 			svr_totnodes--;
 			free_pnode(pnode);
-			free(pname);
 			return (PBSE_SYSTEM);
 		}
 
@@ -2783,7 +2772,6 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 			if ((node_idx = pbs_idx_create(0, 0)) == NULL) {
 				svr_totnodes--;
 				free_pnode(pnode);
-				free(pname);
 				return (PBSE_SYSTEM);
 			}
 		}
@@ -2792,7 +2780,6 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 		if (pbs_idx_insert(node_idx, pname, pnode) != PBS_IDX_RET_OK) {
 			svr_totnodes--;
 			free_pnode(pnode);
-			free(pname);
 			return (PBSE_SYSTEM);
 		}
 	} else if (nodup == TRUE) {
@@ -2822,10 +2809,8 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 
 	if (plx) {
 		plx->al_op = INCR;
-	} else if ((pnode->nd_attr[(int) ND_ATR_Mom].at_flags & ATR_VFLAG_SET) == 0) {
-		rc = node_attr_def[(int) ND_ATR_Mom].at_decode(
-			&pnode->nd_attr[(int) ND_ATR_Mom],
-			ATTR_NODE_Mom, NULL, pname);
+	} else if (is_nattr_set(pnode, ND_ATR_Mom) == 0) {
+		rc = set_nattr_str_slim(pnode, ND_ATR_Mom, pname, NULL);
 		if (rc != PBSE_NONE) {
 			effective_node_delete(pnode);
 			return (rc);
@@ -2841,10 +2826,8 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 		}
 		plx = (svrattrl *)GET_NEXT(plx->al_link);
 	}
-	if ((plx == NULL) && ((pnode->nd_attr[(int)ND_ATR_Port].at_flags & ATR_VFLAG_SET) == 0)) {
-		pnode->nd_attr[(int)ND_ATR_Port].at_val.at_long = pbs_mom_port;
-		pnode->nd_attr[(int)ND_ATR_Port].at_flags = ATR_SET_MOD_MCACHE;
-	}
+	if ((plx == NULL) && (is_nattr_set(pnode, ND_ATR_Port) == 0))
+		set_nattr_l_slim(pnode, ND_ATR_Port, pbs_mom_port, SET);
 
 	/* OK, set the attributes specified */
 
@@ -2873,7 +2856,7 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 	 * first character.
 	 */
 
-	pattr = &pnode->nd_attr[(int)ND_ATR_ResourceAvail];
+	pattr = get_nattr(pnode, ND_ATR_ResourceAvail);
 
 	prdef = &svr_resc_def[RESC_HOST];
 	presc = find_resc_entry(pattr, prdef);
@@ -2884,7 +2867,7 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 			struct sockaddr_in sa4;
 			struct sockaddr_in6 sa6;
 
-			strncpy(realfirsthost, pnode->nd_attr[(int)ND_ATR_Mom].at_val.at_arst->as_string[0], (sizeof(realfirsthost) - 1));
+			strncpy(realfirsthost, (get_nattr_arst(pnode, ND_ATR_Mom))->as_string[0], (sizeof(realfirsthost) - 1));
 			realfirsthost[PBS_MAXHOSTNAME] = '\0';
 
 			if ((inet_pton(AF_INET, realfirsthost, &(sa4.sin_addr)) != 1) &&
@@ -2935,7 +2918,7 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 	 * The Mom structure may already exist
 	 */
 
-	pattr = &pnode->nd_attr[(int)ND_ATR_Mom];
+	pattr = get_nattr(pnode, ND_ATR_Mom);
 	for (iht = 0; iht < pattr->at_val.at_arst->as_usedptr; ++iht) {
 		unsigned int nport;
 
@@ -2945,7 +2928,7 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 			log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_NODE, LOG_INFO, pnode->nd_name, log_buffer);
 
 			/* special case for unresolved nodes in case of server startup */
-			if ((rc == PBSE_UNKNODE) && (server.sv_attr[(int)SVR_ATR_State].at_val.at_long == SV_STATE_INIT)) {
+			if (rc == PBSE_UNKNODE && get_sattr_long(SVR_ATR_State) == SV_STATE_INIT) {
 				/*
 				 * mark node as INUSE_UNRESOLVABLE, pbsnodes will show unresolvable state
 				 */
@@ -2956,12 +2939,13 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 				 * Since we are going ahead nevertheless, we need to allocate
 				 * an "empty" pul list
 				 */
+				free(pul);
 				pul = malloc(sizeof(u_long) * (1));
 				pul[0] = 0;
 				ret = PBSE_UNKNODE; /* set return of function to this, so that error is logged */
 			} else {
-				effective_node_delete(pnode);
 				free(pul);
+				effective_node_delete(pnode);
 				return (rc); /* return the error code from make_host_addresses_list */
 			}
 		}
@@ -2971,9 +2955,10 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 		 * responsibility for "pul" including freeing it if need be.
 		 */
 
-		nport = pnode->nd_attr[(int)ND_ATR_Port].at_val.at_long;
+		nport = get_nattr_long(pnode, ND_ATR_Port);
 
 		if ((pmom = create_svrmom_entry(phost, nport, pul)) == NULL) {
+			free(pul);
 			effective_node_delete(pnode);
 			return (PBSE_SYSTEM);
 		}
@@ -2985,8 +2970,8 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 			}
 		}
 		smp = (mom_svrinfo_t *)(pmom->mi_data);
-		for (j = 0; smp->msr_addrs[j]; j++) {
-			u_long ipaddr = smp->msr_addrs[j];
+		for (j = 0; pmom->mi_dmn_info->dmn_addrs[j]; j++) {
+			u_long ipaddr = pmom->mi_dmn_info->dmn_addrs[j];
 			if (insert_iplist_element(pbs_iplist, ipaddr)) {
 				delete_pbs_iplist(pbs_iplist);
 				return (PBSE_SYSTEM); /* No Memory */
@@ -3001,10 +2986,8 @@ create_pbs_node2(char *objname, svrattrl *plist, int perms, int *bad, struct pbs
 
 		/* If this is the "natural vnode" (i.e. 0th entry) */
 		if (pnode->nd_nummoms == 1) {
-			if ((pnode->nd_attr[(int)ND_ATR_vnode_pool].at_flags & ATR_VFLAG_SET) &&
-			    (pnode->nd_attr[(int)ND_ATR_vnode_pool].at_val.at_long > 0)) {
-				smp->msr_vnode_pool = pnode->nd_attr[(int)ND_ATR_vnode_pool].at_val.at_long;
-			}
+			if (is_nattr_set(pnode, ND_ATR_vnode_pool) && get_nattr_long(pnode, ND_ATR_vnode_pool) > 0)
+				smp->msr_vnode_pool = get_nattr_long(pnode, ND_ATR_vnode_pool);
 		}
 	}
 
@@ -3128,12 +3111,7 @@ struct batch_request *preq;
 	char		*problem_names;
 	struct pbsnode  **problem_nodes = NULL;
 	svrattrl	*plist;
-	/* following four variables are for BLUE GENE only */
-	attribute	*pattr;
-	resource_def	*prescdef;
-	resource	*presc;
 	mom_svrinfo_t	*psvrmom;
-	extern int	 have_blue_gene_nodes;
 
 	nodename = preq->rq_ind.rq_manager.rq_objname;
 
@@ -3163,9 +3141,8 @@ struct batch_request *preq;
 
 	/* If node being deleted is linked to any queue, clear "has node" flag for that queue */
 	if (pnode->nd_pque != NULL) {
-		pnode->nd_pque->qu_attr[(int)QE_ATR_HasNodes].at_val.at_long = 0;
-		pnode->nd_pque->qu_attr[(int)QE_ATR_HasNodes].at_flags &= ~ATR_VFLAG_SET;
-		pnode->nd_pque->qu_attr[(int)QE_ATR_HasNodes].at_flags |= ATR_MOD_MCACHE;
+		set_qattr_l_slim(pnode->nd_pque, QE_ATR_HasNodes, 0, SET);
+		ATR_UNSET(get_qattr(pnode->nd_pque, QE_ATR_HasNodes));
 	}
 
 	log_eventf(PBSEVENT_ADMIN, PBS_EVENTCLASS_NODE, LOG_INFO,
@@ -3266,9 +3243,9 @@ struct batch_request *preq;
 
 	save_nodes_db(1, NULL);
 
-	if (numnodes > 1) {          /*modification was for all nodes  */
+	if (numnodes > 1) {		/*modification was for all nodes  */
 
-		if (problem_cnt) {  /*one or more problems encountered*/
+		if (problem_cnt) {	/*one or more problems encountered*/
 
 			for (len=0, i=0; i<problem_cnt; i++)
 				len += strlen(problem_nodes[i]->nd_name) + 3;
@@ -3292,34 +3269,14 @@ struct batch_request *preq;
 			}
 		}
 
-		free(problem_nodes);		/*maybe problem malloc failed */
+		free(problem_nodes);		/* maybe problem malloc failed */
 		problem_nodes = NULL;
 
-		if (problem_cnt) {		/*reply has already been sent  */
-			return ;
-		}
+		if (problem_cnt)		/* reply has already been sent */
+			return;
 	}
 
-	/* BLUE GENE only - see if any BLUE GENE nodes still exist */
-	rc = 0;
-	prescdef = &svr_resc_def[RESC_ARCH];
-	for (i=0; i<svr_totnodes; i++) {
-
-		pnode = pbsndlist[i];
-		if (pnode->nd_state & INUSE_DELETED)
-			continue;	/* deleted, skip it */
-
-		pattr = &pnode->nd_attr[ND_ATR_ResourceAvail];
-		presc = find_resc_entry(pattr, prescdef);
-		if ((presc != NULL) &&
-			(presc->rs_value.at_flags & ATR_VFLAG_SET)) {
-			if (strcmp(presc->rs_value.at_val.at_str, BLUEGENE) == 0)
-				rc = 1;
-		}
-	}
-	have_blue_gene_nodes = rc;
-
-	reply_ack(preq);		/*request completely successful*/
+	reply_ack(preq);
 }
 
 /**
@@ -3393,6 +3350,9 @@ struct batch_request *preq;
 	mominfo_t	*mymom;
 	struct		sockaddr_in check_ip;
 	int		is_node_ip;
+	char *nodename;
+
+	nodename = preq->rq_ind.rq_manager.rq_objname;
 
 	/*
 	 * Before creating the (v)node, validate the (v)node name using
@@ -3400,7 +3360,7 @@ struct batch_request *preq;
 	 * If any invalid char found, then reject the batch req with
 	 * PBSE_BADNDATVAL.
 	 */
-	if ((vnp = preq->rq_ind.rq_manager.rq_objname) != NULL) {
+	if ((vnp = nodename) != NULL) {
 		for (; *vnp && legal_vnode_char(*vnp, 1); vnp++)
 			;
 		if (*vnp) {
@@ -3412,18 +3372,18 @@ struct batch_request *preq;
 		 * corresponding column nd_name in the database table pbs.node
 		 * is defined as string of length 64.
 		 */
-		if (strlen(preq->rq_ind.rq_manager.rq_objname) > PBS_MAXHOSTNAME) {
+		if (strlen(nodename) > PBS_MAXHOSTNAME) {
 			req_reject(PBSE_NODENBIG, 0, preq);
 			return;
 		}
 	}
-	is_node_ip = inet_pton(AF_INET, preq->rq_ind.rq_manager.rq_objname, &(check_ip.sin_addr));
+	is_node_ip = inet_pton(AF_INET, nodename, &(check_ip.sin_addr));
 	if (is_node_ip > 0) {
-		log_eventf(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_INFO, preq->rq_ind.rq_manager.rq_objname,
+		log_eventf(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_INFO, nodename,
 			"Node added using IPv4 address\nVerify that PBS_MOM_NODE_NAME is configured on the respective host");
 	}
 	plist = (svrattrl *)GET_NEXT(preq->rq_ind.rq_manager.rq_attr);
-	rc = create_pbs_node(preq->rq_ind.rq_manager.rq_objname,
+	rc = create_pbs_node(nodename,
 		plist, preq->rq_perm, &bad, &pnode, TRUE);
 
 	if (rc != 0) {
@@ -3447,9 +3407,7 @@ struct batch_request *preq;
 	}
 
 	mymom   = pnode->nd_moms[0];
-	vn_pool = pnode->nd_attr[(int)ND_ATR_vnode_pool].at_val.at_long;
-	if ((pnode->nd_attr[(int)ND_ATR_vnode_pool].at_flags & ATR_VFLAG_SET) &&
-	   (vn_pool > 0)) {
+	if (is_nattr_set(pnode, ND_ATR_vnode_pool) && ((vn_pool = get_nattr_long(pnode, ND_ATR_vnode_pool)) > 0)) {
 		if (add_mom_to_pool(mymom) == PBSE_NONE) {
 			/* cross link any vnodes of an existing Mom in pool */
 			int i;
@@ -3475,7 +3433,7 @@ struct batch_request *preq;
 		}
 	}
 	mgr_log_attr(msg_man_set, plist,
-		PBS_EVENTCLASS_NODE, preq->rq_ind.rq_manager.rq_objname, NULL);
+		PBS_EVENTCLASS_NODE, nodename, NULL);
 
 	setup_notification();	    /*set mechanism for notifying */
 	/*other nodes of new member   */
@@ -3503,7 +3461,7 @@ get_resource(attribute *pattr, resource_def *prdef)
 {
 	resource *presc;
 
-	if (pattr->at_flags & ATR_VFLAG_SET) {
+	if (is_attr_set(pattr)) {
 		if (pattr->at_type == ATR_TYPE_RESC) {
 			presc = (resource *) GET_NEXT(pattr->at_val.at_list);
 			while (presc) {
@@ -3531,7 +3489,7 @@ get_resource(attribute *pattr, resource_def *prdef)
 int
 is_entity_resource_set(attribute *pattr, char *resc_name)
 {
-	if (pattr->at_flags & ATR_VFLAG_SET) {
+	if (is_attr_set(pattr)) {
 		char *key = NULL;
 		void *ctx = pattr->at_val.at_enty.ae_tree;
 		char resc[PBS_MAX_RESC_NAME+1];
@@ -3568,25 +3526,26 @@ check_resource_set_on_jobs_or_resvs(struct batch_request *preq, resource_def *pr
 	resc_resv *pr;
 	char *rmatch;
 	int rlen;
-	attribute *pattr;
 	resource *presc;
+	resource *presc_list;
+	resource *presc_used;
 
 	/* Reject if resource is on a job and the type or flag are being modified */
 
 	for (pj = (job *)GET_NEXT(svr_alljobs); pj != NULL; pj = (job *)GET_NEXT(pj->ji_alljobs)) {
-		pattr = &pj->ji_wattr[JOB_ATR_resource];
-		presc = get_resource(pattr, prdef);
-		if ((presc != NULL) && (mod == 1)) {
+		presc_list = get_resource(get_jattr(pj, JOB_ATR_resc_used), prdef);
+		presc_used = get_resource(get_jattr(pj, JOB_ATR_resource), prdef);
+		if (((presc_list != NULL) || presc_used != NULL ) && (mod == 1)) {
 			reply_text(preq, PBSE_RESCBUSY, "Resource busy on job");
 			return 1;
 		}
-		pattr = &pj->ji_wattr[JOB_ATR_SchedSelect];
-		if (pattr->at_flags & ATR_VFLAG_SET) {
-			rmatch = strstr(pattr->at_val.at_str, prdef->rs_name);
+		if (is_jattr_set(pj, JOB_ATR_SchedSelect)) {
+			char *val = get_jattr_str(pj, JOB_ATR_SchedSelect);
+			rmatch = strstr(val, prdef->rs_name);
 			if (rmatch != NULL) {
 				rlen = strlen(prdef->rs_name);
 				if (((mod == 1) && (*(rmatch+rlen) == '=')) &&
-				    ((rmatch == pattr->at_val.at_str) || *(rmatch-1) == ':')) {
+				    ((rmatch == val) || *(rmatch-1) == ':')) {
 					reply_text(preq, PBSE_RESCBUSY, "Resource busy on job");
 					return 1;
 				}
@@ -3597,15 +3556,13 @@ check_resource_set_on_jobs_or_resvs(struct batch_request *preq, resource_def *pr
 	/* Reject if resource is on a job and the type or flag are being modified */
 	pr = (resc_resv *)GET_NEXT(svr_allresvs);
 	while (pr != NULL) {
-		pattr = &pr->ri_wattr[RESV_ATR_resource];
-		presc = get_resource(pattr, prdef);
+		presc = get_resource(get_rattr(pr, RESV_ATR_resource), prdef);
 		if ((presc != NULL) && (mod == 1)) {
 			reply_text(preq, PBSE_RESCBUSY, "Resource busy on reservation");
 			return 1;
 		}
-		pattr = &pr->ri_wattr[RESV_ATR_SchedSelect];
-		if (pattr->at_flags & ATR_VFLAG_SET) {
-			rmatch = strstr(pattr->at_val.at_str, prdef->rs_name);
+		if (is_rattr_set(pr, RESV_ATR_SchedSelect)) {
+			rmatch = strstr(get_rattr_str(pr, RESV_ATR_SchedSelect), prdef->rs_name);
 			if (rmatch != NULL) {
 				rlen = strlen(prdef->rs_name);
 				if (((*(rmatch+rlen) == '=') && (*(rmatch-1) == ':')) && (mod == 1)) {
@@ -3787,10 +3744,10 @@ mgr_resource_delete(struct batch_request *preq)
 		return;
 
 	/* check if resource is set in restrict_res_to_release_on_suspend */
-	if (server.sv_attr[(int)SVR_ATR_restrict_res_to_release_on_suspend].at_flags & ATR_VFLAG_SET) {
-		for (i = 0; i < server.sv_attr[(int)SVR_ATR_restrict_res_to_release_on_suspend].at_val.at_arst->as_usedptr; i++ ) {
-			if (strcmp(server.sv_attr[(int)SVR_ATR_restrict_res_to_release_on_suspend].at_val.at_arst->as_string[i],
-				    prdef->rs_name) == 0) {
+	if (is_sattr_set(SVR_ATR_restrict_res_to_release_on_suspend)) {
+		struct array_strings *pval = get_sattr_arst(SVR_ATR_restrict_res_to_release_on_suspend);
+		for (i = 0; pval != NULL && i < pval->as_usedptr; i++ ) {
+			if (strcmp(pval->as_string[i], prdef->rs_name) == 0) {
 				reply_text(preq, PBSE_RESCBUSY, "Resource busy on server");
 				return;
 			}
@@ -3809,8 +3766,8 @@ mgr_resource_delete(struct batch_request *preq)
 	while (pq != NULL) {
 		updatedb = 0;
 		for (i=0; i < QA_ATR_LAST; i++) {
-			pattr = &pq->qu_attr[i];
-			if ((pattr->at_flags & ATR_VFLAG_SET) && (pattr->at_type == ATR_TYPE_RESC || pattr->at_type == ATR_TYPE_ENTITY)) {
+			pattr = get_qattr(pq, i);
+			if (is_attr_set(pattr) && (pattr->at_type == ATR_TYPE_RESC || pattr->at_type == ATR_TYPE_ENTITY)) {
 				plist = attrlist_create(que_attr_def[i].at_name, prdef->rs_name, 0);
 				plist->al_link.ll_next->ll_struct = NULL;
 				rc = mgr_unset_attr(pq->qu_attr, que_attr_idx, que_attr_def, QA_ATR_LAST, plist, -1, &bad, (void *)pq, PARENT_TYPE_QUE_ALL, INDIRECT_RES_CHECK);
@@ -3825,9 +3782,8 @@ mgr_resource_delete(struct batch_request *preq)
 					 * the server keeps track of defaults to add to
 					 * schedselect @see qu_seldft
 					 */
-					if ((i == QE_ATR_DefaultChunk) && (pq->qu_attr[QE_ATR_DefaultChunk].at_flags & ATR_VFLAG_MODIFY)) {
-						(void)deflt_chunk_action(&pq->qu_attr[QE_ATR_DefaultChunk], (void *)pq, ATR_ACTION_ALTER);
-					}
+					if (i == QE_ATR_DefaultChunk && (get_qattr(pq, QE_ATR_DefaultChunk))->at_flags & ATR_VFLAG_MODIFY)
+						(void)deflt_chunk_action(get_qattr(pq, QE_ATR_DefaultChunk), (void *)pq, ATR_ACTION_ALTER);
 				}
 				updatedb = 1;
 				free_svrattrl(plist);
@@ -3842,8 +3798,8 @@ mgr_resource_delete(struct batch_request *preq)
 	updatedb = 0;
 	/* Is the resource set on the server? If so unset */
 	for (i=0; i < SVR_ATR_LAST; i++) {
-		pattr = &server.sv_attr[i];
-		if ((pattr->at_flags & ATR_VFLAG_SET) && (pattr->at_type == ATR_TYPE_RESC || pattr->at_type == ATR_TYPE_ENTITY)) {
+		pattr = get_sattr(i);
+		if (is_attr_set(pattr) && (pattr->at_type == ATR_TYPE_RESC || pattr->at_type == ATR_TYPE_ENTITY)) {
 			plist = attrlist_create(svr_attr_def[i].at_name, prdef->rs_name, 0);
 			plist->al_link.ll_next->ll_struct = NULL;
 			rc = mgr_unset_attr(server.sv_attr, svr_attr_idx, svr_attr_def, SVR_ATR_LAST, plist, -1, &bad, (void *)&server, PARENT_TYPE_SERVER, INDIRECT_RES_CHECK);
@@ -3858,8 +3814,9 @@ mgr_resource_delete(struct batch_request *preq)
 				 * the server keeps track of defaults to add to
 				 * schedselect @see sv_seldft
 				 */
-				if ((i == SVR_ATR_DefaultChunk) && (server.sv_attr[SVR_ATR_DefaultChunk].at_flags & ATR_VFLAG_MODIFY)) {
-					(void)deflt_chunk_action(&server.sv_attr[SVR_ATR_DefaultChunk], (void *)&server, ATR_ACTION_ALTER);
+				attribute *dfltchk_attr;
+				if ((i == SVR_ATR_DefaultChunk) && ((dfltchk_attr = get_sattr(SVR_ATR_DefaultChunk))->at_flags & ATR_VFLAG_MODIFY)) {
+					(void)deflt_chunk_action(dfltchk_attr, (void *)&server, ATR_ACTION_ALTER);
 				}
 			}
 			free_svrattrl(plist);
@@ -3874,8 +3831,8 @@ mgr_resource_delete(struct batch_request *preq)
 	for (i=0; i < svr_totnodes; i++) {
 		updatedb = 0;
 		for (j=0; j < ND_ATR_LAST; j++) {
-			pattr = &pbsndlist[i]->nd_attr[j];
-			if ((pattr->at_flags & ATR_VFLAG_SET) && (pattr->at_type == ATR_TYPE_RESC || pattr->at_type == ATR_TYPE_ENTITY)) {
+			pattr = get_nattr(pbsndlist[i], j);
+			if (is_attr_set(pattr) && (pattr->at_type == ATR_TYPE_RESC || pattr->at_type == ATR_TYPE_ENTITY)) {
 				plist = attrlist_create(node_attr_def[j].at_name, prdef->rs_name, 0);
 				plist->al_link.ll_next->ll_struct = NULL;
 				rc = mgr_unset_attr(pbsndlist[i]->nd_attr, node_attr_idx, node_attr_def, ND_ATR_LAST, plist, -1, &bad, (void *)pbsndlist[i], PARENT_TYPE_NODE, INDIRECT_RES_UNLINK);
@@ -4047,7 +4004,7 @@ mgr_resource_set(struct batch_request *preq)
 	while (pq != NULL) {
 		busy = 0;
 		for (i=0; (i < QA_ATR_LAST) && (busy == 0); i++) {
-			pattr = &pq->qu_attr[i];
+			pattr = get_qattr(pq, i);
 			if (pattr->at_type == ATR_TYPE_RESC) {
 				presc = get_resource(pattr, prdef);
 				if ((mod_type == 1) && (presc != NULL)) {
@@ -4069,7 +4026,7 @@ mgr_resource_set(struct batch_request *preq)
 
 	/* Reject if resource is on the server and the type is being modified */
 	for (i=0, busy=0; (i < SVR_ATR_LAST) && (busy == 0); i++) {
-		pattr = &server.sv_attr[i];
+		pattr = get_sattr(i);
 		if (pattr->at_type == ATR_TYPE_RESC) {
 			presc = get_resource(pattr, prdef);
 			if ((presc != NULL) && (mod_type == 1)) {
@@ -4092,9 +4049,9 @@ mgr_resource_set(struct batch_request *preq)
 		if (pbsndlist[i]->nd_state & INUSE_DELETED)
 			continue;
 
-		pattr = &pbsndlist[i]->nd_attr[ND_ATR_ResourceAvail];
+		pattr = get_nattr(pbsndlist[i], ND_ATR_ResourceAvail);
 		for (j=0; j < ND_ATR_LAST; j++) {
-			pattr = &pbsndlist[i]->nd_attr[j];
+			pattr = get_nattr(pbsndlist[i], j);
 			presc = get_resource(pattr, prdef);
 			if ((presc != NULL) && (mod_type == 1)) {
 				reply_text(preq, PBSE_RESCBUSY, "Resource busy on node");
@@ -4255,7 +4212,7 @@ mgr_resource_unset(struct batch_request *preq)
 	pq = (pbs_queue *)GET_NEXT(svr_queues);
 	while (pq != NULL) {
 		for (i=0, busy=0; (i < QA_ATR_LAST) && (busy == 0); i++) {
-			pattr = &pq->qu_attr[i];
+			pattr = get_qattr(pq, i);
 			if (pattr->at_type == ATR_TYPE_RESC) {
 				presc = get_resource(pattr, prdef);
 				if ((presc != NULL) && (mod == 1)) {
@@ -4296,7 +4253,7 @@ mgr_resource_unset(struct batch_request *preq)
 			continue;
 
 		for (j=0; j < ND_ATR_LAST; j++) {
-			pattr = &pbsndlist[i]->nd_attr[j];
+			pattr = get_nattr(pbsndlist[i], j);
 			presc = get_resource(pattr, prdef);
 			if ((presc != NULL) && (mod == 1)) {
 				reply_text(preq, PBSE_RESCBUSY, "Resource busy on node");
@@ -4309,7 +4266,7 @@ mgr_resource_unset(struct batch_request *preq)
 
 	/* Reject if resource is on the server */
 	for (i=0, busy=0; (i < SVR_ATR_LAST) && (busy == 0); i++) {
-		pattr = &server.sv_attr[i];
+		pattr = get_sattr(i);
 		if (pattr->at_type == ATR_TYPE_RESC) {
 			presc = get_resource(pattr, prdef);
 			if ((presc != NULL) && (mod == 1)) {
@@ -4317,21 +4274,20 @@ mgr_resource_unset(struct batch_request *preq)
 				 * just delete the resource entry from resources_assigned attribute.
 				 */
 				if (i == SVR_ATR_resource_assn) {
-					if (server.sv_attr[i].at_flags & ATR_VFLAG_SET) {
+					if (pattr->at_flags & ATR_VFLAG_SET) {
 						presc->rs_defin->rs_free(&presc->rs_value);
 						delete_link(&presc->rs_link);
 						free(presc);
-						presc = (resource *)GET_NEXT(server.sv_attr[i].at_val.at_list);
+						presc = (resource *)GET_NEXT(get_attr_list(pattr));
 						if (presc == NULL)
-							server.sv_attr[i].at_flags &= ~ATR_VFLAG_SET;
-						server.sv_attr[i].at_flags |= ATR_MOD_MCACHE;
+							pattr->at_flags &= ~ATR_VFLAG_SET;
+						pattr->at_flags |= ATR_MOD_MCACHE;
 					}
 				}
 				else
 					busy = 1;
 			}
-		}
-		else if ((pattr->at_flags & ATR_VFLAG_SET) && (pattr->at_type == ATR_TYPE_ENTITY)) {
+		} else if (is_attr_set(pattr) && (pattr->at_type == ATR_TYPE_ENTITY)) {
 			if ((mod == 1) && is_entity_resource_set(pattr, prdef->rs_name)) {
 				busy = 1;
 			}
@@ -4346,14 +4302,14 @@ mgr_resource_unset(struct batch_request *preq)
 	if (pq_list != NULL) {
 		for (q_count = 0; q_count < pq_list_size; q_count++)
 		{
-			q_attr = &pq_list[q_count]->qu_attr[QE_ATR_ResourceAssn];
+			q_attr = get_qattr(pq_list[q_count], QE_ATR_ResourceAssn);
 			presc = get_resource(q_attr, prdef);
 			presc->rs_defin->rs_free(&presc->rs_value);
 			delete_link(&presc->rs_link);
 			free(presc);
 			presc = (resource *)GET_NEXT(q_attr->at_val.at_list);
 			if (presc == NULL)
-				q_attr->at_flags &= ~ATR_VFLAG_SET;
+				mark_attr_not_set(q_attr);
 			q_attr->at_flags |= ATR_MOD_MCACHE;
 		}
 		free(pq_list);
@@ -4782,15 +4738,11 @@ node_comment(attribute *pattr, void *pobj, int act)
 int
 node_prov_enable_action(attribute *new, void *pobj, int act)
 {
-	struct          pbsnode *pnode = (struct pbsnode *)pobj;
+	struct pbsnode *pnode = (struct pbsnode *) pobj;
 
-	if ((new->at_flags & ATR_VFLAG_SET) &&
-		(new->at_val.at_long == 1)) {
-		attribute *nd_attr = pnode->nd_attr;
+	if (is_attr_set(new) && new->at_val.at_long == 1) {
 		/* Check user tries to set on Head node */
-		if ((nd_attr[(int)ND_ATR_Mom].at_flags & ATR_VFLAG_SET) &&
-			compare_short_hostname(nd_attr[(int) ND_ATR_Mom].at_val.at_str,
-			server_host) == 0)
+		if (is_nattr_set(pnode, ND_ATR_Mom) && compare_short_hostname(get_nattr_str(pnode, ND_ATR_Mom), server_host) == 0)
 			return PBSE_PROV_HEADERROR;
 	}
 
@@ -4830,7 +4782,7 @@ svr_max_conc_prov_action(attribute *new, void *pobj, int act)
 {
 	int 	rc;
 
-	if (new->at_flags & ATR_VFLAG_SET) {
+	if (is_attr_set(new)) {
 
 		if ((int) new->at_val.at_long <= 0)
 			return PBSE_BADATVAL;
@@ -4909,9 +4861,7 @@ resize_prov_table(int newsize)
 
 	server.sv_provtrackmodifed = 1;
 	prov_track_save();
-
-	server.sv_attr[(int)SVR_ATR_max_concurrent_prov].at_val.at_long = newsize;
-	server.sv_attr[(int)SVR_ATR_max_concurrent_prov].at_flags = ATR_SET_MOD_MCACHE;
+	set_sattr_l_slim(SVR_ATR_max_concurrent_prov, newsize, SET);
 	svr_save_db(&server);
 	return PBSE_NONE;
 }
@@ -4951,10 +4901,7 @@ node_current_aoe_action(attribute *new, void *pobj, int act)
 		return PBSE_NONE;
 
 	/* Check user tries to set on Head node */
-	if ((pnode->nd_attr[(int) ND_ATR_Mom].at_flags & ATR_VFLAG_SET)
-		&& compare_short_hostname(
-		pnode->nd_attr[(int) ND_ATR_Mom].at_val.at_str,
-		server_host) == 0)
+	if (is_nattr_set(pnode, ND_ATR_Mom) && compare_short_hostname(get_nattr_str(pnode, ND_ATR_Mom), server_host) == 0)
 		return PBSE_PROV_HEADERROR;
 
 	/* Don't set/unset while provisioning */

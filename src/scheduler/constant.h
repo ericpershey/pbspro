@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_CONSTANT_H
 #define	_CONSTANT_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include <math.h>
 
@@ -83,7 +80,7 @@ enum skip
 	SKIP_NOTHING,
 	/* Value used to know whether reservations are already scheduled or not */
 	SKIP_RESERVATIONS = 1,
-	/* Value used to know whether express, preempted, starving jobs are already scheduled or not */
+	/* Value used to know whether express, preempted, are already scheduled or not */
 	SKIP_NON_NORMAL_JOBS = 2
 };
 
@@ -186,8 +183,9 @@ enum thread_task_type
  * codes less then RET_BASE are standard PBSE pbs error codes
  * NOTE: RET_BASE MUST be greater than the highest PBSE error code
  */
-enum sched_error
+enum sched_error_code
 {
+	SE_NONE = 0,
 	RET_BASE = 16300,
 	SUCCESS = RET_BASE + 1,
 	SCHD_ERROR = RET_BASE + 2,
@@ -225,7 +223,7 @@ enum sched_error
 	NODE_GROUP_LIMIT_REACHED = RET_BASE + 34,
 	NODE_NO_MULT_JOBS = RET_BASE + 35,
 	NODE_UNLICENSED = RET_BASE + 36,
-	NODE_HIGH_LOAD = RET_BASE + 37,
+	NOT_USED37 = RET_BASE + 37, /* unused */
 	NO_SMALL_CPUSETS = RET_BASE + 38,
 	INSUFFICIENT_RESOURCE = RET_BASE + 39,
 	RESERVATION_CONFLICT = RET_BASE + 40,
@@ -268,12 +266,13 @@ enum sched_error
 	NO_TOTAL_NODES = RET_BASE + 77,
 	INVALID_RESRESV = RET_BASE + 78,
 	JOB_UNDER_THRESHOLD = RET_BASE + 79,
+	MAX_RUN_SUBJOBS = RET_BASE + 80,
 #ifdef NAS
 	/* localmod 034 */
-	GROUP_CPU_SHARE = RET_BASE + 80,
-	GROUP_CPU_INSUFFICIENT = RET_BASE + 81,
+	GROUP_CPU_SHARE = RET_BASE + 81,
+	GROUP_CPU_INSUFFICIENT = RET_BASE + 82,
 	/* localmod 998 */
-	RESOURCES_INSUFFICIENT = RET_BASE + 82,
+	RESOURCES_INSUFFICIENT = RET_BASE + 83,
 #endif
 	ERR_SPECIAL = RET_BASE + 1000
 };
@@ -354,7 +353,7 @@ enum misc_constants
 {
 	NO_FLAGS = 0,
 	IGNORE_DISABLED_EVENTS = 1,
-	FORCE,
+	FORCE_SCHED,
 	SET_RESRESV_INDEX = 4,
 	DETECT_GHOST_JOBS = 8,
 	ALL_MASK = 0xffffffff
@@ -438,9 +437,8 @@ enum prime_time
 {
 	NON_PRIME = 0,
 	PRIME = 1,
-	ALL,
-	NONE,
-	HIGH_PRIME
+	PT_ALL,
+	PT_NONE
 };
 
 enum days
@@ -453,14 +451,13 @@ enum days
 	FRIDAY,
 	SATURDAY,
 	WEEKDAY,
-	HIGH_DAY
+	HIGH_DAY,
 };
 
 enum smp_cluster_dist
 {
 	SMP_NODE_PACK,
 	SMP_ROUND_ROBIN,
-	SMP_LOWEST_LOAD,
 	HIGH_SMP_DIST
 };
 
@@ -474,7 +471,6 @@ enum preempt
 	PREEMPT_OVER_FS_LIMIT,	/* jobs over their fairshare of the machine */
 	PREEMPT_OVER_QUEUE_LIMIT,	/* jobs over queue run limits (maxrun etc) */
 	PREEMPT_OVER_SERVER_LIMIT,	/* jobs over server run limits */
-	PREEMPT_STARVING,		/* starving jobs */
 	PREEMPT_EXPRESS,		/* jobs in express queue */
 	PREEMPT_QRUN,			/* job is being qrun */
 	PREEMPT_ERR,			/* error occurred during preempt computation */
@@ -522,7 +518,7 @@ enum node_eval
 
 enum nodepart
 {
-	NP_LOW = 0,
+	NP_NONE = 0,
 	NP_IGNORE_EXCL = 1,
 	NP_CREATE_REST = 2,
 	NP_NO_ADD_NP_ARR = 4
@@ -594,8 +590,9 @@ enum check_flags {
 	ONLY_COMP_CONS = 128,
 	IGNORE_EQUIV_CLASS = 256,
 	USE_BUCKETS = 512,
-	NO_ALLPART = 1024
-	/* next flag 2048 */
+	NO_ALLPART = 1024,
+	SPAN_PSETS = 2048
+	/* next flag 4096 */
 };
 
 enum schd_error_args {
@@ -629,7 +626,12 @@ enum preempt_sort_vals {
 	PS_HIGH
 };
 
-#ifdef	__cplusplus
-}
-#endif
+enum nscr_vals {
+	NSCR_NONE = 0,
+	NSCR_VISITED = 1,
+	NSCR_SCATTERED = 2,
+	NSCR_INELIGIBLE = 4,
+	NSCR_CYCLE_INELIGIBLE = 8
+};
+
 #endif	/* _CONSTANT_H */

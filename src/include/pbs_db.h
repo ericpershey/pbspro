@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -166,28 +166,21 @@ typedef struct pbs_db_mominfo_time pbs_db_mominfo_time_t;
  */
 struct pbs_db_job_info {
 	char     ji_jobid[PBS_MAXSVRJOBID + 1]; /* job identifier */
-	INTEGER  ji_state; 	/* Internal copy of state */
-	INTEGER  ji_substate; 	/* job sub-state */
-	INTEGER  ji_svrflags; 	/* server flags */
-	INTEGER  ji_numattr; 	/* not used */
-	INTEGER  ji_ordering; 	/* special scheduling ordering */
-	INTEGER  ji_priority; 	/* priority */
-	BIGINT   ji_stime; 	/* time job started execution */
-	BIGINT   ji_endtBdry; 	/* estimate upper bound on end time */
-	char     ji_queue[PBS_MAXQUEUENAME + 1]; /* name of current queue */
+	INTEGER  ji_state;	/* Internal copy of state */
+	INTEGER  ji_substate;	/* job sub-state */
+	INTEGER  ji_svrflags;	/* server flags */
+	BIGINT   ji_stime;	/* time job started execution */
+	char     ji_queue[PBS_MAXQUEUENAME + 1];  /* name of current queue */
 	char     ji_destin[PBS_MAXROUTEDEST + 1]; /* dest from qmove/route */
-	INTEGER  ji_un_type; 	/* job's queue type */
-	INTEGER  ji_momaddr; 	/* host addr of Server */
-	INTEGER  ji_momport; 	/* port # */
-	INTEGER  ji_exitstat; 	/* job exit status from MOM */
-	BIGINT   ji_quetime; 	/* time entered queue */
-	BIGINT   ji_rteretry; 	/* route retry time */
-	INTEGER  ji_fromsock; 	/* socket job coming over */
-	BIGINT   ji_fromaddr; 	/* host job coming from   */
-	char     ji_4jid[8];  	/* extended job save data */
-	char     ji_4ash[8];  	/* extended job save data */
-	INTEGER  ji_credtype; 	/* credential type */
-	INTEGER  ji_qrank;    	/* sort key for db query */
+	INTEGER  ji_un_type;	/* job's queue type */
+	INTEGER  ji_exitstat;	/* job exit status from MOM */
+	BIGINT   ji_quetime;	/* time entered queue */
+	BIGINT   ji_rteretry;	/* route retry time */
+	INTEGER  ji_fromsock;	/* socket job coming over */
+	BIGINT   ji_fromaddr;	/* host job coming from   */
+	char     ji_jid[8];	/* extended job save data */
+	INTEGER  ji_credtype;	/* credential type */
+	BIGINT   ji_qrank;	/* sort key for db query */
 	pbs_db_attr_list_t db_attr_list; /* list of attributes for database */
 };
 typedef struct pbs_db_job_info pbs_db_job_info_t;
@@ -218,11 +211,6 @@ struct pbs_db_resv_info {
 	BIGINT  ri_duration;	/* reservation duration */
 	INTEGER ri_tactive;	/* time reservation became active */
 	INTEGER ri_svrflags;	/* server flags */
-	INTEGER ri_numattr;	/* not used */
-	INTEGER ri_resvTag;	/* not used */
-	INTEGER ri_un_type;	/* not used */
-	INTEGER ri_fromsock;	/* resv from sock */
-	BIGINT  ri_fromaddr;	/* resv from sock addr */
 	pbs_db_attr_list_t db_attr_list; /* list of attributes */
 };
 typedef struct pbs_db_resv_info pbs_db_resv_info_t;
@@ -262,6 +250,7 @@ typedef struct pbs_db_query_options pbs_db_query_options_t;
 #define PBS_DB_NOMEM		4
 #define PBS_DB_STILL_STARTING	5
 #define PBS_DB_ERR		6
+#define PBS_DB_OOM_ERR		7
 
 /* Database connection states */
 #define PBS_DB_CONNECT_STATE_NOT_CONNECTED	1

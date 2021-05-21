@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -97,7 +97,7 @@
  */
 
 int
-decode_size(struct attribute *patr, char *name, char *rescn, char *val)
+decode_size(attribute *patr, char *name, char *rescn, char *val)
 {
 	int to_size(char *, struct size_value *);
 
@@ -109,7 +109,7 @@ decode_size(struct attribute *patr, char *name, char *rescn, char *val)
 			return (PBSE_BADATVAL);
 		if (errno != 0)
 			return (PBSE_BADATVAL);
-		patr->at_flags |= ATR_SET_MOD_MCACHE;
+		post_attr_set(patr);
 	} else
 		ATR_UNSET(patr);
 
@@ -144,7 +144,6 @@ encode_size(const attribute *attr, pbs_list_head *phead, char *atname, char *rsn
 	size_t	     ct;
 	char	     cvnbuf[CVNBUFSZ];
 	svrattrl *pal;
-	void from_size(const struct size_value *, char *);
 
 	if (!attr)
 		return (-1);
@@ -185,7 +184,7 @@ encode_size(const attribute *attr, pbs_list_head *phead, char *atname, char *rsn
  */
 
 int
-set_size(struct attribute *attr, struct attribute *new, enum batch_op op)
+set_size(attribute *attr, attribute *new, enum batch_op op)
 {
 	u_Long		  old;
 	struct size_value tmpa;	/* the two temps are used to insure that the */
@@ -229,7 +228,7 @@ set_size(struct attribute *attr, struct attribute *new, enum batch_op op)
 
 		default:	return (PBSE_INTERNAL);
 	}
-	attr->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(attr);
 
 	return (0);
 }
@@ -248,7 +247,7 @@ set_size(struct attribute *attr, struct attribute *new, enum batch_op op)
  */
 
 int
-comp_size(struct attribute *attr, struct attribute *with)
+comp_size(attribute *attr, attribute *with)
 {
 	struct size_value tmpa;
 	struct size_value tmpw;
@@ -372,6 +371,7 @@ to_size(char *val, struct size_value *psize)
 
 	psize->atsv_units = ATR_SV_BYTESZ;
 	psize->atsv_num = strTouL(val, &pc, 10);
+	psize->atsv_shift = 0;
 	if (pc == val)		/* no numeric part */
 		return (PBSE_BADATVAL);
 
@@ -476,7 +476,7 @@ from_size(const struct size_value *psize, char *cvnbuf)
  *
  */
 u_Long
-get_kilobytes_from_attr(struct attribute *attr)
+get_kilobytes_from_attr(attribute *attr)
 {
 	u_Long val;
 
@@ -506,7 +506,7 @@ get_kilobytes_from_attr(struct attribute *attr)
  *
  */
 u_Long
-get_bytes_from_attr(struct attribute *attr)
+get_bytes_from_attr(attribute *attr)
 {
 	u_Long val;
 

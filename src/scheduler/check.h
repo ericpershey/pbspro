@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -40,9 +40,8 @@
 
 #ifndef	_CHECK_H
 #define	_CHECK_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
+
+#include <unordered_set>
 
 #include "server_info.h"
 #include "queue_info.h"
@@ -51,7 +50,7 @@ extern "C" {
 /*
  *	is_ok_to_run_in_queue - check to see if jobs can be run in queue
  */
-int is_ok_to_run_queue(status *policy, queue_info *qinfo);
+enum sched_error_code is_ok_to_run_queue(status *policy, queue_info *qinfo);
 
 /*
  *	is_ok_to_run - check to see if it ok to run a job on the server
@@ -111,8 +110,12 @@ shrink_to_run_event(status *policy, server_info *sinfo,
  */
 long long
 check_avail_resources(schd_resource *reslist, resource_req *reqlist,
-	unsigned int flags, resdef **res_to_check,
-	enum sched_error fail_code, schd_error *err);
+	unsigned int flags, std::unordered_set<resdef *>& res_to_check,
+	enum sched_error_code fail_code, schd_error *err);
+long long
+check_avail_resources(schd_resource *reslist, resource_req *reqlist,
+		      unsigned int flags, enum sched_error_code fail_code, schd_error *perr);
+
 /*
  *	dynamic_avail - find out how much of a resource is available on a
  */
@@ -130,7 +133,7 @@ sch_resource_t dynamic_avail(schd_resource *res);
  *	cnt	- output param for address of the matching counts structure
  *	rreq	- output param for address of the matching resource_count structure
  */
-sch_resource_t find_counts_elm(counts *cts_list, char *name, resdef *res, counts **cnt, resource_count **rreq);
+sch_resource_t find_counts_elm(counts *cts_list, const char *name, resdef *res, counts **cnt, resource_count **rreq);
 
 
 /*
@@ -154,7 +157,7 @@ int is_node_available(resource_resv *job, node_info **ninfo_arr);
  *      check_ded_time_queue - check if it is the approprate time to run jobs
  *                             in a dedtime queue
  */
-int check_ded_time_queue(queue_info *qinfo);
+enum sched_error_code check_ded_time_queue(queue_info *qinfo);
 
 /*
  *      dedtime_conflict - check for dedtime conflicts
@@ -164,34 +167,27 @@ int dedtime_conflict(resource_resv *resresv);
 /*
  *      check_ded_time_boundary  - check to see if a job would cross into
  */
-int check_ded_time_boundary(resource_resv *job);
-
-
-/*
- *      check_starvation - if there are starving job, don't allow jobs to run
- *                         which conflict with the starving job (i.e. backfill)
- */
-int check_backfill(resource_resv *resresv, server_info *sinfo);
+enum sched_error_code check_ded_time_boundary(resource_resv *job);
 
 /*
  *      check_prime_queue - Check primetime status of the queue.  If the queue
  *                          is a primetime queue and it is primetime or if the
  *                          queue is an anytime queue, jobs can run in it.
  */
-int check_prime_queue(status *policy, queue_info *qinfo);
+enum sched_error_code check_prime_queue(status *policy, queue_info *qinfo);
 
 /*
  *      check_nonprime_queue - Check nonprime status of the queue.  If the
  *                             queue is a nonprime queue and it is nonprimetime
  *                             of the queue is an anytime queue, jobs can run
  */
-int check_nonprime_queue(status *policy, queue_info *qinfo);
+enum sched_error_code check_nonprime_queue(status *policy, queue_info *qinfo);
 
 /*
  *      check_prime_boundary - check to see if the job can run before the prime
  *                            status changes (from primetime to nonprime etc)
  */
-int check_prime_boundary(status *policy, resource_resv *resresv, struct schd_error *err);
+enum sched_error_code check_prime_boundary(status *policy, resource_resv *resresv, struct schd_error *err);
 
 
 /*
@@ -240,7 +236,4 @@ schd_resource *unset_str_res(void);
  *	returns void
  */
 void get_resresv_spec(resource_resv *resresv, selspec **spec, place **pl);
-#ifdef	__cplusplus
-}
-#endif
 #endif	/* _CHECK_H */

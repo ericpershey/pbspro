@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -146,7 +146,7 @@ exit 0
         restart_msg = 'Failed to restart PBS'
         self.assertTrue(self.server.isUp(), restart_msg)
 
-    def submit_job(self, sleep=10, lower=0,
+    def submit_job(self, sleep=100, lower=0,
                    upper=0, job_id=None, job_msg=None, verify=False):
         """
         Helper method to submit a normal/array job
@@ -307,7 +307,6 @@ exit 0
             seq_id = {ATTR_max_job_sequence_id: val}
             self.server.manager(MGR_CMD_SET, SERVER, seq_id, runas=ROOT_USER)
 
-    @skipOnCpuSet
     def test_max_job_sequence_id_wrap(self):
         """
         Test to check the jobid's/resvid's are wrapping it to zero or not,
@@ -360,7 +359,7 @@ exit 0
         self.submit_job(lower=1, upper=2, job_id='1[]', verify=True)
         self.submit_resv(resv_id='R2')
 
-    @timeout(1000)
+    @timeout(3000)
     def test_verify_sequence_window(self):
         """
         Tests the sequence window scenario in which jobid

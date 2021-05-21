@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_FAIRSHARE_H
 #define	_FAIRSHARE_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include "data_types.h"
 /*
@@ -53,14 +50,14 @@ void add_child(group_info *ginfo, group_info *parent);
  *      find_group_info - recursive function to find a ginfo in the
  resgroup tree
  */
-group_info *find_group_info(char *name, group_info *root);
+group_info *find_group_info(const char *name, group_info *root);
 
 /*
  *      find_alloc_ginfo - trys to find a ginfo in the fair share tree.  If it
  *                        can not find the ginfo, then allocate a new one and
  *                        add it to the "unknown" group
  */
-group_info *find_alloc_ginfo(char *name, group_info *root);
+group_info *find_alloc_ginfo(const char *name, group_info *root);
 
 
 /*
@@ -90,7 +87,7 @@ group_info * new_group_info();
  *	  shares  - the amount of shares the user/group has in its resgroup
  *
  */
-int parse_group(char *fname, group_info *root);
+int parse_group(const char *fname, group_info *root);
 
 /*
  *
@@ -137,7 +134,7 @@ void decay_fairshare_tree(group_info *root);
  *      write_usage - write the usage information to the usage file
  *                    This fuction uses a recursive helper function
  */
-int write_usage(char *filename, fairshare_head *fhead);
+int write_usage(const char *filename, fairshare_head *fhead);
 
 /*
  *      rec_write_usage - recursive helper function which will write out all
@@ -149,7 +146,7 @@ void rec_write_usage(group_info *root, FILE *fp);
  *      read_usage - read the usage information and load it into the
  *                   resgroup tree.
  */
-void read_usage(char *filename, int flags, fairshare_head *fhead);
+void read_usage(const char *filename, int flags, fairshare_head *fhead);
 
 /*
  *      read_usage_v1 - read version 1 usage file
@@ -267,7 +264,4 @@ void calc_usage_factor(fairshare_head *tree);
 
 
 
-#ifdef	__cplusplus
-}
-#endif
 #endif	/* _FAIRSHARE_H */

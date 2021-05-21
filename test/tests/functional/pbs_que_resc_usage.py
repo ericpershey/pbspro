@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -63,7 +63,6 @@ class TestQueRescUsage(TestFunctional):
         self.server.manager(MGR_CMD_SET, QUEUE, {
                             'resources_available.foo': 6}, id='workq')
 
-    @skipOnCpuSet
     def test_resc_assigned_set_unset(self):
         """
         Test "resources_assigned" attribute of the resource and it's behavior
@@ -93,10 +92,8 @@ class TestQueRescUsage(TestFunctional):
         # job submission
         j_attr = {'Resource_List.ncpus': '3'}
         j1 = Job(attrs=j_attr)
-        j1.set_sleep_time(30)
         jid_1 = self.server.submit(j1)
         j2 = Job(attrs=j_attr)
-        j2.set_sleep_time(30)
         jid_2 = self.server.submit(j2)
         self.server.expect(JOB, {'job_state': 'R'}, jid_1)
         self.server.expect(JOB, {'job_state': 'R'}, jid_2)
@@ -122,8 +119,8 @@ class TestQueRescUsage(TestFunctional):
         self.assertEqual(
             int(q_status[0]['resources_assigned.ncpus']), 6, self.err_msg)
         # If no jobs are running at the time of restart the server
-        self.server.expect(JOB, 'queue', op=UNSET, id=jid_1)
-        self.server.expect(JOB, 'queue', op=UNSET, id=jid_2)
+        self.server.delete(jid_1, extend='force', wait=True)
+        self.server.delete(jid_2, extend='force', wait=True)
         self.server.restart()
         q_status = self.server.status(QUEUE, id='workq')
         self.assertNotIn('resources_available.ncpus',
@@ -131,7 +128,6 @@ class TestQueRescUsage(TestFunctional):
         self.assertNotIn('resources_assigned.ncpus',
                          q_status[0], self.err_msg)
 
-    @skipOnCpuSet
     def test_resources_assigned_with_zero_val(self):
         """
         In PBS we can request +ve or -ve values so sometimes resources_assigned
@@ -146,12 +142,10 @@ class TestQueRescUsage(TestFunctional):
         # resources_assigned is zero but still jobs are in the system
         j1_attr = {'Resource_List.foo': '3'}
         j1 = Job(attrs=j1_attr)
-        j1.set_sleep_time(30)
         jid_1 = self.server.submit(j1)
         # requesting negative resource here
         j2_attr = {'Resource_List.foo': '-3'}
         j2 = Job(attrs=j2_attr)
-        j2.set_sleep_time(30)
         jid_2 = self.server.submit(j2)
         self.server.expect(JOB, {'job_state': 'R'}, jid_1)
         self.server.expect(JOB, {'job_state': 'R'}, jid_2)
@@ -164,15 +158,14 @@ class TestQueRescUsage(TestFunctional):
         q_status = self.server.status(QUEUE, id='workq')
         self.assertEqual(
             int(q_status[0]['resources_assigned.foo']), 0, self.err_msg)
-        self.server.expect(JOB, 'queue', op=UNSET, id=jid_1)
-        self.server.expect(JOB, 'queue', op=UNSET, id=jid_2)
+        self.server.delete(jid_1, extend='force', wait=True)
+        self.server.delete(jid_2, extend='force', wait=True)
         # jobs are finished now, resources_assigned should unset this time
         self.server.restart()
         q_status = self.server.status(QUEUE, id='workq')
         self.assertNotIn('resources_assigned.foo',
                          q_status[0], self.err_msg)
 
-    @skipOnCpuSet
     def test_resources_assigned_deletion(self):
         """
         Test resources_assigned.<resc_name> deletion from the system

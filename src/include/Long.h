@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -73,24 +73,6 @@ u_Long strTouL(const char *nptr, char **endptr, int base);
 #define atoL(nptr)		strToL((nptr), NULL, 10)
 
 /****************************************************************************/
-#elif defined(__sgi) && defined(_LONGLONG) && _MIPS_SZLONG == 32    /* Irix */\
-
-/* On Irix, the compiler supports 64-bit integers as long longs with defined */
-/* constant support and with some library support.  The library has nothing */
-/* like LTostr or uLTostr. */
-
-typedef long long		Long;
-typedef unsigned long long	u_Long;
-
-#define lONG_MIN		LONGLONG_MIN
-#define lONG_MAX		LONGLONG_MAX
-#define UlONG_MAX		ULONGLONG_MAX
-
-#define strToL(n, e, b)		strtoll(n, e, (b))
-#define strTouL(n, e, b)	strtoull(n, e, (b))
-#define atoL(nptr)		atoll((nptr))
-
-/****************************************************************************/
 #elif defined(WIN32)	/* Windows */
 
 /* long long and unsigned long long are 64 bit signed  and unsigned */
@@ -114,7 +96,6 @@ typedef unsigned long long	u_Long;
 
 #endif
 
-const char *LTostr(Long value, int base);
 const char *uLTostr(u_Long value, int base);
 #ifdef	__cplusplus
 }

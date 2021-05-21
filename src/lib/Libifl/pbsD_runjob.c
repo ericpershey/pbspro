@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -49,8 +49,9 @@
 #include "dis.h"
 #include "pbs_ecl.h"
 
+
 /**
- * @brief	Helper function for pbs_asynrunjob and pbs_asynrunjob_ack
+ * @brief	Inner function for pbs_asynrunjob and pbs_asynrunjob_ack
  *
  * @param[in] c - connection handle
  * @param[in] jobid- job identifier
@@ -63,13 +64,14 @@
  * @retval      !0      error
  */
 static int
-__runjob_helper(int c, char *jobid, char *location, char *extend, int req_type)
+__runjob_inner(int c, char *jobid, char *location, char *extend, int req_type)
 {
 	int rc = 0;
 	unsigned long resch = 0;
 
 	if ((jobid == NULL) || (*jobid == '\0'))
 		return (pbs_errno = PBSE_IVALREQ);
+
 	if (location == NULL)
 		location = "";
 
@@ -119,6 +121,59 @@ __runjob_helper(int c, char *jobid, char *location, char *extend, int req_type)
 	if (pbs_client_thread_unlock_connection(c) != 0)
 		return pbs_errno;
 
+	return rc;
+}
+
+/**
+ * @brief	Helper function for pbs_asynrunjob and pbs_asynrunjob_ack
+ *
+ * @param[in] c - connection handle
+ * @param[in] jobid- job identifier
+ * @param[in] location - string of vnodes/resources to be allocated to the job
+ * @param[in] extend - extend string for encoding req
+ * @param[in] req_type - one of PBS_BATCH_AsyrunJob or PBS_BATCH_AsyrunJob_ack
+ *
+ * @return      int
+ * @retval      0       success
+ * @retval      !0      error
+ */
+static int
+__runjob_helper(int c, char *jobid, char *location, char *extend, int req_type)
+{
+	int rc = 0;
+	svr_conn_t **svr_conns = get_conn_svr_instances(c);
+	int nsvr = get_num_servers();
+	int i;
+	int start = 0;
+	int ct;
+
+	if ((jobid == NULL) || (*jobid == '\0'))
+		return (pbs_errno = PBSE_IVALREQ);
+
+	if (svr_conns) {
+		if ((start = get_obj_location_hint(jobid, MGR_OBJ_JOB)) == -1)
+			start = 0;
+
+		for (i = start, ct = 0; ct < nsvr; i = (i + 1) % nsvr, ct++) {
+
+			if (!svr_conns[i] || svr_conns[i]->state != SVR_CONN_STATE_UP)
+				continue;
+
+			if (svr_conns[i]->sd == c) {
+				rc = __runjob_inner(svr_conns[i]->sd, jobid, location, extend, req_type);
+				break;
+			}
+
+			rc = __runjob_inner(svr_conns[i]->sd, jobid, location, extend, req_type);
+			if (rc == 0 || pbs_errno != PBSE_UNKJOBID)
+				break;
+		}
+
+		return rc;
+	}
+
+	/* Not a cluster fd. Treat it as an instance fd */
+	rc = __runjob_inner(c, jobid, location, extend, req_type);
 	return rc;
 }
 

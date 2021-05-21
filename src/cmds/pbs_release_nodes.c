@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -83,18 +83,14 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 	/*test for real deal or just version and exit*/
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 	job_id[0] = '\0';
 	while ((c = getopt(argc, argv, GETOPT_ARGS)) != EOF) {
 		switch (c) {
 			case 'j':
-				strncpy(job_id, optarg, PBS_MAXCLTJOBID);
-				job_id[PBS_MAXCLTJOBID-1] = '\0';
+				pbs_strncpy(job_id, optarg, sizeof(job_id));
 				break;
 			case 'k':
 				keep_opt = optarg;
@@ -109,8 +105,7 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 	if (job_id[0] == '\0') {
 		char *jid;
 		jid = getenv("PBS_JOBID");
-		strncpy(job_id, jid?jid:"", PBS_MAXCLTJOBID);
-		job_id[PBS_MAXCLTJOBID-1] = '\0';
+		pbs_strncpy(job_id, jid?jid:"", sizeof(job_id));
 	}
 
 	if (all_opt && keep_opt) {
@@ -174,7 +169,9 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 				"pbs_release_nodes: cannot connect to server %s (errno=%d)\n",
 							pbs_server, pbs_errno);
 			break;
-		}
+		} else if (pbs_errno)
+			show_svr_inst_fail(connect, argv[0]);
+		
 
 		stat = pbs_relnodesjob(connect, job_id_out, node_list, keep_opt);
 		if (stat && (pbs_errno == PBSE_UNKJOBID)) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -99,8 +99,6 @@ disrfcs(int stream, size_t *nchars, size_t achars, char *value)
 		else if (dis_gets(stream, value, *nchars) != *nchars)
 			locret = DIS_PROTO;
 	}
-	locret = disr_commit(stream, locret == DIS_SUCCESS) ?
-		DIS_NOCOMMIT : locret;
 	if (locret != DIS_SUCCESS)
 		*nchars = 0;
 	return (locret);

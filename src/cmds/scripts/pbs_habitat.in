@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -70,7 +70,7 @@ chk_dataservice_user() {
 
 	id=`echo ${id} | cut -c5- | cut -d "(" -f1`
 	if [ "$id" = "0" ]; then
-		echo "User ${chk_usr} should not have root priviledges"
+		echo "User ${chk_usr} should not have root privileges"
 		return 1;
 	fi
 
@@ -220,37 +220,13 @@ if [ $? -ne 0 ]; then
 fi
 server=`echo ${server_hostname} | awk -F. '{print $1}'`
 
-# Check the clienthost entries if present
-if [ -f "$PBS_HOME/mom_priv/config" ]; then
-	cmd='cat "$PBS_HOME/mom_priv/config"'
-	cmd="$cmd | sed -e 's/\t/ /g' -e 's/ \\+/ /g' -e 's/^ //' -e 's/ $//'"
-	cmd="$cmd | grep '\\\$clienthost' | cut -d' ' -f2"
-	for host in `eval $cmd`; do
-		if [ -z "$host" -o "$host" = 'CHANGE_THIS_TO_PBS_SERVER_HOSTNAME' ]; then
-			echo "***" >&2
-			echo "*** Invalid entry in $PBS_HOME/mom_priv/config" >&2
-			echo "*** for clienthost: $host" >&2
-			echo "***" >&2
-			exit 1
-		fi
-		if ! check_hostname "${host}"; then
-			echo "***" >&2
-			echo "*** Invalid entry in $PBS_HOME/mom_priv/config" >&2
-			echo "*** for clienthost: $host" >&2
-			echo "*** This value must resolve to a valid IP address." >&2
-			echo "***" >&2
-			exit 1
-		fi
-	done
-fi
-
-# Check for the db install script
-if [ ! -x "${PBS_EXEC}/libexec/pbs_db_utility" ]; then
-	echo "${PBS_EXEC}/libexec/pbs_db_utility not found"
-	exit 1
-fi
-
 if [ "${PBS_START_SERVER:-0}" != 0 ] ; then
+	# Check for the db install script
+	if [ ! -x "${PBS_EXEC}/libexec/pbs_db_utility" ]; then
+		echo "${PBS_EXEC}/libexec/pbs_db_utility not found"
+		exit 1
+	fi
+
 	# Source the file that sets DB env variables
 	. "$PBS_EXEC"/libexec/pbs_db_env
 	if [ $? -ne 0 ]; then
@@ -318,6 +294,20 @@ if [ "${PBS_START_SERVER:-0}" != 0 ] ; then
 			exit $ret
 		fi
 		server_started=1
+
+		# Check if PBS_SERVER_INSTANCES is set for multi-server
+		if [ ! -z "${PBS_SERVER_INSTANCES}" ]; then
+			# We don't want qmgr to try to contact other servers, which may not even be up yet
+			# So, set PBS_SERVER_INSTANCES to the current server's hostname and port
+			if [ -z "${PBS_BATCH_SERVICE_PORT}" ]; then
+				PBS_BATCH_SERVICE_PORT=15001
+			fi
+			msvr_host=${PBS_SERVER_HOST_NAME}
+			if [ -z $msvr_host ]; then
+				msvr_host="$(hostname -s)"
+			fi
+			export PBS_SERVER_INSTANCES="${msvr_host}:${PBS_BATCH_SERVICE_PORT}"
+		fi
 		if is_cray_xt; then
 			${PBS_EXEC}/bin/qmgr <<-EOF > /dev/null
 				set server restrict_res_to_release_on_suspend = ncpus

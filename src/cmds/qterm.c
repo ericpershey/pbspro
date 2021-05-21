@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -113,11 +113,8 @@ main(int argc, char **argv)
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-		if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 	/* Command line options */
 	while ((s = getopt(argc, argv, opts)) != EOF)

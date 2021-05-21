@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -71,7 +71,6 @@
 #include "pbs_ifl.h"
 #include "pbs_ecl.h"
 #include "pbs_error.h"
-#include "libpbs.h"
 #include "cmds.h"
 #include "ticket.h"
 #include "pbs_license.h"
@@ -89,7 +88,6 @@ const char *preempt_prio_names[] = {
 	"fairshare",
 	"queue_softlimits",
 	"server_softlimits",
-	"starving_jobs",
 	"express_queue",
 };
 static long ecl_pbs_max_licenses = PBS_MAX_LICENSING_LICENSES;
@@ -1133,7 +1131,7 @@ verify_value_credname(int batch_request, int parent_object, int cmd,
 
 /**
  * @brief
- *	 for some attributes which can have 0 or +ve values like ATTR_rpp_retry
+ *	 for some attributes which can have 0 or +ve values
  *
  * @see
  *
@@ -1339,7 +1337,7 @@ verify_value_preempt_targets(int batch_request, int parent_object, int cmd,
 
 /**
  * @brief
- *	for some attributes which can have only +ve values, eg, ATTR_rpp_highwater
+ *	for some attributes which can have only +ve values
  *
  * @see
  *

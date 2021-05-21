@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -96,7 +96,7 @@
 
 #define PBS_MAX_TIME (LONG_MAX - 1)
 int
-decode_time(struct attribute *patr, char *name, char *rescn, char *val)
+decode_time(attribute *patr, char *name, char *rescn, char *val)
 {
 	int   i;
 	char  msec[4] = {'\0'};
@@ -162,7 +162,7 @@ decode_time(struct attribute *patr, char *name, char *rescn, char *val)
 	if (atoi(msec) >= 500)
 		rv++;
 	patr->at_val.at_long = rv;
-	patr->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(patr);
 	(void)free(workvalsv);
 	return (0);
 

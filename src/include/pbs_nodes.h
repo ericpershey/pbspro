@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -75,21 +75,35 @@ enum nodeattr {
 #define PBS_MAXNODENAME	79
 #endif
 
+/* Daemon info structure which are common for both mom and peer server */
+struct daemon_info {
+	unsigned long	dmn_state;   /* Daemon's state */
+	int		dmn_stream;   /* TPP stream to service */
+	unsigned long	*dmn_addrs;   /* IP addresses of host */
+	pbs_list_head	dmn_deferred_cmds;	/* links to svr work_task list for TPP replies */
+};
+typedef struct daemon_info dmn_info_t;
+
 /*
  * mominfo structure - used by both the Server and Mom
- *	to hold contact	information for an instance of a pbs_mom on a host
+ *	to hold contact	information for an instance of a pbs_mom/pbs_server on a host
+ * The server used it to represent moms and peer-servers and the mom uses it to represent peer-moms.
+ * mi_data contains daemon-dependent sub-structure. 
+ * So it is different to represent a mom (mom_svrinfo_t), a peer-svr (svrinfo_t) and a peer-mom (mom_vninfo_t, when used inside mom code).
+ * mi_dmn_info represents the elements that are common for both mom and peer-svr. and only used within server code.
  */
 
-struct mominfo {
-	char		mi_host[PBS_MAXHOSTNAME+1]; /* hostname where mom is */
-	unsigned int	mi_port;	/* port to which Mom is listening */
-	unsigned int	mi_rmport;	/* port for MOM RM */
+struct machine_info {
+	char		mi_host[PBS_MAXHOSTNAME+1]; /* hostname where service is */
+	unsigned int	mi_port;	/* port to which service is listening */
+	unsigned int	mi_rmport;	/* port for service RM */
 	time_t		mi_modtime;	/* time configuration changed */
-	void	       *mi_data;	/* daemon dependent substructure */
-	mom_hook_action_t **mi_action;	/* pending hook copy/delete on mom */
-	int		mi_num_action; /* # of hook actions in mi_action */
+	dmn_info_t	*mi_dmn_info;	/* daemon specific data which are common for all */
+	void		*mi_data;	/* daemon dependent substructure */
+	pbs_list_link	mi_link; /* forward/backward links */	
 };
-typedef struct mominfo mominfo_t;
+typedef struct machine_info mominfo_t;
+typedef struct machine_info server_t;
 
 /*
  * The following structure is used by the Server for each Mom.
@@ -97,18 +111,14 @@ typedef struct mominfo mominfo_t;
  */
 
 struct mom_svrinfo {
-	unsigned long	msr_state;   /* Mom's state */
 	long		msr_pcpus;   /* number of physical cpus reported by Mom */
 	long		msr_acpus;   /* number of avail    cpus reported by Mom */
 	u_Long		msr_pmem;	   /* amount of physical mem  reported by Mom */
 	int		msr_numjobs; /* number of jobs on this node */
 	char		*msr_arch;	    /* reported "arch" */
 	char		*msr_pbs_ver;  /* mom's reported "pbs_version" */
-	int		msr_stream;   /* TPP stream to Mom */
 	time_t		msr_timedown; /* time Mom marked down */
 	struct work_task *msr_wktask;	/* work task for reque jobs */
-	pbs_list_head	msr_deferred_cmds;	/* links to svr work_task list for TPP replies */
-	unsigned long	*msr_addrs;   /* IP addresses of host */
 	int		msr_numvnds;  /* number of vnodes */
 	int		msr_numvslots; /* number of slots in msr_children */
 	struct pbsnode	**msr_children;  /* array of vnodes supported by Mom */
@@ -116,6 +126,8 @@ struct mom_svrinfo {
 	struct job	**msr_jobindx;  /* index array of jobs on this Mom */
 	long		msr_vnode_pool;/* the pool of vnodes that belong to this Mom */
 	int		msr_has_inventory; /* Tells whether mom is an inventory reporting mom */
+	mom_hook_action_t **msr_action;	/* pending hook copy/delete on mom */
+	int		msr_num_action;	/* # of hook actions in msr_action */
 };
 typedef struct mom_svrinfo mom_svrinfo_t;
 
@@ -194,7 +206,7 @@ struct	prop {
 };
 
 struct	jobinfo {
-	struct	job	*job;
+	char		*jobid;
 	int		has_cpu;
 	size_t		mem;
 	struct	jobinfo	*next;
@@ -228,18 +240,13 @@ union ndu_ninfo {
 	unsigned int	__nd_int;
 };
 
-/* Device structure */
-struct	devices {
-	long nsockets;
-	long nnodes;
-};
 
 /*
  * Vnode structure
  */
 struct pbsnode {
 	char *nd_name;		  /* vnode's name */
-	struct mominfo **nd_moms; /* array of parent Moms */
+	mominfo_t **nd_moms; /* array of parent Moms */
 	int nd_nummoms;		  /* number of Moms */
 	int nd_nummslots;	  /* number of slots in nd_moms */
 	int nd_index;		  /* global node index */
@@ -250,15 +257,17 @@ struct pbsnode {
 	long nd_nsn;		   /* number of VPs  */
 	long nd_nsnfree;	   /* number of VPs free */
 	long nd_ncpus;		   /* number of phy cpus on node */
-	short nd_written;	   /* written to nodes file */
 	unsigned long nd_state;	   /* state of node */
 	unsigned short nd_ntype;   /* node type */
-	unsigned short nd_accted;  /* resc recorded in job acct */
 	struct pbs_queue *nd_pque; /* queue to which it belongs */
-	struct devices device;
+	void *nd_lic_info;	/* information set and used for licensing */
+	int nd_added_to_unlicensed_list;	/* To record if the node is added to the list of unlicensed node */
+	pbs_list_link un_lic_link;		/*Link to unlicense list */
+	int nd_svrflags;	/* server flags */
+	pbs_list_link nd_link;	/* Link to holding svr list in case if this is an alien node */
 	attribute nd_attr[ND_ATR_LAST];
-	short newobj; /* new node ? */
 };
+typedef struct pbsnode pbs_node;
 
 enum	warn_codes { WARN_none, WARN_ngrp_init, WARN_ngrp_ck, WARN_ngrp };
 enum	nix_flags { NIX_none, NIX_qnodes, NIX_nonconsume };
@@ -269,7 +278,7 @@ enum	part_flags { PART_refig, PART_add, PART_rmv };
 
 /*
  * The following INUSE_* flags are used for several structures
- * (subnode.inuse, node.nd_state, and mom_svrinfo.msr_state).
+ * (subnode.inuse, node.nd_state, and dmn_info.dmn_state).
  * The database schema stores node.nd_state as a 4 byte integer.
  * If more than 32 flags bits need to be added, the database schema will
  * need to be updated.  If not, the excess flags will be lost upon server restart
@@ -301,8 +310,6 @@ enum	part_flags { PART_refig, PART_add, PART_rmv };
 #define INUSE_SLEEP             0x40000 /* Node is sleeping */
 #define INUSE_NEED_CREDENTIALS	0x80000 /* Needs to be sent credentials */
 
-#define VNODE_AVAILABLE (INUSE_FREE | INUSE_JOB | INUSE_JOBEXCL | \
-			 INUSE_RESVEXCL | INUSE_BUSY)
 #define VNODE_UNAVAILABLE (INUSE_STALE | INUSE_OFFLINE | INUSE_DOWN | \
 			   INUSE_DELETED | INUSE_UNKNOWN | INUSE_UNRESOLVABLE \
 			   | INUSE_OFFLINE_BY_MOM | INUSE_MAINTENANCE | INUSE_SLEEP)
@@ -329,6 +336,14 @@ INUSE_RESVEXCL|INUSE_UNRESOLVABLE|INUSE_MAINTENANCE|INUSE_SLEEP)
 /* state bits that go from node to subn */
 #define	CONFLICT	1	/*search process must consider conflicts*/
 #define NOCONFLICT	0	/*be oblivious to conflicts in search*/
+
+/*
+ * server flags (in nd_svrflags)
+ */
+#define NODE_ALIEN      0x01	/* node does not belong to this server */
+#define NODE_UNLICENSED 0x02 /* To record if the node is added to the list of unlicensed node */
+#define NODE_NEWOBJ     0x04	/* new node ? */
+#define NODE_ACCTED     0x08	/* resc recorded in job acct */
 
 /* operators to set the state of a vnode. Nd_State_Set is "=",
  * Nd_State_Or is "|=" and Nd_State_And is "&=". This is used in set_vnode_state
@@ -363,7 +378,7 @@ struct tree {
 };
 
 extern void *node_attr_idx;
-extern struct attribute_def node_attr_def[]; /* node attributes defs */
+extern attribute_def node_attr_def[]; /* node attributes defs */
 extern struct pbsnode **pbsndlist;           /* array of ptr to nodes  */
 extern int svr_totnodes;                     /* number of nodes (hosts) */
 extern struct tree *ipaddrs;
@@ -395,6 +410,7 @@ extern	void	setup_notification(void);
 extern  struct	pbssubn  *find_subnodebyname(char *);
 extern	struct	pbsnode  *find_nodebyname(char *);
 extern	struct	pbsnode  *find_nodebyaddr(pbs_net_t);
+extern	pbs_node *find_alien_node(char *nodename);
 extern	void	free_prop_list(struct prop*);
 extern	void	recompute_ntype_cnts(void);
 extern	int	process_host_name_part(char*, svrattrl*, char**, int*);
@@ -427,10 +443,13 @@ extern	int	chk_vnode_pool(attribute *, void *, int);
 extern	void	free_pnode(struct pbsnode *);
 extern	int	save_nodes_db(int, void *);
 extern void	propagate_socket_licensing(mominfo_t *);
+extern void	update_jobs_on_node(char *, char *, int, int);
+extern int	mcast_add(mominfo_t *, int *, bool);
+void		stream_eof(int, int, char *);
 
 extern char *msg_daemonname;
 
-#define	NODE_TOPOLOGY_TYPE_HWLOC	"hwloc:"
+#define	NODE_TOPOLOGY_TYPE_HWLOC	"hwloc"
 #define	NODE_TOPOLOGY_TYPE_CRAY		"Cray-v1:"
 #define	NODE_TOPOLOGY_TYPE_WIN		"Windows:"
 
@@ -443,28 +462,52 @@ extern char *msg_daemonname;
 #define JOB_ACT_REQ_DEALLOCATE	2
 
 
+extern void remove_mom_from_pool(mominfo_t *);
+extern void mcast_moms();
+
 #ifndef PBS_MOM
 extern int node_save_db(struct pbsnode *pnode);
 struct pbsnode *node_recov_db(char *nd_name, struct pbsnode *pnode);
 extern int add_mom_to_pool(mominfo_t *);
-extern void remove_mom_from_pool(mominfo_t *);
 extern void reset_pool_inventory_mom(mominfo_t *);
 extern vnpool_mom_t *find_vnode_pool(mominfo_t *pmom);
-extern void mcast_moms();
+extern void mcast_msg();
+int get_job_share_type(struct job *pjob);
 #endif
 
 extern  int	   recover_vmap(void);
 extern  void       delete_momvmap_entry(momvmap_t *);
 extern  momvmap_t *create_mommap_entry(char *, char *hostn, mominfo_t *, int);
-extern struct mominfo   *find_mom_by_vnodename(const char *);
-extern momvmap_t        *find_vmap_entry(const char *);
-extern mominfo_t *add_mom_data(const char *, void *);
+extern mominfo_t	*find_mom_by_vnodename(const char *);
+extern momvmap_t	*find_vmap_entry(const char *);
+extern mominfo_t	*add_mom_data(const char *, void *);
 extern mominfo_t	*find_mominfo(const char *);
 extern int		create_vmap(void **);
 extern void		destroy_vmap(void *);
 extern mominfo_t	*find_vmapent_byID(void *, const char *);
 extern int		add_vmapent_byID(void *, const char *, void *);
-extern  int		open_momstream(mominfo_t *);
+extern  int		open_conn_stream(mominfo_t *);
+extern void		close_streams(int stm, int ret);
+extern void		delete_daemon_info(struct machine_info *pmi);
+extern dmn_info_t *	init_daemon_info(unsigned long *pul, unsigned int port, struct machine_info *pmi);
+
+
+attribute *get_nattr(const struct pbsnode *pnode, int attr_idx);
+char *get_nattr_str(const struct pbsnode *pnode, int attr_idx);
+struct array_strings *get_nattr_arst(const struct pbsnode *pnode, int attr_idx);
+pbs_list_head get_nattr_list(const struct pbsnode *pnode, int attr_idx);
+long get_nattr_long(const struct pbsnode *pnode, int attr_idx);
+char get_nattr_c(const struct pbsnode *pnode, int attr_idx);
+int set_nattr_generic(struct pbsnode *pnode, int attr_idx, char *val, char *rscn, enum batch_op op);
+int set_nattr_str_slim(struct pbsnode *pnode, int attr_idx, char *val, char *rscn);
+int set_nattr_l_slim(struct pbsnode *pnode, int attr_idx, long val, enum batch_op op);
+int set_nattr_b_slim(struct pbsnode *pnode, int attr_idx, long val, enum batch_op op);
+int set_nattr_c_slim(struct pbsnode *pnode, int attr_idx, char val, enum batch_op op);
+int set_nattr_short_slim(struct pbsnode *pnode, int attr_idx, short val, enum batch_op op);
+int is_nattr_set(const struct pbsnode *pnode, int attr_idx);
+void free_nattr(struct pbsnode *pnode, int attr_idx);
+void clear_nattr(struct pbsnode *pnode, int attr_idx);
+void set_nattr_jinfo(struct pbsnode *pnode, int attr_idx, struct pbsnode *val);
 
 #ifdef	__cplusplus
 }

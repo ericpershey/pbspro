@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -136,7 +136,7 @@ is_true_or_false(char *val)
  */
 
 int
-decode_b(struct attribute *patr, char *name, char *rescn, char *val)
+decode_b(attribute *patr, char *name, char *rescn, char *val)
 {
 	int i;
 
@@ -148,7 +148,7 @@ decode_b(struct attribute *patr, char *name, char *rescn, char *val)
 			patr->at_val.at_long = i;
 		else
 			return (PBSE_BADATVAL);
-		patr->at_flags |= ATR_SET_MOD_MCACHE;
+		post_attr_set(patr);
 	}
 	return (0);
 }
@@ -222,7 +222,7 @@ encode_b(const attribute *attr, pbs_list_head *phead, char *atname, char *rsname
  */
 
 int
-set_b(struct attribute *attr, struct attribute *new, enum batch_op op)
+set_b(attribute *attr, attribute *new, enum batch_op op)
 {
 	assert(attr && new && (new->at_flags & ATR_VFLAG_SET));
 
@@ -243,7 +243,7 @@ set_b(struct attribute *attr, struct attribute *new, enum batch_op op)
 
 		default:	return (PBSE_INTERNAL);
 	}
-	attr->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(attr);
 	return (0);
 }
 
@@ -261,7 +261,7 @@ set_b(struct attribute *attr, struct attribute *new, enum batch_op op)
  */
 
 int
-comp_b(struct attribute *attr, struct attribute *with)
+comp_b(attribute *attr, attribute *with)
 {
 	if (!attr || !with)
 		return (1);
@@ -275,3 +275,38 @@ comp_b(struct attribute *attr, struct attribute *with)
 /*
  * free_b - use free_null() to (not) free space
  */
+
+/**
+ * @brief	Attribute setter function for boolean type values
+ *
+ * @param[in]	pattr	-	pointer to attribute being set
+ * @param[in]	value	-	value to be set
+ * @param[in]	op		-	operation to do
+ *
+ * @return	void
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ *
+ */
+void
+set_attr_b(attribute *pattr, long val, enum batch_op op)
+{
+	switch (op) {
+		case SET:
+			pattr->at_val.at_long = val;
+			break;
+
+		case INCR:
+			pattr->at_val.at_long = pattr->at_val.at_long | val; /* "or" */
+			break;
+
+		case DECR:
+			pattr->at_val.at_long = pattr->at_val.at_long & ~val;
+			break;
+
+		default:
+			return;
+	}
+	post_attr_set(pattr);
+}

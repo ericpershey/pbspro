@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -46,6 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <errno.h>
 #include "cmds.h"
 #include "pbs_ifl.h"
 
@@ -242,11 +243,8 @@ main(int argc, char *argv[])
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 	while ((c = getopt(argc, argv, "fFBS")) != EOF) {
 		switch (c) {
@@ -333,13 +331,18 @@ handle_resv(char *resv_id, char *server, int how)
 	struct batch_status *server_attrs;
 
 	pbs_sd = cnt2server(server);
-
 	if (pbs_sd < 0) {
 		fprintf(stderr, "pbs_rstat: cannot connect to server (errno=%d)\n",
 			pbs_errno);
 		CS_close_app();
 		exit(pbs_errno);
 	}
+
+	if (pbs_errno != PBSE_NONE) {
+		if (pbs_errno == PBSE_NOSERVER || pbs_errno == ECONNREFUSED)
+			show_svr_inst_fail(pbs_sd, "pbs_rstat");
+    	} 
+
 	/* check the server attribute max_job_sequence_id value */
 	if (check_width == 0) {
 		server_attrs = pbs_statserver(pbs_sd, NULL, NULL);
@@ -365,7 +368,7 @@ handle_resv(char *resv_id, char *server, int how)
 
 	bstat = pbs_statresv(pbs_sd, resv_id, NULL, NULL);
 
-	if (pbs_errno) {
+	if (pbs_errno && (pbs_errno != PBSE_NOSERVER)) {
 		errmsg = pbs_geterrmsg(pbs_sd);
 		fprintf(stderr, "pbs_rstat: %s\n", errmsg);
 	}

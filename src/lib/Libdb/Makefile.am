@@ -1,6 +1,6 @@
 
 #
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -42,8 +42,7 @@
 SUBDIRS = \
 	pgsql
 
-all-local:
-	cp -p $(top_builddir)/src/lib/Libdb/pgsql/.libs/libdb.so.0.0.0 $(top_builddir)/src/lib/Libdb/libdb.so
-
-clean-local:
-	rm -f $(top_builddir)/src/lib/Libdb/libdb.so
+lib_LTLIBRARIES = libpbsdb.la
+libpbsdb_la_LDFLAGS = -version-info 0:0:0
+libpbsdb_la_LIBADD = pgsql/libpbsdbpg.la @database_lib@
+libpbsdb_la_SOURCES =

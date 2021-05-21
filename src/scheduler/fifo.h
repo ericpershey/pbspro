@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,13 +39,41 @@
 
 #ifndef	_FIFO_H
 #define	_FIFO_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
+
+#include <string>
 
 #include  <limits.h>
 #include "data_types.h"
-int connector;
+#include "sched_cmds.h"
+
+/**
+ * @brief Gets the Scheduler Command sent by the Server
+ *
+ * @param[in]     sock - secondary connection to the server
+ * @param[in,out] cmd  - pointer to sched cmd to be filled with received cmd
+ *
+ * @return	int
+ * @retval	0	: for EOF
+ * @retval	+1	: for success
+ * @retval	-1	: for error
+ */
+int get_sched_cmd(int sock, sched_cmd *cmd);
+
+/**
+ * @brief This is non-blocking version of get_sched_cmd()
+ *
+ * @param[in]     sock - secondary connection to the server
+ * @param[in,out] cmd  - pointer to sched cmd to be filled with received cmd
+ *
+ * @return	int
+ * @retval	0	no super high priority command
+ * @retval	+1	for success
+ * @retval	-1	for error
+ * @retval	-2	for EOF
+ *
+ * @note this function uses different return code (-2) for EOF than get_sched_cmd() (-1)
+ */
+int get_sched_cmd_noblk(int sock, sched_cmd *cmd);
 
 /*
  *      schedinit - initialize conf struct and parse conf files
@@ -53,24 +81,17 @@ int connector;
 int schedinit(int nthreads);
 
 /*
- *      schedule - this function gets called to start each scheduling cycle
- *                 It will handle the difference cases that caused a
- *                 scheduling cycle
- */
-int schedule(int cmd, int sd, char *runjobid);
-
-/*
  *	intermediate_schedule - responsible for starting/restarting scheduling
  *				cycle
  */
 
-int intermediate_schedule(int sd, char *jobid);
+int intermediate_schedule(int sd, const sched_cmd *cmd);
 
 /*
  *      scheduling_cycle - the controling function of the scheduling cycle
  */
 
-int scheduling_cycle(int sd, char *jobid);
+int scheduling_cycle(int sd, const sched_cmd *cmd);
 
 /*
  *	init_scheduling_cycle - run things that need to be set up every
@@ -95,11 +116,6 @@ int init_scheduling_cycle(status *policy, int pbs_sd, server_info *sinfo);
 resource_resv *next_job(status *policy, server_info *sinfo, int flag);
 
 /*
- *      update_last_running - update the last_running job array
- */
-int update_last_running(server_info *sinfo);
-
-/*
  *      find_runnable_job_ind - find the index of the next runnable job in a job array
  *  		Jobs are runnable if:
  *	   	in state 'Q'
@@ -111,7 +127,7 @@ int update_last_running(server_info *sinfo);
 int find_runnable_resresv_ind(resource_resv **resresv_arr, int start_index);
 
 /*
- *	find_non_normal_job_ind - find the index of the next runnable express,preempted,starving job
+ *	find_non_normal_job_ind - find the index of the next runnable express,preempted
  */
 int find_non_normal_job_ind(resource_resv **resresv_arr, int start_index);
 
@@ -161,11 +177,6 @@ run_update_resresv(status *policy, int pbs_sd, server_info *sinfo, queue_info *q
 int update_job_can_not_run(int pbs_sd, resource_resv *job, schd_error *err);
 
 /*
- * schedexit - cleanup routine for scheduler exit
- */
-void schedexit(void);
-
-/*
  *	end_cycle_tasks - stuff which needs to happen at the end of a cycle
  */
 void end_cycle_tasks(server_info *sinfo);
@@ -181,7 +192,8 @@ int add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo, resource
  *	       first move it to the local server and then run it.
  *	       if it's a local job, just run it.
  */
-int run_job(int pbs_sd, resource_resv *rjob, char *execvnode, int had_runjob_hook, schd_error *err);
+int run_job(int pbs_sd, resource_resv *rjob, char *execvnode, int had_runjob_hook,
+	    schd_error *err);
 
 /*
  *	should_backfill_with_job - should we call add_job_to_calendar() with job
@@ -201,7 +213,7 @@ int should_backfill_with_job(status *policy, server_info *sinfo, resource_resv *
  *	return nothing
  *
  */
-void update_cycle_status(struct status *policy, time_t current_time);
+void update_cycle_status(status& policy, time_t current_time);
 
 
 /*
@@ -230,12 +242,10 @@ int main_sched_loop(status *policy, int sd, server_info *sinfo, schd_error **rer
  */
 int scheduler_simulation_task(int pbs_sd, int debug);
 
-int update_svr_schedobj(int connector, int cmd, int alarm_time);
+int set_validate_sched_attrs(int);
 
-int set_validate_sched_attrs(int connector);
+int validate_running_user(char *exename);
 
+int send_run_job(int virtual_sd, int has_runjob_hook, const std::string& jobid, char *execvnode, char *svr_id_job);
 
-#ifdef	__cplusplus
-}
-#endif
 #endif	/* _FIFO_H */

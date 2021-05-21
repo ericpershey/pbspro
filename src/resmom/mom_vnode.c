@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -73,7 +73,7 @@ static void		*cpuctx;
 static void		cpu_inuse(unsigned int, job *, int);
 static void		*new_ctx(void);
 static mom_vninfo_t	*new_vnid(const char *, void *);
-static void		truncate_and_log(const char *, char *, int);
+static void		truncate_and_log(int, const char *, char *, int);
 static mom_vninfo_t	*vnid2mominfo(const char *, const void *);
 enum res_op	{ RES_DECR, RES_INCR, RES_SET };
 
@@ -96,8 +96,9 @@ mom_CPUs_report(void)
 	int bufspace; /* space remaining in reportbuf[] */
 	void *idx_ctx = NULL;
 	mominfo_t *mip = NULL;
+	int log_ev = PBSEVENT_DEBUG3;
 
-	if (cpuctx == NULL)
+	if (cpuctx == NULL || !will_log_event(log_ev))
 		return;
 
 	while (pbs_idx_find(cpuctx, NULL, (void **)&mip, &idx_ctx) == PBS_IDX_RET_OK) {
@@ -113,7 +114,7 @@ mom_CPUs_report(void)
 		bufspace = sizeof(reportbuf);
 		ret = snprintf(p, bufspace, "%s:  cpus = ", mvp->mvi_id);
 		if (ret >= bufspace) {
-			truncate_and_log(__func__, reportbuf, sizeof(reportbuf));
+			truncate_and_log(log_ev, __func__, reportbuf, sizeof(reportbuf));
 			continue;
 		}
 		p += ret;
@@ -123,7 +124,7 @@ mom_CPUs_report(void)
 				first = 0;
 			else {
 				if (bufspace < 1) {
-					truncate_and_log(__func__, reportbuf, sizeof(reportbuf));
+					truncate_and_log(log_ev, __func__, reportbuf, sizeof(reportbuf));
 					goto line_done;
 				}
 				sprintf(p, ",");
@@ -133,7 +134,7 @@ mom_CPUs_report(void)
 
 			ret = snprintf(p, bufspace, "%d", mvp->mvi_cpulist[i].mvic_cpunum);
 			if (ret >= bufspace) {
-				truncate_and_log(__func__, reportbuf, sizeof(reportbuf));
+				truncate_and_log(log_ev, __func__, reportbuf, sizeof(reportbuf));
 				goto line_done;
 			}
 			p += ret;
@@ -148,13 +149,13 @@ mom_CPUs_report(void)
 					ret = snprintf(p, bufspace, " (inuse, job %s)", mvp->mvi_cpulist[i].mvic_job->ji_qs.ji_jobid);
 			}
 			if (ret >= bufspace) {
-				truncate_and_log(__func__, reportbuf, sizeof(reportbuf));
+				truncate_and_log(log_ev, __func__, reportbuf, sizeof(reportbuf));
 				goto line_done;
 			}
 			p += ret;
 			bufspace -= ret;
 		}
-		log_event(PBSEVENT_DEBUG3, 0, LOG_DEBUG, __func__, reportbuf);
+		log_event(log_ev, 0, LOG_DEBUG, __func__, reportbuf);
 line_done:
 		;
 	}
@@ -167,6 +168,7 @@ line_done:
  *	In case of buffer overflow, we log what we can and indicate with an
  *	ellipsis at the end that the line overflowed.
  *
+ * @param[in] log_ev - log event
  * @param[in] id - id for log msg
  * @param[in] buf - buffer holding log msg
  * @param[in] bufsize - buffer size
@@ -175,11 +177,11 @@ line_done:
  *
  */
 static void
-truncate_and_log(const char *id, char *buf, int bufsize)
+truncate_and_log(int log_ev, const char *id, char *buf, int bufsize)
 {
 	buf[bufsize - 4] = buf[bufsize - 3] = buf[bufsize - 2] = '.';
 	buf[bufsize - 1] = '\0';
-	log_event(PBSEVENT_DEBUG3, 0, LOG_DEBUG, id, buf);
+	log_event(log_ev, 0, LOG_DEBUG, id, buf);
 }
 
 /**
@@ -197,27 +199,27 @@ truncate_and_log(const char *id, char *buf, int bufsize)
 void
 mom_vnlp_report(vnl_t *vnl, char *header)
 {
-	int		i;
-	char		reportbuf[LOG_BUF_SIZE+1];
-	char		*p = NULL;
-	vnl_t		*vp;
-	char		attrprefix[] = ", attrs[]:  ";
-	int		bytes_left;
+	int i;
+	char reportbuf[LOG_BUF_SIZE + 1];
+	char *p = NULL;
+	vnl_t *vp;
+	char attrprefix[] = ", attrs[]:  ";
+	int bytes_left;
+	int log_ev = PBSEVENT_DEBUG3;
 
-	if (vnl == NULL)
+	if (vnl == NULL || !will_log_event(log_ev))
 		return;
 
 	vp = vnl;
 
 	for (i = 0; i < vp->vnl_used; i++) {
-		vnal_t	*vnalp;
+		vnal_t *vnalp;
 		int j, k;
 
 		vnalp = VNL_NODENUM(vp, i);
 		bytes_left = LOG_BUF_SIZE;
 		p = reportbuf;
-		k = snprintf(p, bytes_left, "vnode %s:  nelem %lu", vnalp->vnal_id,
-			vnalp->vnal_used);
+		k = snprintf(p, bytes_left, "vnode %s:  nelem %lu", vnalp->vnal_id, vnalp->vnal_used);
 		if (k < 0)
 			break;
 		bytes_left -= k;
@@ -225,27 +227,26 @@ mom_vnlp_report(vnl_t *vnl, char *header)
 			break;
 		p += k;
 		if (vnalp->vnal_used > 0) {
-			k = snprintf(p, bytes_left, "%s", attrprefix);
-			if (k < 0)
+			if (bytes_left < sizeof(attrprefix))
 				break;
-			bytes_left -= k;
+			strcat(p, attrprefix);
+			bytes_left -= sizeof(attrprefix);
 			if (bytes_left <= 0)
 				break;
-			p += k;
+			p += sizeof(attrprefix);
 		}
 		for (j = 0; j < vnalp->vnal_used; j++) {
-			vna_t		*vnap;
+			vna_t *vnap;
 
 			vnap = VNAL_NODENUM(vnalp, j);
 			if (j > 0) {
-				snprintf(p, bytes_left, ", ");
+				strcat(p, ", ");
 				bytes_left -= 2;
 				if (bytes_left <= 0)
 					break;
 				p += 2;
 			}
-			k = snprintf(p, bytes_left, "\"%s\" = \"%s\"", vnap->vna_name,
-				vnap->vna_val);
+			k = snprintf(p, bytes_left, "\"%s\" = \"%s\"", vnap->vna_name, vnap->vna_val);
 			if (k < 0)
 				break;
 			bytes_left -= k;
@@ -253,11 +254,11 @@ mom_vnlp_report(vnl_t *vnl, char *header)
 				break;
 			p += k;
 		}
-		log_event(PBSEVENT_DEBUG3, 0, LOG_DEBUG, header?header:__func__, reportbuf);
+		log_event(log_ev, 0, LOG_DEBUG, header ? header : __func__, reportbuf);
 		p = NULL;
 	}
 	if (p != NULL) { /* log any remaining item */
-		log_event(PBSEVENT_DEBUG3, 0, LOG_DEBUG, header?header:__func__, reportbuf);
+		log_event(log_ev, 0, LOG_DEBUG, header ? header : __func__, reportbuf);
 	}
 }
 
@@ -413,7 +414,8 @@ static void
 resadj(vnl_t *vp, const char *vnid, const char *res, enum res_op op,
 	unsigned int adjval)
 {
-	int		i, j;
+	int	i, j;
+	char	*vna_newval;
 
 	sprintf(log_buffer, "vnode %s, resource %s, res_op %d, adjval %u",
 		vnid, res, (int) op, adjval);
@@ -476,26 +478,12 @@ resadj(vnl_t *vp, const char *vnid, const char *res, enum res_op op,
 				 *	the adjusted one.  This may involve
 				 *	surgery on the vna_t.
 				 */
-				if (op == RES_DECR) {
-					/*
-					 *	Since the resource value is now
-					 *	smaller than before, it ought to
-					 *	fit in the space that holds the
-					 *	current value.
-					 */
-					strcpy(vnap->vna_val, valbuf);
-				} else {
-					char	*vna_newval = strdup(valbuf);
-
-					if (vna_newval != NULL) {
-						free(vnap->vna_val);
-						vnap->vna_val = vna_newval;
-					} else {
-						log_event(PBSEVENT_ERROR, 0,
-							LOG_ERR, __func__,
-							"vna_newval strdup failed");
-					}
-				}
+				vna_newval = strdup(valbuf);
+				if (vna_newval != NULL) {
+					free(vnap->vna_val);
+					vnap->vna_val = vna_newval;
+				} else
+					log_err(PBSE_SYSTEM, __func__, "vna_newval strdup failed");
 				return;
 			}
 		}
@@ -847,8 +835,6 @@ new_vnid(const char *vnid, void *ctx)
 	mip->mi_port = pbs_mom_port;
 	mip->mi_rmport = pbs_rm_port;
 	mip->mi_data = mvp;
-	mip->mi_action = NULL;
-	mip->mi_num_action = 0;
 	mvp->mvi_id = newid;
 	mvp->mvi_ncpus = mvp->mvi_acpus = 0;
 	mvp->mvi_cpulist = NULL;

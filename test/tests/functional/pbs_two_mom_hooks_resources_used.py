@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -96,15 +96,11 @@ class TestAcctlogRescUsedWithTwoMomHooks(TestFunctional):
         resources_used value to be present in the 'R' record.
         """
 
-        test = []
-        test += ['#PBS -N NodeFailRequeueTest\n']
-        test += ['echo Starting test at `date`\n']
-        test += ['sleep 5\n']
-
+        # Submit job
         select = "vnode=" + self.hostA + "+vnode=" + self.hostB
         j1 = Job(TEST_USER, attrs={
-            'Resource_List.select': select})
-        j1.create_script(body=test)
+             ATTR_N: 'NodeFailRequeueTest',
+             'Resource_List.select': select})
         jid1 = self.server.submit(j1)
 
         # Wait for the job to start running.
@@ -117,7 +113,7 @@ class TestAcctlogRescUsedWithTwoMomHooks(TestFunctional):
 
         # Check for resources_used value in the 'R' record.
         msg = '.*R;' + str(jid1) + '.*resources_used.ncpus=2.*'
-        self.server.accounting_match(msg, tail=True, regexp=True)
+        self.server.accounting_match(msg, regexp=True, n='ALL')
 
     def test_Erecord(self):
         """
@@ -126,15 +122,12 @@ class TestAcctlogRescUsedWithTwoMomHooks(TestFunctional):
         resources_used.
         """
 
-        test = []
-        test += ['#PBS -N JobEndTest\n']
-        test += ['echo Starting test at `date`\n']
-        test += ['sleep 1\n']
-
+        # Submit job
         select = "vnode=" + self.hostA + "+vnode=" + self.hostB
         j1 = Job(TEST_USER, attrs={
-            'Resource_List.select': select})
-        j1.create_script(body=test)
+             ATTR_N: 'JobEndTest',
+             'Resource_List.select': select})
+        j1.set_sleep_time(15)
         jid1 = self.server.submit(j1)
 
         # Wait for the job to start running.

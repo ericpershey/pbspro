@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_SORT_H
 #define	_SORT_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 /*
  *	compare two new numerical resource numbers
@@ -58,6 +55,10 @@ int cmpres(sch_resource_t r1, sch_resource_t r2);
  */
 int cmp_nspec(const void *v1, const void *v2);
 
+/*
+ * cmp_nspec_by_sub_seq - sort nspec by sub sequence number
+ */
+int cmp_nspec_by_sub_seq(const void *v1, const void *v2);
 
 /*
  *	cmp_placement_sets - sort placement sets by
@@ -67,11 +68,6 @@ int cmp_nspec(const void *v1, const void *v2);
  *			free memory
  */
 int cmp_placement_sets(const void *v1, const void *v2);
-
-/*
- *	cmp_low_load - sort nodes ascending by load ave
- */
-int cmp_low_load(const void *v1, const void *v2);
 
 /*
  * cmp_fairshare - compare based on compare_path()
@@ -122,30 +118,30 @@ int cmp_sort(const void *v1, const void *v2);
 /*
  *      find_resresv_amount - find resource amount for jobs + special cases
  */
-sch_resource_t find_resresv_amount(resource_resv *resresv, char *res, resdef *def);
+sch_resource_t find_resresv_amount(resource_resv *resresv, const std::string& res, resdef *def);
 
 /*
  *      find_node_amount - find the resource amount for nodes + special cases
  */
-sch_resource_t find_node_amount(node_info *ninfo, char *res, resdef *def, enum resource_fields res_type);
+sch_resource_t find_node_amount(node_info *ninfo, const std::string& res, resdef *def, enum resource_fields res_type);
 
 /* return resource values based on res_type for node partition */
-sch_resource_t find_nodepart_amount(node_partition *np, char *res, resdef *def, enum resource_fields res_type);
+sch_resource_t find_nodepart_amount(node_partition *np, const std::string& res, resdef *def, enum resource_fields res_type);
 
-sch_resource_t find_bucket_amount(node_bucket *bkt, char *res, resdef *def, enum resource_fields res_type);
+sch_resource_t find_bucket_amount(node_bucket *bkt, const std::string& res, resdef *def, enum resource_fields res_type);
 
 
 /*
  * Compares either two nodes or node_partitions based on a resource,
  * Ascending/Descending, and what part of the resource to use (total, unused, etc)
  */
-int node_sort_cmp(const void *vp1, const void *vp2, struct sort_info *si, enum sort_obj_type obj_type);
+int node_sort_cmp(const void *vp1, const void *vp2, const struct sort_info& si, enum sort_obj_type obj_type);
 
 /*
  *      resresv_sort_cmp - compares 2 jobs on the current resresv sort
  *                      used with qsort (qsort calls multi_sort())
  */
-int resresv_sort_cmp(resource_resv *r1, resource_resv *r2, struct sort_info *si);
+int resresv_sort_cmp(resource_resv *r1, resource_resv *r2, const sort_info& si);
 
 /*
  *      multi_node_sort - a multi keyed sorting compare function for nodes
@@ -186,11 +182,6 @@ int cmp_job_preemption_time_asc(const void *j1, const void *j2);
 int cmp_preemption(resource_resv *r1, resource_resv *r2);
 
 /*
- * cmp_starving_jobs - compare based on eligible_time
- */
-int cmp_starving_jobs(const void *j1, const void *j2);
-
-/*
  * cmp_resv_state - compare based on resv_state
  */
 int cmp_resv_state(const void *r1, const void *r2);
@@ -201,7 +192,4 @@ int cmp_resv_state(const void *r1, const void *r2);
  */
 void sort_jobs(status *policy, server_info *sinfo);
 
-#ifdef	__cplusplus
-}
-#endif
 #endif	/* _SORT_H */

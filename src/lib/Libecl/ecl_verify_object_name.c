@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -56,6 +56,7 @@
 #include "pbs_ecl.h"
 #include "pbs_error.h"
 #include "pbs_nodes.h"
+#include "libpbs.h"
 
 /**
  * @brief
@@ -81,9 +82,9 @@
  *
  */
 int
-pbs_verify_object_name(int type, char *name)
+pbs_verify_object_name(int type, const char *name)
 {
-	char *ptr;
+	const char *ptr;
 
 	if ((type < 0) || (type >= MGR_OBJ_LAST)) {
 		pbs_errno = PBSE_IVAL_OBJ_NAME;

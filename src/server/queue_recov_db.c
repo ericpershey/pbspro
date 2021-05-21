@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -127,7 +127,7 @@ db_to_que(pbs_queue *pque, pbs_db_que_info_t *pdbque)
 	strcpy(pque->qu_qs.qu_name, pdbque->qu_name);
 	pque->qu_qs.qu_type = pdbque->qu_type;
 
-	if ((decode_attr_db(pque, &pdbque->db_attr_list, que_attr_idx, que_attr_def, pque->qu_attr, QA_ATR_LAST, 0)) != 0)
+	if ((decode_attr_db(pque, &pdbque->db_attr_list.attrs, que_attr_idx, que_attr_def, pque->qu_attr, QA_ATR_LAST, 0)) != 0)
 		return -1;
 
 	compare_obj_hash(&pque->qu_qs, sizeof(pque->qu_qs), pque->qs_hash);

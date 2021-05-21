@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -47,7 +47,7 @@ class TestPbsJobScript(TestFunctional):
 
     def submit_job(self, addnewline=False):
         a = {'resources_available.ncpus': 2}
-        self.server.create_vnodes('Verylongvnodename', a, 500, self.mom)
+        self.mom.create_vnodes(a, 500, vname='Verylongvnodename')
 
         selstr = "#PBS -l select=1"
         for node in range(500):
@@ -65,7 +65,6 @@ class TestPbsJobScript(TestFunctional):
         jid = self.server.submit(j)
         return jid
 
-    @skipOnCpuSet
     def test_long_select_spec(self):
         """
         Test that PBS is able to accept jobs scripts with very long select
@@ -79,7 +78,6 @@ class TestPbsJobScript(TestFunctional):
         self.server.expect(JOB, {'job_state': 'R', 'exec_vnode': execvnode},
                            id=jid)
 
-    @skipOnCpuSet
     def test_long_select_spec_extend(self):
         """
         Test that PBS is able to accept jobs scripts with very long select

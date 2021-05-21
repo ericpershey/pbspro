@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -2365,7 +2365,7 @@ duration_to_secs(char *time_str)
 {
 
 	char 	     *value_tmp = NULL;
-	struct attribute attr;
+	attribute attr;
 	int  	     rc;
 
 	/*  The *decode* functions below "munges" the value argument, so will use */
@@ -3285,6 +3285,8 @@ _pps_helper_get_queue(pbs_queue *pque, const char *que_name, char *perf_label)
 	int tmp_rc = -1;
 	int i;
 	char perf_action[MAXBUFLEN];
+	long total_jobs;
+	attribute *qattr;
 
 	if (pque != NULL) {
 		que = pque;
@@ -3346,16 +3348,14 @@ _pps_helper_get_queue(pbs_queue *pque, const char *que_name, char *perf_label)
 	 */
 	/* As done is statque update the state count */
 	if (!svr_chk_history_conf()) {
-		que->qu_attr[(int)QA_ATR_TotalJobs].at_val.at_long = que->qu_numjobs;
+		total_jobs = que->qu_numjobs;
 	} else {
-		que->qu_attr[(int)QA_ATR_TotalJobs].at_val.at_long = que->qu_numjobs -
-			(que->qu_njstate[JOB_STATE_MOVED] + que->qu_njstate[JOB_STATE_FINISHED] + que->qu_njstate[JOB_STATE_EXPIRED]);
+		total_jobs = que->qu_numjobs - (que->qu_njstate[JOB_STATE_MOVED] + que->qu_njstate[JOB_STATE_FINISHED] + que->qu_njstate[JOB_STATE_EXPIRED]);
 	}
-	que->qu_attr[(int)QA_ATR_TotalJobs].at_flags |= ATR_SET_MOD_MCACHE;
+	set_qattr_l_slim(que, QA_ATR_TotalJobs, total_jobs, SET);
 
-	update_state_ct(&que->qu_attr[(int)QA_ATR_JobsByState],
-		que->qu_njstate,
-		que->qu_jobstbuf);
+	qattr = get_qattr(que, QA_ATR_JobsByState);
+	update_state_ct(qattr, que->qu_njstate, &que_attr_def[QA_ATR_JobsByState]);
 	/* stuff all the attributes */
 	snprintf((char *)hook_debug.objname, HOOK_BUF_SIZE-1, "%s(%s)", SERVER_QUEUE_OBJECT, que->qu_qs.qu_name);
 	snprintf(perf_action, sizeof(perf_action), "%s:%s", HOOK_PERF_POPULATE, hook_debug.objname);
@@ -3368,6 +3368,7 @@ _pps_helper_get_queue(pbs_queue *pque, const char *que_name, char *perf_label)
 		log_err(PBSE_INTERNAL, __func__,
 			"partially populated python queue object");
 	}
+	free_attr(que_attr_def, qattr, QA_ATR_JobsByState);
 
 	tmp_rc = pbs_python_mark_object_readonly(py_que);
 
@@ -3494,15 +3495,10 @@ _pps_helper_get_server(char *perf_label)
 	/* As done is stat_svr update the state count */
 
 	/* update count and state counts from sv_numjobs and sv_jobstates */
+	set_sattr_l_slim(SVR_ATR_TotalJobs, server.sv_qs.sv_numjobs, SET);
+	update_state_ct(get_sattr(SVR_ATR_JobsByState), server.sv_jobstates, &svr_attr_def[SVR_ATR_JobsByState]);
 
-	server.sv_attr[(int)SVR_ATR_TotalJobs].at_val.at_long = server.sv_qs.sv_numjobs;
-	server.sv_attr[(int)SVR_ATR_TotalJobs].at_flags |= ATR_SET_MOD_MCACHE;
-	update_state_ct(&server.sv_attr[(int)SVR_ATR_JobsByState],
-		server.sv_jobstates,
-		server.sv_jobstbuf);
-
-	update_license_ct(&server.sv_attr[(int)SVR_ATR_license_count],
-		server.sv_license_ct_buf);
+	update_license_ct();
 
 	/* stuff all the attributes */
 	strncpy((char *)hook_debug.objname, SERVER_OBJECT, HOOK_BUF_SIZE-1);
@@ -5082,7 +5078,6 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 	PyObject *py_margs = NULL;
 	PyObject *py_management = NULL;
 	PyObject *py_event_param = NULL;
-
 	PyObject *py_event_class = NULL;
 	PyObject *py_job_class = NULL;
 	PyObject *py_management_class = NULL;
@@ -5095,7 +5090,8 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 	PyObject *py_joblist = NULL;
 	PyObject *py_resvlist = NULL;
 	PyObject *py_exec_vnode = NULL;
-	PyObject *py_vnode	   = NULL;
+	PyObject *py_vnode = NULL;
+	PyObject *py_vnode_o   = NULL;
 	PyObject *py_aoe	   = NULL;
 	PyObject *py_resclist = NULL;
 	PyObject *py_progname = NULL;
@@ -5209,8 +5205,8 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 	}
 
 	lval = max_hooks;
-	if (server.sv_attr[(int)SVR_ATR_PythonRestartMaxHooks].at_flags & ATR_VFLAG_SET)
-		max_hooks = server.sv_attr[(int)SVR_ATR_PythonRestartMaxHooks].at_val.at_long;
+	if (is_sattr_set(SVR_ATR_PythonRestartMaxHooks))
+		max_hooks = get_sattr_long(SVR_ATR_PythonRestartMaxHooks);
 	else
 		max_hooks = PBS_PYTHON_RESTART_MAX_HOOKS;
 	if (lval != max_hooks) {
@@ -5220,8 +5216,8 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 	}
 
 	lval = max_objects;
-	if (server.sv_attr[(int)SVR_ATR_PythonRestartMaxObjects].at_flags & ATR_VFLAG_SET)
-		max_objects = server.sv_attr[(int)SVR_ATR_PythonRestartMaxObjects].at_val.at_long;
+	if (is_sattr_set(SVR_ATR_PythonRestartMaxObjects))
+		max_objects = get_sattr_long(SVR_ATR_PythonRestartMaxObjects);
 	else
 		max_objects = PBS_PYTHON_RESTART_MAX_OBJECTS;
 	if (lval != max_objects) {
@@ -5231,8 +5227,8 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 	}
 
 	lval = min_restart_interval;
-	if (server.sv_attr[(int)SVR_ATR_PythonRestartMinInterval].at_flags & ATR_VFLAG_SET)
-		min_restart_interval = server.sv_attr[(int)SVR_ATR_PythonRestartMinInterval].at_val.at_long;
+	if (is_sattr_set(SVR_ATR_PythonRestartMinInterval))
+		min_restart_interval = get_sattr_long(SVR_ATR_PythonRestartMinInterval);
 	else
 		min_restart_interval = PBS_PYTHON_RESTART_MIN_INTERVAL;
 	if (lval != min_restart_interval) {
@@ -5819,7 +5815,61 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 				PY_TYPE_EVENT, PY_EVENT_PARAM_MANAGEMENT);
 			goto event_set_exit;
 		}
+	} else if (hook_event == HOOK_EVENT_MODIFYVNODE) {
+		struct rq_modifyvnode *rqmvn = req_params->rq_modifyvnode;
+		struct pbsnode *vnode_o = rqmvn->rq_vnode_o;
+		struct pbsnode *vnode = rqmvn->rq_vnode;
+		int tmpv_rc;
 
+		/* initialize event params to None */
+		(void)PyDict_SetItemString(py_event_param, PY_EVENT_PARAM_VNODE,
+			Py_None);
+		(void)PyDict_SetItemString(py_event_param, PY_EVENT_PARAM_VNODE_O,
+			Py_None);
+
+		/* Retrieve the vnode_o data */
+		py_vnode_o = _pps_helper_get_vnode(vnode_o, NULL, HOOK_PERF_POPULATE_VNODE_O);
+		if (py_vnode_o == NULL) {
+			log_err(PBSE_INTERNAL, __func__, "failed to create a python vnode_o object");
+			goto event_set_exit;
+		}
+
+		/* Set the vnode_o object to readonly to prevent hook writers from modifying values */
+		tmpv_rc = pbs_python_mark_object_readonly(py_vnode_o);
+		if (tmpv_rc == -1) {
+			log_err(PBSE_INTERNAL, __func__, "Failed to mark python vnode_o object readonly");
+			goto event_set_exit;
+		}
+
+		/* Retrieve the vnode data */
+		py_vnode = _pps_helper_get_vnode(vnode, NULL, HOOK_PERF_POPULATE_VNODE);
+		if (py_vnode == NULL) {
+			log_err(PBSE_INTERNAL, __func__, "failed to create a python vnode object");
+			goto event_set_exit;
+		}
+
+		/* Set the vnode object to readonly to prevent hook writers from modifying values */
+		tmpv_rc = pbs_python_mark_object_readonly(py_vnode);
+		if (tmpv_rc == -1) {
+			log_err(PBSE_INTERNAL, __func__, "Failed to mark python vnode object readonly");
+			goto event_set_exit;
+		}
+
+		/* Set the vnode_o event param */
+		rc = PyDict_SetItemString(py_event_param, PY_EVENT_PARAM_VNODE_O, py_vnode_o);
+		if (rc == -1) {
+			LOG_ERROR_ARG2("%s:failed to set param attribute <%s>",
+				PY_TYPE_EVENT, PY_EVENT_PARAM_VNODE_O);
+			goto event_set_exit;
+		}
+
+		/* Set the vnode event param */
+		rc = PyDict_SetItemString(py_event_param, PY_EVENT_PARAM_VNODE, py_vnode);
+		if (rc == -1) {
+			LOG_ERROR_ARG2("%s:failed to set param attribute <%s>",
+				PY_TYPE_EVENT, PY_EVENT_PARAM_VNODE);
+			goto event_set_exit;
+		}
 	} else if (hook_event == HOOK_EVENT_RESV_END) {
 		struct rq_manage *rqj = req_params->rq_manage;
 
@@ -6282,7 +6332,6 @@ event_set_exit:
 	Py_CLEAR(py_event);
 	Py_CLEAR(py_jargs);
 	Py_CLEAR(py_job);
-	Py_CLEAR(py_vnode);
 	Py_CLEAR(py_job_o);
 	Py_CLEAR(py_que);
 	Py_CLEAR(py_rargs);
@@ -6297,6 +6346,7 @@ event_set_exit:
 	Py_CLEAR(py_resclist);
 	Py_CLEAR(py_exec_vnode);
 	Py_CLEAR(py_vnode);
+	Py_CLEAR(py_vnode_o);
 	Py_CLEAR(py_aoe);
 	Py_CLEAR(py_progname);
 	Py_CLEAR(py_arglist);
@@ -7668,19 +7718,15 @@ pbsv1mod_meth_is_attrib_val_settable(PyObject *self, PyObject *args, PyObject *k
 			}
 
 			if (in_string_list(name, ',', PY_PYTHON_DEFINED_ATTRIBUTES)) {
-				if ((strcmp(name, PY_RESOURCE_NAME) == 0) ||
-				   (strcmp(name, PY_RESOURCE_HAS_VALUE) == 0) ) {
+				if ((strcmp(name, PY_RESOURCE_NAME) == 0) || (strcmp(name, PY_RESOURCE_HAS_VALUE) == 0) ) {
 					/* matched a special, internal-only attribute */
 					/* holding the resc name, has_value (e.g. "Resource_List") */
 					goto IAVS_OK_EXIT;
 				}
 
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"attribute '%s' is readonly", name);
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "attribute '%s' is readonly", name);
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
-				PyErr_SetString(\
-		pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-					log_buffer);
+				PyErr_SetString( pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class, log_buffer);
 				goto IAVS_ERROR_EXIT;
 			}
 
@@ -7691,8 +7737,7 @@ pbsv1mod_meth_is_attrib_val_settable(PyObject *self, PyObject *args, PyObject *k
 
 			attr_idx = find_attr(job_attr_idx, job_attr_def, name);
 			if (attr_idx == -1) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"job attribute '%s' not found", name);
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "job attribute '%s' not found", name);
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
 				PyErr_SetString(PyExc_LookupError, log_buffer);
 				goto IAVS_ERROR_EXIT;
@@ -7702,37 +7747,28 @@ pbsv1mod_meth_is_attrib_val_settable(PyObject *self, PyObject *args, PyObject *k
 				/* ATTR_J, ATTR_cred override any read-only permission seen */
 				if ((strcmp(name, ATTR_J) != 0) &&
 					(strcmp(name, ATTR_cred) != 0)) {
-					snprintf(log_buffer, LOG_BUF_SIZE-1,
-						"job attribute '%s' is readonly", name);
+					snprintf(log_buffer, LOG_BUF_SIZE-1, "job attribute '%s' is readonly", name);
 					log_buffer[LOG_BUF_SIZE-1] = '\0';
-					PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-						log_buffer);
+					PyErr_SetString(pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class, log_buffer);
 					goto IAVS_ERROR_EXIT;
 				}
 			}
 			if (resource && (resource[0] != '\0')) {
 				rscdef = find_resc_def(svr_resc_def, resource);
 				if (!rscdef) {
-					snprintf(log_buffer, LOG_BUF_SIZE-1,
-						"resource attribute '%s' not found",
-						resource);
+					snprintf(log_buffer, LOG_BUF_SIZE-1, "resource attribute '%s' not found", resource);
 					log_buffer[LOG_BUF_SIZE-1] = '\0';
 					PyErr_SetString(PyExc_LookupError, log_buffer);
 					goto IAVS_ERROR_EXIT;
 				}
 				if ((rscdef->rs_flags & ATR_DFLAG_HOOK_SET) == 0) {
-					snprintf(log_buffer, LOG_BUF_SIZE-1,
-						"resource attribute '%s' is readonly", name);
+					snprintf(log_buffer, LOG_BUF_SIZE-1, "resource attribute '%s' is readonly", name);
 					log_buffer[LOG_BUF_SIZE-1] = '\0';
-					PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-						log_buffer);
+					PyErr_SetString( pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class, log_buffer);
 					goto IAVS_ERROR_EXIT;
 				}
 			} else if (ATTR_IS_RESC(&job_attr_def[attr_idx])) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"can't set the head resource '%s' directly ", name);
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "can't set the head resource '%s' directly ", name);
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
 				PyErr_SetString(PyExc_AssertionError, log_buffer);
 				goto IAVS_ERROR_EXIT;
@@ -7753,8 +7789,7 @@ pbsv1mod_meth_is_attrib_val_settable(PyObject *self, PyObject *args, PyObject *k
 				pbs_python_types_table[PP_RESC_IDX].t_class) &&
 				!PyObject_IsInstance(py_owner,
 				pbs_python_types_table[PP_VNODE_IDX].t_class)) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"Can only set job,resource,vnode attributes under %s event.", "mom hook");
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "Can only set job,resource,vnode attributes under %s event.", "mom hook");
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
 				PyErr_SetString(PyExc_AssertionError, log_buffer);
 				goto IAVS_ERROR_EXIT;
@@ -7779,13 +7814,11 @@ pbsv1mod_meth_is_attrib_val_settable(PyObject *self, PyObject *args, PyObject *k
 			break;
 
 		case HOOK_EVENT_EXECJOB_ATTACH:
-			PyErr_SetString(PyExc_AssertionError,
-					"nothing is settable inside an execjob_attach hook!");
+			PyErr_SetString(PyExc_AssertionError, "nothing is settable inside an execjob_attach hook!");
 			goto IAVS_ERROR_EXIT;
 
 		case HOOK_EVENT_EXECJOB_RESIZE:
-			PyErr_SetString(PyExc_AssertionError,
-					"nothing is settable inside an execjob_resize hook!");
+			PyErr_SetString(PyExc_AssertionError, "nothing is settable inside an execjob_resize hook!");
 			goto IAVS_ERROR_EXIT;
 
 		case HOOK_EVENT_EXECHOST_PERIODIC:
@@ -7821,68 +7854,52 @@ pbsv1mod_meth_is_attrib_val_settable(PyObject *self, PyObject *args, PyObject *k
 				pbs_python_types_table[PP_RESV_IDX].t_class) &&
 				!PyObject_IsInstance(py_owner,
 				pbs_python_types_table[PP_RESC_IDX].t_class)) {
-				PyErr_SetString(PyExc_AssertionError,
-					"Can only set job attributes under resvsub event.");
+				PyErr_SetString(PyExc_AssertionError, "Can only set job attributes under resvsub event.");
 				goto IAVS_ERROR_EXIT;
 			}
 			if (in_string_list(name, ',', PY_PYTHON_DEFINED_ATTRIBUTES)) {
-				if ((strcmp(name, PY_RESOURCE_NAME) == 0) ||
-				   (strcmp(name, PY_RESOURCE_HAS_VALUE) == 0) ) {
+				if ((strcmp(name, PY_RESOURCE_NAME) == 0) || (strcmp(name, PY_RESOURCE_HAS_VALUE) == 0) ) {
 					/* matched a special, internal-only attribute */
 					/* holding the resc name, has_value (e.g. "Resource_List") */
 					goto IAVS_OK_EXIT;
 				}
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"attribute '%s' is readonly", name);
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "attribute '%s' is readonly", name);
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
-				PyErr_SetString(
-					pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-					log_buffer);
+				PyErr_SetString( pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class, log_buffer);
 				goto IAVS_ERROR_EXIT;
 			}
 			attr_idx = find_attr(resv_attr_idx, resv_attr_def, name);
 			if (attr_idx == -1) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"resv attribute '%s' not found", name);
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "resv attribute '%s' not found", name);
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
 				PyErr_SetString(PyExc_LookupError, log_buffer);
 				goto IAVS_ERROR_EXIT;
 			}
 
 			if ((resv_attr_def[attr_idx].at_flags & ATR_DFLAG_HOOK_SET) == 0) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"resv attribute '%s' is readonly", name);
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "resv attribute '%s' is readonly", name);
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
-				PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-					log_buffer);
+				PyErr_SetString(pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class, log_buffer);
 				goto IAVS_ERROR_EXIT;
 			}
 			if (resource && (resource[0] != '\0')) {
 				rscdef = find_resc_def(svr_resc_def, resource);
 
 				if (!rscdef) {
-					snprintf(log_buffer, LOG_BUF_SIZE-1,
-						"resv resource attribute '%s' not found",
-						resource);
+					snprintf(log_buffer, LOG_BUF_SIZE-1, "resv resource attribute '%s' not found", resource);
 					log_buffer[LOG_BUF_SIZE-1] = '\0';
 					PyErr_SetString(PyExc_LookupError, log_buffer);
 					goto IAVS_ERROR_EXIT;
 				}
 
 				if ((rscdef->rs_flags & ATR_DFLAG_HOOK_SET) == 0) {
-					snprintf(log_buffer, LOG_BUF_SIZE-1,
-						"resv resource attribute '%s' is readonly", resource);
+					snprintf(log_buffer, LOG_BUF_SIZE-1, "resv resource attribute '%s' is readonly", resource);
 					log_buffer[LOG_BUF_SIZE-1] = '\0';
-					PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-						log_buffer);
+					PyErr_SetString( pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class, log_buffer);
 					goto IAVS_ERROR_EXIT;
 				}
 			} else if (ATTR_IS_RESC(&resv_attr_def[attr_idx])) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"can't set the head resv resource '%s' directly ",
-					name);
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "can't set the head resv resource '%s' directly ", name);
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
 				PyErr_SetString(PyExc_AssertionError, log_buffer);
 				goto IAVS_ERROR_EXIT;
@@ -7893,15 +7910,12 @@ pbsv1mod_meth_is_attrib_val_settable(PyObject *self, PyObject *args, PyObject *k
 
 			if (!PyObject_IsInstance(py_owner,
 				pbs_python_types_table[PP_JOB_IDX].t_class)) {
-				PyErr_SetString(PyExc_AssertionError,
-					"Can only set job attributes under MOVEJOB event.");
+				PyErr_SetString(PyExc_AssertionError, "Can only set job attributes under MOVEJOB event.");
 				goto IAVS_ERROR_EXIT;
 			}
 
 			if (strcmp(name, ATTR_queue) != 0) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"Can only set job's 'queue' attribute under MOVEJOB event - "
-					"got <%s>", name);
+				snprintf(log_buffer, LOG_BUF_SIZE-1, "Can only set job's 'queue' attribute under MOVEJOB event - " "got <%s>", name);
 				log_buffer[LOG_BUF_SIZE-1] = '\0';
 				PyErr_SetString(PyExc_AssertionError, log_buffer);
 				goto IAVS_ERROR_EXIT;
@@ -7915,8 +7929,7 @@ pbsv1mod_meth_is_attrib_val_settable(PyObject *self, PyObject *args, PyObject *k
 				pbs_python_types_table[PP_RESC_IDX].t_class) &&
 				!PyObject_IsInstance(py_owner,
 				pbs_python_types_table[PP_VNODE_IDX].t_class)) {
-				PyErr_SetString(PyExc_AssertionError,
-					"Can only set job,vnode attributes under RUNJOB event.");
+				PyErr_SetString(PyExc_AssertionError, "Can only set job,vnode attributes under RUNJOB event.");
 				goto IAVS_ERROR_EXIT;
 			}
 
@@ -8429,7 +8442,7 @@ pbsv1mod_meth_validate_input(PyObject *self, PyObject *args, PyObject *kwds)
 	char *value    = NULL;
 	char *value_tmp = NULL;
 	int  attr_idx  = -1;
-	struct attribute attr;
+	attribute attr;
 	int rc;
 	int is_v;
 
@@ -8466,7 +8479,7 @@ pbsv1mod_meth_validate_input(PyObject *self, PyObject *args, PyObject *kwds)
 				value, name);
 			log_buffer[LOG_BUF_SIZE-1] = '\0';
 			PyErr_SetString(\
-		pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
+				pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
 				log_buffer);
 			goto validate_input_error_exit;
 
@@ -8480,24 +8493,20 @@ pbsv1mod_meth_validate_input(PyObject *self, PyObject *args, PyObject *kwds)
 				goto validate_input_error_exit;
 			}
 
-			if (job_attr_def[attr_idx].at_decode) {
 
-				clear_attr(&attr, job_attr_def);
-				rc = job_attr_def[attr_idx].at_decode(&attr, name, NULL, value_tmp);
-				if (job_attr_def[attr_idx].at_free) {
-					job_attr_def[attr_idx].at_free(&attr);
-				}
+			clear_attr(&attr, job_attr_def);
+			rc = set_attr_generic(&attr, &job_attr_def[attr_idx], value_tmp, NULL, INTERNAL);
+			free_attr(job_attr_def, &attr, attr_idx);
 
-				if (rc != 0) {
-					snprintf(log_buffer, LOG_BUF_SIZE-1,
-						"input value %s not of the right format for '%s'",
-						value, name);
-					log_buffer[LOG_BUF_SIZE-1] = '\0';
-					PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-						log_buffer);
-					goto validate_input_error_exit;
-				}
+			if (rc != 0) {
+				snprintf(log_buffer, LOG_BUF_SIZE-1,
+					"input value %s not of the right format for '%s'",
+					value, name);
+				log_buffer[LOG_BUF_SIZE-1] = '\0';
+				PyErr_SetString(\
+					pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
+					log_buffer);
+				goto validate_input_error_exit;
 			}
 		}
 
@@ -8540,7 +8549,7 @@ pbsv1mod_meth_validate_input(PyObject *self, PyObject *args, PyObject *kwds)
 				value, name);
 			log_buffer[LOG_BUF_SIZE-1] = '\0';
 			PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
+			pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
 				log_buffer);
 			goto validate_input_error_exit;
 		} else if (is_v == 2) {	 /* go to resv table to validate */
@@ -8553,23 +8562,18 @@ pbsv1mod_meth_validate_input(PyObject *self, PyObject *args, PyObject *kwds)
 				goto validate_input_error_exit;
 			}
 
-			if (resv_attr_def[attr_idx].at_decode) {
-				clear_attr(&attr, resv_attr_def);
-				rc = resv_attr_def[attr_idx].at_decode(&attr, name, NULL,
-					value_tmp);
-				if (resv_attr_def[attr_idx].at_free) {
-					resv_attr_def[attr_idx].at_free(&attr);
-				}
-				if (rc != 0) {
-					snprintf(log_buffer, LOG_BUF_SIZE-1,
-						"input value %s not of the right format for '%s'",
-						value, name);
-					log_buffer[LOG_BUF_SIZE-1] = '\0';
-					PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-						log_buffer);
-					goto validate_input_error_exit;
-				}
+			clear_attr(&attr, resv_attr_def);
+			rc = set_attr_generic(&attr, &resv_attr_def[attr_idx], value_tmp, NULL, INTERNAL);
+			free_attr(resv_attr_def, &attr, attr_idx);
+			if (rc != 0) {
+				snprintf(log_buffer, LOG_BUF_SIZE-1,
+					"input value %s not of the right format for '%s'",
+					value, name);
+				log_buffer[LOG_BUF_SIZE-1] = '\0';
+				PyErr_SetString(\
+					pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
+					log_buffer);
+				goto validate_input_error_exit;
 			}
 		}
 	} else if (strcmp(table, PY_TYPE_SERVER) == 0) {
@@ -8581,23 +8585,18 @@ pbsv1mod_meth_validate_input(PyObject *self, PyObject *args, PyObject *kwds)
 			goto validate_input_error_exit;
 		}
 
-		if (svr_attr_def[attr_idx].at_decode) {
-			clear_attr(&attr, svr_attr_def);
-			rc = svr_attr_def[attr_idx].at_decode(&attr, name, NULL,
-				value_tmp);
-			if (svr_attr_def[attr_idx].at_free) {
-				svr_attr_def[attr_idx].at_free(&attr);
-			}
-			if (rc != 0) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"input value %s not of the right format for '%s'",
-					value, name);
-				log_buffer[LOG_BUF_SIZE-1] = '\0';
-				PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-					log_buffer);
-				goto validate_input_error_exit;
-			}
+		clear_attr(&attr, svr_attr_def);
+		rc = set_attr_generic(&attr, &svr_attr_def[attr_idx], value_tmp, NULL, INTERNAL);
+		free_attr(svr_attr_def, &attr, attr_idx);
+		if (rc != 0) {
+			snprintf(log_buffer, LOG_BUF_SIZE-1,
+				"input value %s not of the right format for '%s'",
+				value, name);
+			log_buffer[LOG_BUF_SIZE-1] = '\0';
+			PyErr_SetString(\
+				pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
+				log_buffer);
+			goto validate_input_error_exit;
 		}
 	} else if (strcmp(table, PY_TYPE_QUEUE) == 0) {
 		attr_idx = find_attr(que_attr_idx, que_attr_def, name);
@@ -8608,23 +8607,18 @@ pbsv1mod_meth_validate_input(PyObject *self, PyObject *args, PyObject *kwds)
 			goto validate_input_error_exit;
 		}
 
-		if (que_attr_def[attr_idx].at_decode) {
-			clear_attr(&attr, que_attr_def);
-			rc = que_attr_def[attr_idx].at_decode(&attr, name, NULL,
-				value_tmp);
-			if (que_attr_def[attr_idx].at_free) {
-				que_attr_def[attr_idx].at_free(&attr);
-			}
-			if (rc != 0) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"input value %s not of the right format for '%s'",
-					value, name);
-				log_buffer[LOG_BUF_SIZE-1] = '\0';
-				PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
-					log_buffer);
-				goto validate_input_error_exit;
-			}
+		clear_attr(&attr, que_attr_def);
+		rc = set_attr_generic(&attr, &que_attr_def[attr_idx], value_tmp, NULL, INTERNAL);
+		free_attr(que_attr_def, &attr, attr_idx);
+		if (rc != 0) {
+			snprintf(log_buffer, LOG_BUF_SIZE-1,
+				"input value %s not of the right format for '%s'",
+				value, name);
+			log_buffer[LOG_BUF_SIZE-1] = '\0';
+			PyErr_SetString(\
+				pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
+				log_buffer);
+			goto validate_input_error_exit;
 		}
 	} else if (strcmp(table, PY_TYPE_FLOAT2) == 0) {
 		clear_attr(&attr, que_attr_def);
@@ -8635,7 +8629,7 @@ pbsv1mod_meth_validate_input(PyObject *self, PyObject *args, PyObject *kwds)
 				value, name);
 			log_buffer[LOG_BUF_SIZE-1] = '\0';
 			PyErr_SetString(\
-		     pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
+				pbs_python_types_table[PP_BADATTR_VALUE_ERR_IDX].t_class,
 				log_buffer);
 			goto validate_input_error_exit;
 		}
@@ -9001,9 +8995,9 @@ pbsv1mod_meth_iter_nextfunc(PyObject *self, PyObject *args, PyObject *kwds)
 					/* skip jobs according to filters requested for the iterator */
 					job *njob = (job *) iter_entry->data;
 					while (njob != NULL &&
-						((ignore_fin && njob->ji_qs.ji_state == JOB_STATE_FINISHED) ||
+						((ignore_fin && check_job_state(njob, JOB_STATE_LTR_FINISHED)) ||
 						(filter2 != NULL && filter2[0] != '\0' && strcmp(filter2, njob->ji_qs.ji_queue)) ||
-						(filter_user != NULL && filter_user[0] != '\0' && njob->ji_wattr[JOB_ATR_euser].at_flags & ATR_VFLAG_SET && njob->ji_wattr[JOB_ATR_euser].at_val.at_str != NULL && strcmp(filter_user, njob->ji_wattr[JOB_ATR_euser].at_val.at_str)))) {
+						(filter_user != NULL && filter_user[0] != '\0' && is_jattr_set(njob, JOB_ATR_euser) && get_jattr_str(njob, JOB_ATR_euser) != NULL && strcmp(filter_user, get_jattr_str(njob, JOB_ATR_euser))))) {
 						njob = (job *)GET_NEXT(njob->ji_alljobs);
 					}
 
@@ -9100,9 +9094,9 @@ pbsv1mod_meth_iter_nextfunc(PyObject *self, PyObject *args, PyObject *kwds)
 					/* skip jobs according to filters requested for the iterator */
 					job *njob = (job *) iter_entry->data;
 					while (njob != NULL &&
-						((ignore_fin && njob->ji_qs.ji_state == JOB_STATE_FINISHED) ||
+						((ignore_fin && check_job_state(njob, JOB_STATE_LTR_FINISHED)) ||
 						(filter2 != NULL && filter2[0] != '\0' && strcmp(filter2, njob->ji_qs.ji_queue)) ||
-						(filter_user != NULL && filter_user[0] != '\0' && njob->ji_wattr[JOB_ATR_euser].at_val.at_str != NULL && strcmp(filter_user, njob->ji_wattr[JOB_ATR_euser].at_val.at_str)))) {
+						(filter_user != NULL && filter_user[0] != '\0' && get_jattr_str(njob, JOB_ATR_euser) != NULL && strcmp(filter_user, get_jattr_str(njob, JOB_ATR_euser))))) {
 						njob = (job *)GET_NEXT(njob->ji_alljobs);
 					}
 
@@ -11786,6 +11780,26 @@ pbsv1mod_meth_get_server_data_fp(void)
 	return (fp_obj);
 }
 
+const char pbsv1mod_meth_get_server_data_file_doc[] =
+"server_data_fp()\n\
+\n\
+   Returns the Python string representing the pathname to the hook data file.\n\
+\n\
+";
+
+/**
+ * @brief
+ *	Returns the Python string representing the pathname to the hook data file.
+ */
+PyObject *
+pbsv1mod_meth_get_server_data_file(void)
+{
+	if ((hook_debug.data_file == NULL) || (hook_debug.data_file[0] == '\0')) {
+		Py_RETURN_NONE;
+	}
+	return (PyUnicode_FromString(hook_debug.data_file));
+}
+
 const char pbsv1mod_meth_use_static_data_doc[] =
 "use_static_data()\n\
 \n\
@@ -12003,6 +12017,7 @@ pbsv1mod_meth_get_pbs_conf(void)
 		"PBS_EXEC", pbs_conf.pbs_exec_path?pbs_conf.pbs_exec_path:"",
 		"PBS_ENVIRONMENT", pbs_conf.pbs_environment?pbs_conf.pbs_environment:"",
 		"PBS_RCP", pbs_conf.rcp_path?pbs_conf.rcp_path:"",
+		"PBS_CP", pbs_conf.cp_path?pbs_conf.cp_path:"",
 		"PBS_SCP", pbs_conf.scp_path?pbs_conf.scp_path:"",
 		"PBS_MOM_HOME", pbs_conf.pbs_mom_home?pbs_conf.pbs_mom_home:"",
 		"PBS_TMPDIR", pbs_conf.pbs_tmpdir?pbs_conf.pbs_tmpdir:"",

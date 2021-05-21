@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -66,11 +66,12 @@ extern "C" {
 #define RESV_END_TIME_MODIFIED		0x2
 #define RESV_DURATION_MODIFIED		0x4
 #define RESV_SELECT_MODIFIED		0x8
+#define RESV_ALTER_FORCED		0x10
 
 
 /*
  * The following resv_atr enum provide an index into the array of
- * decoded reservation attributes, ri_wattr[], for quick access.
+ * decoded reservation attributes, for quick access.
  * Most of the attributes here are "public", but some are Read Only,
  * Private, or even Internal data items; maintained here because of
  * their variable size.
@@ -110,22 +111,10 @@ typedef struct pbsnode_list_ {
 	struct pbsnode_list_ *next;
 } pbsnode_list_t;
 
-/* Structure used to revert standing reservations back to original values for susequent occurrences*/
-struct resv_alter_revert {
-	time_t rr_stime;
-	long rr_duration;
-	char *rr_select;
-};
-
 /* Structure used to revert reservation back if the ralter failed */
 struct resv_alter {
-	time_t ra_stime;
-	time_t ra_etime;
-	long ra_duration;
-	char *ra_select;
 	long ra_state;
 	unsigned long ra_flags;
-	struct resv_alter_revert ra_revert;
 };
 
 /*
@@ -190,10 +179,10 @@ struct resc_resv {
 							 * Will only be useful if we later make
 							 */
 
-	struct batch_request	*ri_brp;		/*NZ if choose interactive (I) mode*/
+	struct batch_request	*ri_brp;		/* NZ if choose interactive (I) mode */
 
 	/*resource reservations routeable objs*/
-	int			ri_downcnt;		/*used when deleting the reservation*/
+	int			ri_downcnt;		/* used when deleting the reservation*/
 
 	long			ri_resv_retry;		/* time at which the reservation will be reconfirmed */
 
@@ -202,7 +191,7 @@ struct resc_resv {
 	pbsnode_list_t		*ri_pbsnode_list;	/* vnode list associated to the reservation */
 
 	/* objects used while altering a reservation. */
-	struct resv_alter 	ri_alter;		/* object used to alter a reservation */
+	struct resv_alter	ri_alter;		/* object used to alter a reservation */
 
 	/* Reservation start and end tasks */
 	struct work_task	*resv_start_task;
@@ -225,31 +214,16 @@ struct resc_resv {
 #endif
 	struct resvfix {
 		int		ri_rsversion;		/* reservation struct verison#, see RSVERSION */
-		int		ri_state;		/* internal copy of state */
+		int		ri_state;		/* internal copy of state */ // FIXME: can we remove this like we did for job?
 		int		ri_substate;		/* substate of resv state */
 		time_t		ri_stime;		/* left window boundry  */
 		time_t		ri_etime;		/* right window boundry */
 		time_t		ri_duration;		/* reservation duration */
 		time_t		ri_tactive;		/* time reservation became active */
 		int		ri_svrflags;		/* server flags */
-		int		ri_numattr;		/* number of attributes in list */
-		long		ri_resvTag;		/* local numeric reservation ID */
 		char		ri_resvID[PBS_MAXSVRRESVID+1]; /* reservation identifier */
 		char		ri_fileprefix[PBS_RESVBASE+1]; /* reservation file prefix */
 		char		ri_queue[PBS_MAXQRESVNAME+1];  /* queue used by reservation */
-
-		int		ri_un_type;		/* type of struct in "ri_un" area */
-
-		union   {
-
-			struct	{
-				int        ri_fromsock;
-				pbs_net_t  ri_fromaddr;
-
-			}  ri_newt;
-
-		}	    ri_un;
-
 	} ri_qs;
 
 	/*
@@ -336,6 +310,21 @@ extern  long determine_resv_retry(resc_resv *presv);
 extern resc_resv *resv_recov_db(char *resvid, resc_resv *presv);
 extern int resv_save_db(resc_resv *presv);
 extern void pbsd_init_resv(resc_resv *presv, int type);
+
+
+attribute *get_rattr(const resc_resv *presv, int attr_idx);
+char *get_rattr_str(const resc_resv *presv, int attr_idx);
+struct array_strings *get_rattr_arst(const resc_resv *presv, int attr_idx);
+pbs_list_head get_rattr_list(const resc_resv *presv, int attr_idx);
+long get_rattr_long(const resc_resv *presv, int attr_idx);
+int set_rattr_generic(resc_resv *presv, int attr_idx, char *val, char *rscn, enum batch_op op);
+int set_rattr_str_slim(resc_resv *presv, int attr_idx, char *val, char *rscn);
+int set_rattr_l_slim(resc_resv *presv, int attr_idx, long val, enum batch_op op);
+int set_rattr_b_slim(resc_resv *presv, int attr_idx, long val, enum batch_op op);
+int set_rattr_c_slim(resc_resv *presv, int attr_idx, char val, enum batch_op op);
+int is_rattr_set(const resc_resv *presv, int attr_idx);
+void free_rattr(resc_resv *presv, int attr_idx);
+void clear_rattr(resc_resv *presv, int attr_idx);
 
 #ifdef	__cplusplus
 }

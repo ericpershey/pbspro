@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,14 +39,22 @@
 
 #ifndef	_GLOBALS_H
 #define	_GLOBALS_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 #include <pthread.h>
+#include <limits.h>
 
 #include "data_types.h"
-#include "limits.h"
 #include "queue.h"
+#include "sched_cmds.h"
+
+extern void *poll_context;
+
+/* Each index of the array is a sched command. Store 1 as a value to indicate that we received a command */
+extern int sched_cmds[SCH_CMD_HIGH];
+
+/* This list stores SCH_SCHEDULE_AJOB commands */
+extern sched_cmd *qrun_list;
+extern int qrun_list_size;
+
 /* resources to check */
 extern const struct rescheck res_to_check[];
 
@@ -69,12 +77,9 @@ extern struct status cstat;
 extern const int num_resget;
 
 /* Variables from pbs_sched code */
-extern int pbs_rm_port;
 extern int got_sigpipe;
 
-/* static indexes into allres */
-const struct enum_conv resind[RES_HIGH+1];
-
+extern const std::vector<std::string> well_known_res;
 /* Stuff needed for multi-threading */
 extern pthread_mutex_t general_lock;
 extern pthread_mutex_t work_lock;
@@ -89,15 +94,14 @@ extern int num_threads;
 extern pthread_key_t th_id_key;
 extern pthread_once_t key_once;
 
-extern resdef **allres;
-extern resdef **consres;
-extern resdef **boolres;
+extern std::unordered_map<std::string, resdef *> allres;
+extern std::unordered_set<resdef *> consres;
+extern std::unordered_set<resdef *> boolres;
 
-extern char *sc_name;
-extern int sched_port;
+extern const char *sc_name;
 extern char *logfile;
 
-extern int preempt_normal;			/* preempt priority of normal_jobs */
+extern unsigned int preempt_normal;			/* preempt priority of normal_jobs */
 
 extern char path_log[_POSIX_PATH_MAX];
 extern int dflt_sched;
@@ -108,6 +112,13 @@ extern time_t last_attr_updates;    /* timestamp of the last time attr updates w
 
 extern int send_job_attr_updates;
 
+extern int clust_primary_sock;
+
+extern int clust_secondary_sock;
+
+/* a list of running jobs from the last scheduling cycle */
+extern std::vector<prev_job_info> last_running;
+
 /**
  * @brief
  * It is used as a placeholder to store aoe name. This aoe name will be
@@ -115,7 +126,6 @@ extern int send_job_attr_updates;
  */
 extern char *cmp_aoename;
 
-#ifdef	__cplusplus
-}
-#endif
+extern fairshare_head *fstree;
+
 #endif	/* _GLOBALS_H */

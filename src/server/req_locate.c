@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -70,7 +70,6 @@
 
 extern struct server server;
 extern char   server_name[];
-extern char   *pbs_server_name;
 
 /* External functions */
 extern int svr_chk_histjob(job *);
@@ -109,11 +108,11 @@ req_locatejob(struct batch_request *preq)
 
 	/*
 	 * return the location if job is not history (i.e. state is not
-	 * JOB_STATE_MOVED) else search in tracking table.
+	 * JOB_STATE_LTR_MOVED) else search in tracking table.
 	 */
-	if (pjob && (pjob->ji_qs.ji_state != JOB_STATE_MOVED)) {
+	if (pjob && (!check_job_state(pjob, JOB_STATE_LTR_MOVED)))
 		location = pbs_server_name;
-	} else {
+	else {
 		int	job_array_ret;
 		job_array_ret = is_job_array(preq->rq_ind.rq_locate);
 		if ((job_array_ret == IS_ARRAY_Single) || (job_array_ret == IS_ARRAY_Range)) {

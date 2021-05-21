@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -105,7 +105,6 @@
 #define PARSE_UNKNOWN_SHARES "unknown_shares"
 #define PARSE_LOG_FILTER "log_filter"
 #define PARSE_DEDICATED_PREFIX "dedicated_prefix"
-#define PARSE_LOAD_BALANCING "load_balancing"
 #define PARSE_HELP_STARVING_JOBS "help_starving_jobs"
 #define PARSE_MAX_STARVE "max_starve"
 #define PARSE_SORT_QUEUES "sort_queues"
@@ -138,7 +137,6 @@
 #define PARSE_PEER_QUEUE "peer_queue"
 #define PARSE_PEER_TRANSLATION "peer_translation"
 #define PARSE_NODE_GROUP_KEY "node_group_key"
-#define PARSE_DONT_PREEMPT_STARVING "dont_preempt_starving"
 #define PARSE_ENFORCE_NO_SHARES "fairshare_enforce_no_shares"
 #define PARSE_STRICT_ORDERING "strict_ordering"
 #define PARSE_RES_UNSET_INFINITE "resource_unset_infinite"
@@ -167,12 +165,6 @@
 #define PARSE_ALLOW_AOE_CALENDAR "allow_aoe_calendar"
 
 /* deprecated */
-#define PARSE_PREEMPT_STARVING "preempt_starving"
-#define PARSE_PREEMPT_FAIRSHARE "preempt_fairshare"
-#define PARSE_LOAD_BALANCING_RR "load_balancing_rr"
-#define PARSE_ASSIGN_SSINODES "assign_ssinodes"
-#define PARSE_CPUS_PER_SSINODE "cpus_per_ssinode"
-#define PARSE_MEM_PER_SSINODE "mem_per_ssinode"
 #define PARSE_STRICT_FIFO "strict_fifo"
 
 

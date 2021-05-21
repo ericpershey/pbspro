@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -57,8 +57,207 @@
 
 #include <sys/types.h>
 #include <stdlib.h>
+#include "attribute.h"
+#include "range.h"
 #include "libpbs.h"
+#include "job.h"
 #include "dis.h"
+
+/**
+ * @brief	Read one batch status from given socket
+ *
+ * @param[in]  sock - socket from which status to be read
+ * @param[out] objtype - type of batch status
+ * @param[out] rc - error code if any failure in read
+ *
+ * @return struct batch_status *
+ * @retval !NULL - success
+ * @retval NULL  - failure
+ */
+static struct batch_status *
+read_batch_status(int sock, int *objtype, int *rc)
+{
+	struct batch_status *pstcmd;
+
+	if (rc == NULL || objtype == NULL) {
+		if (rc)
+			*rc = DIS_PROTO;
+		return NULL;
+	}
+
+	pstcmd = (struct batch_status *) malloc(sizeof(struct batch_status));
+	if (pstcmd == NULL) {
+		*rc = DIS_NOMALLOC;
+		return NULL;
+	}
+	init_bstat(pstcmd);
+
+	*objtype = disrui(sock, rc);
+	if (*rc == DIS_SUCCESS)
+		pstcmd->name = disrst(sock, rc);
+	if (*rc) {
+		pbs_statfree(pstcmd);
+		return NULL;
+	}
+	*rc = decode_DIS_attrl(sock, &pstcmd->attribs);
+	if (*rc)
+		pbs_statfree(pstcmd);
+	return pstcmd;
+}
+
+/**
+ * @brief	Expand and append remaining subjob for given status of array job
+ *
+ * 	Find array_indices_remaining from given status's attributes list, parse it
+ * 	and make a copy of given status for each subjob and set state and substate
+ * 	in copy to queued
+ *
+ * 	This function is almost same as status_subjob() except that this work only on
+ * 	remaining subjobs and uses batch_status struct instead of job struct
+ *
+ * @param[in]  array - pointer batch status of parent array job
+ * @param[out] count - count of subjobs expanded
+ *
+ * @return int
+ * @retval 0 - success
+ * @retval 1 - failure
+ */
+static int
+expand_remaining_subjob(struct batch_status *array, int *count)
+{
+	range *r = NULL;
+	int sjidx = -1;
+	char *remain;
+	struct attrl *sj_attrs = NULL;
+	char *parent_jid;
+
+	if (array == NULL || count == NULL)
+		return 0;
+
+	*count = 0;
+	parent_jid = array->name;
+	remain = get_attr(array->attribs, ATTR_array_indices_remaining, NULL);
+	if (remain == NULL || *remain == '-')
+		return 0;
+	r = range_parse(remain);
+	if (r == NULL)
+		return 1;
+	sj_attrs = dup_attrl_list(array->attribs);
+	if (sj_attrs != NULL) {
+		struct attrl *next;
+		struct attrl *prev = NULL;
+		int should_break = 0;
+
+		for (next = sj_attrs; next->next; next = next->next) {
+			if (strcmp(next->name, ATTR_state) == 0) {
+				free(next->value);
+				next->value = malloc(2);
+				if (next->value == NULL) {
+					free_attrl_list(sj_attrs);
+					return 1;
+				}
+				next->value[0] = JOB_STATE_LTR_QUEUED;
+				next->value[1] = '\0';
+				should_break++;
+			} else if (strcmp(next->name, ATTR_substate) == 0) {
+				free(next->value);
+				next->value = strdup(TOSTR(JOB_SUBSTATE_QUEUED));
+				if (next->value == NULL) {
+					free_attrl_list(sj_attrs);
+					return 1;
+				}
+				should_break++;
+			} else if (strcmp(next->name, ATTR_array) == 0) {
+				if (prev) {
+					prev->next = NULL;
+					free_attrl_list(next);
+					next = NULL;
+					should_break++;
+				}
+			}
+			if (should_break == 3 || next == NULL)
+				break;
+			prev = next;
+		}
+	} else {
+		free_range_list(r);
+		return 1;
+	}
+	while ((sjidx = range_next_value(r, sjidx)) >= 0) {
+		struct batch_status *pstcmd = (struct batch_status *) malloc(sizeof(struct batch_status));
+		char *name;
+
+		if (pstcmd == NULL) {
+			free_range_list(r);
+			free_attrl_list(sj_attrs);
+			return 1;
+		}
+		pstcmd->next = NULL;
+		pstcmd->text = NULL;
+		pstcmd->name = NULL;
+		pstcmd->attribs = dup_attrl_list(sj_attrs);
+		if (pstcmd->attribs == NULL) {
+			pbs_statfree(pstcmd);
+			free_range_list(r);
+			free_attrl_list(sj_attrs);
+			return 1;
+		}
+		name = create_subjob_id(parent_jid, sjidx);
+		if (name == NULL) {
+			pbs_statfree(pstcmd);
+			free_range_list(r);
+			free_attrl_list(sj_attrs);
+			return 1;
+		}
+		pstcmd->name = strdup(name);
+		if (pstcmd->name == NULL) {
+			pbs_statfree(pstcmd);
+			free_range_list(r);
+			free_attrl_list(sj_attrs);
+			return 1;
+		}
+		pstcmd->next = array->next;
+		array->next = pstcmd;
+		(*count)++;
+	}
+	free_range_list(r);
+	free_attrl_list(sj_attrs);
+	return 0;
+}
+
+/**
+ * @brief	compare subjob name using its index from given batch statues
+ *
+ * @param[in]	a - first batch status to compare
+ * @param[in]	b - secound batch status to compare
+ *
+ * @return int
+ * @retval  0 - a's index == b's index (or invalid inputs)
+ * @retval  1 - a's index > b's index
+ * @retval -1 - a's index < b's index
+ */
+static int
+cmp_sj_name(struct batch_status *a, struct batch_status *b)
+{
+	int sjidx_a = 0;
+	int sjidx_b = 0;
+
+	if (a == NULL || b == NULL)
+		return 0;
+	if (a->name == NULL || b->name == NULL)
+		return 0;
+	sjidx_a = get_index_from_jid(a->name);
+	if (sjidx_a == -1)
+		return 0;
+	sjidx_b = get_index_from_jid(b->name);
+	if (sjidx_b == -1)
+		return 0;
+	if (sjidx_a > sjidx_b)
+		return 1;
+	if (sjidx_a < sjidx_b)
+		return -1;
+	return 0;
+}
 
 /**
  * @brief-
@@ -75,6 +274,7 @@
  *
  * @param[in] sock - socket descriptor
  * @param[in] reply - pointer to batch_reply structure
+ * @param[in] prot - protocol type
  *
  * @return	int
  * @retval	-1	error
@@ -83,46 +283,58 @@
  */
 
 int
-decode_DIS_replyCmd(int sock, struct batch_reply *reply)
+decode_DIS_replyCmd(int sock, struct batch_reply *reply, int prot)
 {
-	int		      ct;
-	int		      i;
-	struct brp_select    *psel;
-	struct brp_select   **pselx;
-	struct brp_cmdstat   *pstcmd;
-	struct brp_cmdstat  **pstcx;
-	int		      rc = 0;
-	size_t		      txtlen;
-	preempt_job_info 	*ppj = NULL;
+	int ct;
+	int i;
+	struct brp_select *psel;
+	struct brp_select **pselx;
+	struct batch_status *pstcmd = NULL;
+	struct batch_status **pstcx = NULL;
+	struct batch_deljob_status *pdel;
+	struct batch_status *pstcmd_last = NULL;
+	struct batch_status *pstcmd_ja = NULL;
+	int rc = 0;
+	size_t txtlen;
+	preempt_job_info *ppj = NULL;
 
 	/* first decode "header" consisting of protocol type and version */
-
+again:
 	i = disrui(sock, &rc);
-	if (rc != 0) return rc;
-	if (i != PBS_BATCH_PROT_TYPE) return DIS_PROTO;
+	if (rc != 0)
+		return rc;
+	if (i != PBS_BATCH_PROT_TYPE)
+		return DIS_PROTO;
 	i = disrui(sock, &rc);
-	if (rc != 0) return rc;
-	if (i != PBS_BATCH_PROT_VER) return DIS_PROTO;
+	if (rc != 0)
+		return rc;
+	if (i != PBS_BATCH_PROT_VER)
+		return DIS_PROTO;
 
 	/* next decode code, auxcode and choice (union type identifier) */
 
-	reply->brp_code    = disrsi(sock, &rc);
-	if (rc) return rc;
+	reply->brp_code = disrsi(sock, &rc);
+	if (rc)
+		return rc;
 	reply->brp_auxcode = disrsi(sock, &rc);
-	if (rc) return rc;
-	reply->brp_choice  = disrui(sock, &rc);
-	if (rc) return rc;
-
+	if (rc)
+		return rc;
+	reply->brp_choice = disrui(sock, &rc);
+	if (rc)
+		return rc;
+	reply->brp_is_part = disrui(sock, &rc);
+	if (rc)
+		return rc;
 
 	switch (reply->brp_choice) {
 
 		case BATCH_REPLY_CHOICE_NULL:
-			break;	/* no more to do */
+			break; /* no more to do */
 
 		case BATCH_REPLY_CHOICE_Queue:
 		case BATCH_REPLY_CHOICE_RdytoCom:
 		case BATCH_REPLY_CHOICE_Commit:
-			disrfst(sock, PBS_MAXSVRJOBID+1, reply->brp_un.brp_jid);
+			disrfst(sock, PBS_MAXSVRJOBID + 1, reply->brp_un.brp_jid);
 			if (rc)
 				return (rc);
 			break;
@@ -134,64 +346,133 @@ decode_DIS_replyCmd(int sock, struct batch_reply *reply)
 			reply->brp_un.brp_select = NULL;
 			pselx = &reply->brp_un.brp_select;
 			ct = disrui(sock, &rc);
-			if (rc) return rc;
+			if (rc)
+				return rc;
+			reply->brp_count = ct;
 
 			while (ct--) {
-				psel = (struct brp_select *)malloc(sizeof(struct brp_select));
-				if (psel == 0) return DIS_NOMALLOC;
+				psel = (struct brp_select *) malloc(sizeof(struct brp_select));
+				if (psel == 0)
+					return DIS_NOMALLOC;
 				psel->brp_next = NULL;
 				psel->brp_jobid[0] = '\0';
-				rc = disrfst(sock, PBS_MAXSVRJOBID+1, psel->brp_jobid);
+				rc = disrfst(sock, PBS_MAXSVRJOBID + 1, psel->brp_jobid);
 				if (rc) {
-					(void)free(psel);
+					(void) free(psel);
 					return rc;
 				}
 				*pselx = psel;
-				pselx  = &psel->brp_next;
+				pselx = &psel->brp_next;
 			}
 			break;
 
 		case BATCH_REPLY_CHOICE_Status:
 
 			/* have to get count of number of status objects first */
-
-			reply->brp_un.brp_statc = NULL;
-			pstcx = &reply->brp_un.brp_statc;
+			if (pstcx == NULL) {
+				reply->brp_un.brp_statc = NULL;
+				pstcx = &reply->brp_un.brp_statc;
+				reply->brp_count = 0;
+			}
 			ct = disrui(sock, &rc);
-			if (rc) return rc;
+			if (rc)
+				return rc;
+			reply->brp_count += ct;
 
 			while (ct--) {
-				pstcmd = (struct brp_cmdstat *)malloc(sizeof(struct brp_cmdstat));
-				if (pstcmd == 0) return DIS_NOMALLOC;
 
-				pstcmd->brp_stlink = NULL;
-				pstcmd->brp_objname[0] = '\0';
-				pstcmd->brp_attrl = NULL;
-
-				pstcmd->brp_objtype = disrui(sock, &rc);
-				if (rc == 0) {
-					rc = disrfst(sock, PBS_MAXSVRJOBID+1,
-						pstcmd->brp_objname);
-				}
-				if (rc) {
-					(void)free(pstcmd);
+				rc = DIS_PROTO;
+				pstcmd = read_batch_status(sock, &reply->brp_type, &rc);
+				if (rc != DIS_SUCCESS || pstcmd == NULL) {
+					if (pstcmd)
+						pbs_statfree(pstcmd);
 					return rc;
 				}
-				rc = decode_DIS_attrl(sock, &pstcmd->brp_attrl);
-				if (rc) {
-					(void)free(pstcmd);
-					return rc;
+				if (reply->brp_type == MGR_OBJ_JOBARRAY_PARENT) {
+					if (pstcmd_ja != NULL) {
+						pstcmd_ja->next = bs_isort(pstcmd_ja->next, cmp_sj_name);
+						for (pstcmd_last = pstcmd_ja; pstcmd_last->next; pstcmd_last = pstcmd_last->next)
+							;
+						*pstcx = pstcmd_ja;
+						pstcx = &pstcmd_last->next;
+						pstcmd_ja = NULL;
+					}
+					if (expand_remaining_subjob(pstcmd, &reply->brp_count) != 0) {
+						pbs_statfree(pstcmd);
+						return DIS_NOMALLOC;
+					}
+					pstcmd_ja = pstcmd;
+					continue;
+				} else if (reply->brp_type == MGR_OBJ_SUBJOB) {
+					pstcmd->next = pstcmd_ja->next;
+					pstcmd_ja->next = pstcmd;
+					continue;
+				} else {
+					if (pstcmd_ja != NULL) {
+						pstcmd_ja->next = bs_isort(pstcmd_ja->next, cmp_sj_name);
+						for (pstcmd_last = pstcmd_ja; pstcmd_last->next; pstcmd_last = pstcmd_last->next)
+							;
+						*pstcx = pstcmd_ja;
+						pstcx = &pstcmd_last->next;
+						pstcmd_ja = NULL;
+					}
+					*pstcx = pstcmd;
+					pstcx = &pstcmd->next;
 				}
-				*pstcx = pstcmd;
-				pstcx  = &pstcmd->brp_stlink;
 			}
+			if (pstcmd_ja != NULL) {
+				pstcmd_ja->next = bs_isort(pstcmd_ja->next, cmp_sj_name);
+				for (pstcmd_last = pstcmd_ja; pstcmd_last->next; pstcmd_last = pstcmd_last->next)
+					;
+				*pstcx = pstcmd_ja;
+				pstcx = &pstcmd_last->next;
+				pstcmd = pstcmd_last;
+			}
+
+			if (reply->brp_un.brp_statc)
+				reply->last = pstcmd;
+			if (reply->brp_is_part)
+				goto again;
+			break;
+
+		case BATCH_REPLY_CHOICE_Delete:
+
+			/* have to get count of number of status objects first */
+
+			reply->brp_un.brp_deletejoblist.brp_delstatc = NULL;
+			reply->brp_count = 0;
+
+			ct = disrui(sock, &rc);
+			if (rc)
+				return rc;
+			reply->brp_count += ct;
+
+			while (ct--) {
+				pdel = (struct batch_deljob_status *) malloc(sizeof(struct batch_deljob_status));
+				if (pdel == 0)
+					return DIS_NOMALLOC;
+				pdel->next = reply->brp_un.brp_deletejoblist.brp_delstatc;
+				pdel->code = 0;
+				pdel->name = disrst(sock, &rc);
+				if (rc) {
+					pbs_delstatfree(pdel);
+					return rc;
+				}
+				pdel->code = disrui(sock, &rc);
+				if (rc) {
+					pbs_delstatfree(pdel);
+					return rc;
+				}
+				reply->brp_un.brp_deletejoblist.brp_delstatc = pdel;
+			}
+
 			break;
 
 		case BATCH_REPLY_CHOICE_Text:
 
 			/* text reply */
 
-		  	reply->brp_un.brp_txt.brp_str = disrcs(sock, &txtlen, &rc);
+			reply->brp_un.brp_txt.brp_str = disrcs(sock, &txtlen, &rc);
 			reply->brp_un.brp_txt.brp_txtlen = txtlen;
 			break;
 
@@ -199,7 +480,7 @@ decode_DIS_replyCmd(int sock, struct batch_reply *reply)
 
 			/* Locate Job Reply */
 
-			rc = disrfst(sock, PBS_MAXDEST+1, reply->brp_un.brp_locate);
+			rc = disrfst(sock, PBS_MAXDEST + 1, reply->brp_un.brp_locate);
 			break;
 
 		case BATCH_REPLY_CHOICE_RescQuery:
@@ -209,35 +490,32 @@ decode_DIS_replyCmd(int sock, struct batch_reply *reply)
 			reply->brp_un.brp_rescq.brq_avail = NULL;
 			reply->brp_un.brp_rescq.brq_alloc = NULL;
 			reply->brp_un.brp_rescq.brq_resvd = NULL;
-			reply->brp_un.brp_rescq.brq_down  = NULL;
+			reply->brp_un.brp_rescq.brq_down = NULL;
 			ct = disrui(sock, &rc);
-			if (rc) break;
+			if (rc)
+				break;
 			reply->brp_un.brp_rescq.brq_number = ct;
-			reply->brp_un.brp_rescq.brq_avail  =
-				(int *)malloc(ct * sizeof(int));
+			reply->brp_un.brp_rescq.brq_avail = (int *) malloc(ct * sizeof(int));
 			if (reply->brp_un.brp_rescq.brq_avail == NULL)
 				return DIS_NOMALLOC;
-			reply->brp_un.brp_rescq.brq_alloc  =
-				(int *)malloc(ct * sizeof(int));
+			reply->brp_un.brp_rescq.brq_alloc = (int *) malloc(ct * sizeof(int));
 			if (reply->brp_un.brp_rescq.brq_alloc == NULL)
 				return DIS_NOMALLOC;
-			reply->brp_un.brp_rescq.brq_resvd  =
-				(int *)malloc(ct * sizeof(int));
+			reply->brp_un.brp_rescq.brq_resvd = (int *) malloc(ct * sizeof(int));
 			if (reply->brp_un.brp_rescq.brq_resvd == NULL)
 				return DIS_NOMALLOC;
-			reply->brp_un.brp_rescq.brq_down   =
-				(int *)malloc(ct * sizeof(int));
+			reply->brp_un.brp_rescq.brq_down = (int *) malloc(ct * sizeof(int));
 			if (reply->brp_un.brp_rescq.brq_down == NULL)
 				return DIS_NOMALLOC;
 
-			for (i=0; (i < ct) && (rc == 0); ++i)
-				*(reply->brp_un.brp_rescq.brq_avail+i) = disrui(sock, &rc);
-			for (i=0; (i < ct) && (rc == 0); ++i)
-				*(reply->brp_un.brp_rescq.brq_alloc+i) = disrui(sock, &rc);
-			for (i=0; (i < ct) && (rc == 0); ++i)
-				*(reply->brp_un.brp_rescq.brq_resvd+i) = disrui(sock, &rc);
-			for (i=0; (i < ct) && (rc == 0); ++i)
-				*(reply->brp_un.brp_rescq.brq_down+i)  = disrui(sock, &rc);
+			for (i = 0; (i < ct) && (rc == 0); ++i)
+				*(reply->brp_un.brp_rescq.brq_avail + i) = disrui(sock, &rc);
+			for (i = 0; (i < ct) && (rc == 0); ++i)
+				*(reply->brp_un.brp_rescq.brq_alloc + i) = disrui(sock, &rc);
+			for (i = 0; (i < ct) && (rc == 0); ++i)
+				*(reply->brp_un.brp_rescq.brq_resvd + i) = disrui(sock, &rc);
+			for (i = 0; (i < ct) && (rc == 0); ++i)
+				*(reply->brp_un.brp_rescq.brq_down + i) = disrui(sock, &rc);
 			break;
 
 		case BATCH_REPLY_CHOICE_PreemptJobs:
@@ -245,15 +523,16 @@ decode_DIS_replyCmd(int sock, struct batch_reply *reply)
 			/* Preempt Jobs Reply */
 			ct = disrui(sock, &rc);
 			reply->brp_un.brp_preempt_jobs.count = ct;
-			if (rc) break;
+			if (rc)
+				break;
 
 			ppj = calloc(sizeof(struct preempt_job_info), ct);
 			reply->brp_un.brp_preempt_jobs.ppj_list = ppj;
 
 			for (i = 0; i < ct; i++) {
 				if (((rc = disrfst(sock, PBS_MAXSVRJOBID + 1, ppj[i].job_id)) != 0) ||
-					((rc = disrfst(sock, PREEMPT_METHOD_HIGH + 1, ppj[i].order)) != 0))
-						return rc;
+				    ((rc = disrfst(sock, PREEMPT_METHOD_HIGH + 1, ppj[i].order)) != 0))
+					return rc;
 			}
 
 			break;

@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  */
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -105,6 +105,7 @@
 #include "pbs_stat.h"
 #include "libutil.h"
 #include "pbs_ifl.h"
+#include "pbs_internal.h"
 
 #ifdef        USELOG
 #include <syslog.h>
@@ -312,11 +313,8 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 #ifdef KERBEROS
 	if (use_kerberos) {
@@ -639,15 +637,14 @@ tolocal(int argc, char *argv[])
 
 #ifdef WIN32
 		sink(1, argv + argc - 1);
-		(void)closesocket(rem);
 #else
 		if (seteuid(userid) == -1)
 			exit(15);
 		sink(1, argv + argc - 1);
 		if (seteuid(0) == -1)
 			exit(15);
-		(void)close(rem);
 #endif
+		closesocket(rem);
 
 		rem = -1;
 	}

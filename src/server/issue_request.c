@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -76,6 +76,8 @@
 #include "net_connect.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
+#include "server.h"
+#include <libutil.h>
 #include "tpp.h"
 #include "libutil.h"
 
@@ -86,8 +88,8 @@ extern time_t	time_now;
 extern char	*msg_issuebad;
 extern char     *msg_norelytomom;
 extern char	*msg_err_malloc;
-extern unsigned int pbs_server_port_dis;
 
+extern pbs_net_t	 pbs_server_addr;
 extern int max_connection;
 
 /**
@@ -143,7 +145,7 @@ relay_to_mom2(job *pjob, struct batch_request *request,
 	if ((pmom = tfind2((unsigned long) momaddr, momport, &ipaddrs)) == NULL)
 		return (PBSE_NORELYMOM);
 
-	mom_tasklist_ptr = &(((mom_svrinfo_t *) (pmom->mi_data))->msr_deferred_cmds);
+	mom_tasklist_ptr = &pmom->mi_dmn_info->dmn_deferred_cmds;
 
 	conn = svr_connect(momaddr, momport, process_Dreply, ToServerDIS, prot);
 	if (conn < 0) {
@@ -238,6 +240,7 @@ issue_to_svr(char *servern, struct batch_request *preq, void (*replyfunc)(struct
 	extern char primary_host[];
 	extern char server_host[];
 
+
 	(void)strcpy(preq->rq_host, servern);
 	preq->rq_fromsvr = 1;
 	preq->rq_perm = ATR_DFLAG_MGRD | ATR_DFLAG_MGWR | ATR_DFLAG_SvWR;
@@ -255,7 +258,9 @@ issue_to_svr(char *servern, struct batch_request *preq, void (*replyfunc)(struct
 				svrname = server_host;
 		}
 	}
-	svraddr = get_hostaddr(svrname);
+	if (comp_svraddr(pbs_server_addr, svrname, &svraddr) == 0)
+		return (issue_Drequest(PBS_LOCAL_CONNECTION, preq, replyfunc, 0, 0));
+
 	if (svraddr == (pbs_net_t)0) {
 		if (pbs_errno == PBS_NET_RC_RETRY)
 			/* Non fatal error - retry */
@@ -349,10 +354,10 @@ add_mom_deferred_list(int stream, mominfo_t *minfo, void (*func)(), char *msgid,
 	/* remove this task from the event list, as we will be adding to deferred list anyway
 	 * and there is no child process whose exit needs to be reaped
 	 */
-	delete_link(&ptask->wt_linkall);
+	delete_link(&ptask->wt_linkevent);
 
 	/* append to the moms deferred command list */
-	append_link(&(((mom_svrinfo_t *) (minfo->mi_data))->msr_deferred_cmds), &ptask->wt_linkobj2, ptask);
+	append_link(&minfo->mi_dmn_info->dmn_deferred_cmds, &ptask->wt_linkobj2, ptask);
 	return ptask;
 }
 
@@ -374,7 +379,7 @@ add_mom_deferred_list(int stream, mominfo_t *minfo, void (*func)(), char *msgid,
  *
  *		Encode and send the request.
  *
- *		When the reply is ready,  process_reply() will decode it and
+ *		When the reply is ready,  process_Dreply() will decode it and
  *		dispatch the work task.
  *
  * @note
@@ -720,7 +725,7 @@ issue_Drequest(int conn, struct batch_request *request, void (*func)(), struct w
 			 * remove it from the task_event list
 			 * caller will add to moms deferred cmd list
 			 */
-			delete_link(&ptask->wt_linkall);
+			delete_link(&ptask->wt_linkevent);
 		}
 		ptask->wt_aux2 = prot;
 		*ppwt = ptask;
@@ -750,7 +755,7 @@ process_Dreply(int sock)
 	while (ptask) {
 		if ((ptask->wt_type == WORK_Deferred_Reply) && (ptask->wt_event == sock))
 			break;
-		ptask = (struct work_task *)GET_NEXT(ptask->wt_linkall);
+		ptask = (struct work_task *)GET_NEXT(ptask->wt_linkevent);
 	}
 	if (!ptask) {
 		close_conn(sock);
@@ -785,7 +790,7 @@ process_Dreply(int sock)
  * 		Reads the reply from the TPP stream and executes the work task associated
  * 		with the reply message. The request for which this reply arrived
  * 		is matched by comparing the msgid of the reply with the msgid of the work
- * 		tasks stored in the msr_deferred_cmds list of the mom for this stream.
+ * 		tasks stored in the dmn_deferred_cmds list of the mom for this stream.
  *
  * @param[in] handle - TPP handle on which reply/close arrived
  *
@@ -810,7 +815,7 @@ process_DreplyTPP(int handle)
 	msgid = disrst(handle, &rc);
 
 	if (!msgid || rc) { /* tpp connection actually broke, cull all pending requests */
-		while ((ptask = (struct work_task *)GET_NEXT((((mom_svrinfo_t *) (pmom->mi_data))->msr_deferred_cmds)))) {
+		while ((ptask = GET_NEXT(pmom->mi_dmn_info->dmn_deferred_cmds))) {
 			/* no need to compare wt_event with handle, since the
 			 * task list is for this mom and so it will always match
 			 */
@@ -824,9 +829,7 @@ process_DreplyTPP(int handle)
 
 			ptask->wt_aux = PBSE_NORELYMOM;
 			pbs_errno = PBSE_NORELYMOM;
-
-			if (ptask->wt_event2)
-				free(ptask->wt_event2);
+			free(ptask->wt_event2);
 
 			dispatch_task(ptask);
 		}
@@ -834,7 +837,7 @@ process_DreplyTPP(int handle)
 		/* we read msgid fine, so proceed to match it and process the respective task */
 
 		/* get the task list */
-		ptask = (struct work_task *)GET_NEXT((((mom_svrinfo_t *) (pmom->mi_data))->msr_deferred_cmds));
+		ptask = GET_NEXT(pmom->mi_dmn_info->dmn_deferred_cmds);
 
 		while (ptask) {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -79,6 +79,11 @@
                             pstderr("qmgr: Out of memory\n"); \
                             clean_up_and_exit(5); \
                         }
+/* This macro will duplicate string */
+#define Mstrdup(x,y)    if ( (x=strdup(y)) == NULL ) { \
+                            pstderr("qmgr: Out of memory\n"); \
+                            clean_up_and_exit(5); \
+                        }
 /* This macro will allocate memory for some fixed size object */
 #define Mstruct(x,y)    if ( (x=(y *)malloc(sizeof(y))) == NULL ) { \
                             pstderr("qmgr: Out of memory\n"); \
@@ -107,6 +112,8 @@
                              } \
                              free(x); \
                          }
+
+#define QMGR_HIST_SIZE 500   /* size of the qmgr history area */
 
 /* structures */
 
@@ -157,7 +164,7 @@ int get_request(char **);
 int parse(char *, int *, int *, char **, struct attropl **);
 int execute(int, int, int, char *, struct attropl *);
 int is_valid_object(struct objname *, int);
-void disconnect_from_server();
+void disconnect_from_server(struct server *);
 
 
 /* help messages */

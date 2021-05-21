@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -249,7 +249,7 @@ extern vnl_t	*vn_merge(vnl_t *, vnl_t *, callfunc_t);
  *
  * @retval	NULL	error
  */
-extern vnl_t	*vn_merge2(vnl_t *, vnl_t *, char *, callfunc_t);
+extern vnl_t	*vn_merge2(vnl_t *, vnl_t *, char **, callfunc_t);
 
 /**
  * @brief	parse a file containing vnode information into a vnode list

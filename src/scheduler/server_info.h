@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_SERVER_INFO_H
 #define	_SERVER_INFO_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include <pbs_ifl.h>
 #include "state_count.h"
@@ -49,9 +46,11 @@ extern "C" {
 #include "constant.h"
 
 /* Modes passed to update_total_counts_on_run() */
-#define SERVER 1
-#define QUEUE  2
-#define ALL    3
+enum counts_on_run {
+	SERVER,
+	QUEUE,
+	ALL
+};
 /*
  *      query_server - creates a structure of arrays consisting of a server
  *                      and all the queues and jobs that reside in that server
@@ -76,12 +75,13 @@ int query_server_dyn_res(server_info *sinfo);
  */
 
 schd_resource *find_alloc_resource(schd_resource *resplist, resdef *def);
-schd_resource *find_alloc_resource_by_str(schd_resource *resplist, char *name);
-
+schd_resource *find_alloc_resource_by_str(schd_resource *resplist, const char *name);
+schd_resource *find_alloc_resource_by_str(schd_resource *resplist, const std::string& name);
 
 /*  finds a resource in a resource list by string resource name */
 
 schd_resource *find_resource_by_str(schd_resource *reslist, const char *name);
+schd_resource *find_resource_by_str(schd_resource *reslist, const std::string& name);
 
 /*
  *	find resource by resource definition
@@ -116,7 +116,7 @@ schd_resource *new_resource(void);
 /*
  * Create new resource with given data
  */
-schd_resource *create_resource(char *name, char *value, enum resource_fields field);
+schd_resource *create_resource(const char *name, const char *value, enum resource_fields field);
 
 /*
  *	free_server - free a list of server_info structs
@@ -149,48 +149,48 @@ int copy_server_arrays(server_info *nsinfo, server_info *osinfo);
  *      check_exit_job - function used by job_filter to filter out
  *                       jobs not in the exiting state
  */
-int check_exit_job(resource_resv *job, void *arg);
+int check_exit_job(resource_resv *job, const void *arg);
 
 /*
  *      check_run_resv - function used by resv_filter to filter out
  *                       non-running reservations
  */
-int check_run_resv(resource_resv *resv, void *arg);
+int check_run_resv(resource_resv *resv, const void *arg);
 
 /*
  *
  *	check_susp_job - function used by job_filter to filter out jobs
  *			   which are suspended
  */
-int check_susp_job(resource_resv *job, void *arg);
+int check_susp_job(resource_resv *job, const void *arg);
 
 /*
  *
  *	check_job_running - function used by job_filter to filter out
  *			   jobs that are running
  */
-int check_job_running(resource_resv *job, void *arg);
+int check_job_running(resource_resv *job, const void *arg);
 
 /*
  *
  *	check_running_job_in_reservation - function used by job_filter to filter out
  *			   jobs that are in a reservation
  */
-int check_running_job_in_reservation(resource_resv *job, void *arg);
+int check_running_job_in_reservation(resource_resv *job, const void *arg);
 
 /*
  *
  *	check_running_job_not_in_reservation - function used by job_filter to filter out
  *			   jobs that are not in a reservation
  */
-int check_running_job_not_in_reservation(resource_resv *job, void *arg);
+int check_running_job_not_in_reservation(resource_resv *job, const void *arg);
 
 /*
  *
  *      check_resv_running_on_node - function used by resv_filter to filter out
  *				running reservations
  */
-int check_resv_running_on_node(resource_resv *resv, void *arg);
+int check_resv_running_on_node(resource_resv *resv, const void *arg);
 
 /*
  *      dup_server - duplicate a server_info struct
@@ -204,7 +204,7 @@ schd_resource *dup_resource_list(schd_resource *res);
 
 /* dup a resource list selectively only duping specific resources */
 
-schd_resource *dup_selective_resource_list(schd_resource *res, resdef **deflist, unsigned flags);
+schd_resource *dup_selective_resource_list(schd_resource *res, std::unordered_set<resdef*>& deflist, unsigned flags);
 
 /*
  *	dup_ind_resource_list - dup a resource list - if a resource is indirect
@@ -240,7 +240,7 @@ void free_resource(schd_resource *resp);
  */
 void
 update_server_on_end(status *policy, server_info *sinfo, queue_info *qinfo,
-	resource_resv *resresv, char *job_state);
+	resource_resv *resresv, const char *job_state);
 
 /*
  *      check_unassoc_node - finds nodes which are not associated with queues
@@ -276,13 +276,13 @@ counts *dup_counts_list(counts *ctslist);
 /*
  *      find_counts - find a counts structure by name
  */
-counts *find_counts(counts *ctslist, char *name);
+counts *find_counts(counts *ctslist, const char *name);
 
 /*
  *      find_alloc_counts - find a counts structure by name or allocate a new
  *                          counts, name it, and add it to the end of the list
  */
-counts *find_alloc_counts(counts *ctslist, char *name);
+counts *find_alloc_counts(counts *ctslist, const char *name);
 
 /*
  *      update_counts_on_run - update a counts struct on the running of a job
@@ -306,18 +306,18 @@ void update_counts_on_end(counts *cts, resource_req *resreq);
  *
  *	  returns the new max or NULL on error
  */
-counts *counts_max(counts *cmax, counts *new);
+counts *counts_max(counts *cmax, counts *ncounts);
 
 /*
  *      check_run_job - function used by resource_resv_filter to filter out
  *                      non-running jobs.
  */
-int check_run_job(resource_resv *job, void *arg);
+int check_run_job(resource_resv *job, const void *arg);
 
 /*
  *      update_universe_on_end - update a pbs universe when a job/resv ends
  */
-void update_universe_on_end(status *policy, resource_resv *resresv, char *job_state, unsigned int flags);
+void update_universe_on_end(status *policy, resource_resv *resresv, const char *job_state, unsigned int flags);
 
 /*
  *
@@ -338,7 +338,7 @@ void update_universe_on_end(status *policy, resource_resv *resresv, char *job_st
  *	returns 1 on success 0 on failure/error
  *
  */
-int set_resource(schd_resource *res, char *val, enum resource_fields field);
+int set_resource(schd_resource *res, const char *val, enum resource_fields field);
 
 /*
  *	update_preemption_priority - update preemption status when a
@@ -400,25 +400,6 @@ int resolve_indirect_resources(node_info **nodes);
  *	returns formula in malloc'd buffer or NULL on error
  */
 char *read_formula(void);
-
-/*
- * 	new_status - status constructor
- */
-#ifdef NAS /* localmod 005 */
-status *new_status(void);
-#else
-status *new_status();
-#endif /* localmod 005 */
-
-/*
- *	dup_status - status copy constructor
- */
-status *dup_status(status *ost);
-
-/*
- * free_status - status destructor
- */
-void free_status(status *st);
 
 /*
  * create_total_counts -  Creates total counts list for server & queue
@@ -486,9 +467,6 @@ int compare_resource_avail(schd_resource *r1, schd_resource *r2);
 
 node_info **dup_unordered_nodes(node_info **old_unordered_nodes, node_info **nnodes);
 
-void *add_ptr_to_array(void *ptr_arr, void *ptr);
+status *dup_status(status *ost);
 
-#ifdef	__cplusplus
-}
-#endif
 #endif	/* _SERVER_INFO_H */

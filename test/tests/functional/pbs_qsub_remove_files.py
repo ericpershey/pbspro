@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -98,6 +98,7 @@ class TestQsub_remove_files(TestFunctional):
             sub_dir) if os.path.isfile(os.path.join(sub_dir, name))])
         self.assertEqual(1, file_count)
 
+    @requirements(mom_on_server=True)
     def test_remove_files_error_file(self):
         """
         submit a job with -Re option and make sure the error file
@@ -108,7 +109,7 @@ class TestQsub_remove_files(TestFunctional):
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir +
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
              ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
@@ -187,7 +188,7 @@ class TestQsub_remove_files(TestFunctional):
         option is used.
         """
         j = Job(TEST_USER, attrs={ATTR_R: 'oe'})
-        j.set_execargs('sleep', 1)
+        j.set_execargs('hostname')
         sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, 'job_state', op=UNSET, id=jid)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -74,6 +74,8 @@ enum srv_atr {
 	SVR_ATR_LAST
 };
 
+extern char *pbs_server_name;
+extern uint pbs_server_port_dis;
 extern void *svr_attr_idx;
 extern attribute_def svr_attr_def[];
 /* for trillion job id */
@@ -96,8 +98,6 @@ struct server {
 	time_t sv_hotcycle;		       /* if RECOV_HOT,time of last restart */
 	time_t sv_next_schedule;	   /* when to next run scheduler cycle */
 	int sv_jobstates[PBS_NUMJOBSTATE]; /* # of jobs per state */
-	char sv_jobstbuf[150];
-	char sv_license_ct_buf[150]; /* license_count buffer */
 	int sv_nseldft;		         /* num of elems in sv_seldft */
 	key_value_pair *sv_seldft;   /* defelts for job's -l select	*/
 
@@ -169,9 +169,6 @@ enum failover_state {
 #define SVR_JOBHIST_DEFAULT		1209600	/* default time period to keep job history: 2 weeks */
 #define SVR_MAX_JOB_SEQ_NUM_DEFAULT	9999999	/* default max job id is 9999999 */
 
-#define VALUE(str) #str
-#define TOSTR(str) VALUE(str)
-
 /* function prototypes */
 
 extern int			svr_recov_db();
@@ -179,12 +176,98 @@ extern int			svr_save_db(struct server *);
 extern pbs_sched *	sched_recov_db(char *, pbs_sched *ps);
 extern int			sched_save_db(pbs_sched *);
 extern enum failover_state	are_we_primary(void);
-extern int			have_socket_licensed_nodes(void);
-extern void			unlicense_socket_licensed_nodes(void);
+extern int			have_licensed_nodes(void);
+extern void			unlicense_nodes(void);
 extern void			set_sched_default(pbs_sched *, int from_scheduler);
-extern void			set_attr_svr(attribute *pattr, attribute_def *pdef, char *value);
-extern int			license_sanity_check(void);
 extern void			memory_debug_log(struct work_task *ptask);
+
+
+/* Multi-server specific structures */
+
+/* Resource update from peer server */
+struct peersvr_resc_update {
+	char *jobid;	/* job id of the resource update */
+	int op;		/* operation which is performed; INCR/DECR */
+	char *execvnode;	/* execvnode of the job */
+	int share_job;	/* job share type based on job's placement directive */
+	int broadcast; /* whether to broadcast the resc update to all the peer servers */
+	pbs_list_link ru_link;	/* Link to the next element in the list */
+};
+typedef struct peersvr_resc_update psvr_ru_t;
+
+/*
+ * enums indicating stat update flag
+ */
+enum msvr_stats_type {
+	CACHE_MISS,		/* Number of node cache miss */
+	CACHE_REFR_TM,		/* time spent in refreshing node cache */
+	NUM_RESC_UPDATE,	/* number of peer server resource updates */
+	NUM_MOVE_RUN,		/* number of move and run */
+	NUM_SCHED_MISS,		/* number of times when acks were not received by the next sched cycle */
+	END_OF_STAT		/* Indicates end of types */
+};
+typedef enum msvr_stats_type msvr_stat_type_t;
+
+/* Multi-svr statistical logging */
+struct msvr_stats {
+	time_t last_logged_tm;	/* Time when we logged last */
+	unsigned long stat[END_OF_STAT];	/* Number of node cache miss */
+};
+typedef struct msvr_stats msvr_stat_t;
+
+#define HOUR_IN_SEC	60 * 60
+#define STAT_LOG_INTL	24 * HOUR_IN_SEC /* 24 hours */
+
+/* multi-server gloabls and functions */
+
+extern pbs_list_head peersvrl;
+
+struct svrinfo {
+	int		ps_pending_replies; /* number of unacknowledged replies from this server */
+	void		*ps_rsc_idx; /* avl of resc updates based on job_id as the key and psvr_ru_t as value */
+	pbs_list_head	ps_node_list; /* list of nodes corresponding to this server. Useful for clearing the nodes in case of an update */
+};
+typedef struct svrinfo svrinfo_t;
+
+void *get_peersvr(struct sockaddr_in *);
+void *create_svr_entry(char *, unsigned int);
+int init_msi();
+void *create_svr_struct(struct sockaddr_in *, char *);
+int connect_to_peersvr(void *);
+bool is_peersvr(void *);
+void mcast_resc_usage(psvr_ru_t *, int);
+int open_ps_mtfd(void);
+void send_nodestat_req(void);
+void req_peer_svr_ack(int);
+void *pending_ack_svr(void);
+psvr_ru_t *init_psvr_ru(job *, int, char *, bool);
+void free_psvr_ru(psvr_ru_t *);
+int send_job_resc_updates(int);
+int send_command(int, int);
+int send_resc_usage(int, psvr_ru_t *, int, int);
+void req_resc_update(int, pbs_list_head *, void *);
+void replyhello_psvr(struct work_task *);
+void poke_peersvr(void);
+void mcast_resc_update_all(void *);
+void clean_saved_rsc(void*);
+int process_status_reply(int);
+void *get_peersvr_from_svrid(char *);
+void update_msvr_stat(unsigned long, msvr_stat_type_t);
+
+/* end of multi-svr functions */
+
+attribute *get_sattr(int attr_idx);
+char *get_sattr_str(int attr_idx);
+struct array_strings *get_sattr_arst(int attr_idx);
+pbs_list_head get_sattr_list(int attr_idx);
+long get_sattr_long(int attr_idx);
+int set_sattr_generic(int attr_idx, char *val, char *rscn, enum batch_op op);
+int set_sattr_str_slim(int attr_idx, char *val, char *rscn);
+int set_sattr_l_slim(int attr_idx, long val, enum batch_op op);
+int set_sattr_b_slim(int attr_idx, long val, enum batch_op op);
+int set_sattr_c_slim(int attr_idx, char val, enum batch_op op);
+int is_sattr_set(int attr_idx);
+void free_sattr(int attr_idx);
 
 #ifdef	__cplusplus
 }

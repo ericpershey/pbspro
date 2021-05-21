@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -45,7 +45,7 @@ class TestQstat(TestFunctional):
     """
     This test suite validates output of qstat with various options
     """
-    @skipOnCpuSet
+
     def test_qstat_pt(self):
         """
         Test that checks correct output for qstat -pt
@@ -63,24 +63,26 @@ class TestQstat(TestFunctional):
 
         self.server.expect(JOB, {'job_state': 'B'}, id=jid)
 
-        self.logger.info('Sleep for 7 seconds to let at least one job finish.')
-        time.sleep(7)
-
         qstat_cmd = os.path.join(self.server.pbs_conf['PBS_EXEC'],
                                  'bin', 'qstat')
         qstat_cmd_pt = [qstat_cmd, '-pt', str(jid)]
-        ret = self.du.run_cmd(self.server.hostname, cmd=qstat_cmd_pt)
 
+        # wait for first subjob to finish before doing qstat -pt
+        sj1 = j.create_subjob_id(jid, 1)
+        self.server.expect(JOB, {'job_state': 'X'}, id=sj1)
+
+        ret = self.du.run_cmd(self.server.hostname, cmd=qstat_cmd_pt)
         self.assertEqual(ret['rc'], 0,
                          'Qstat returned with non-zero exit status')
         qstat_out = '\n'.join(ret['out'])
 
-        sjids = [j.create_subjob_id(jid, x) for x in range(1, job_count)]
+        sjids = [j.create_subjob_id(jid, x) for x in range(1, job_count + 1)]
         for sjid in sjids:
             if len(sjid) > 17:
                 sjid = sjid[0:16] + '*'
             self.assertIn(sjid, qstat_out, 'Job %s not in output' % sjid)
             sj_escaped = re.escape(sjid)
+            # check that at least first job is in X state and 100 percent done
             match = re.search(
                 sj_escaped + r'\s+\S+\s+\S+\s+(--\s+[RQ]|100\s+X)\s+\S+',
                 qstat_out)
@@ -152,6 +154,6 @@ class TestQstat(TestFunctional):
                          'Qstat returned with non-zero exit status')
         qstat_out = '\n'.join(ret['out'])
         self.assertNotEqual(re.search(r"%s/([0-9]+)"
-                            % re.escape(self.mom.shortname),
-                            qstat_out), None, "The exec host does not"
-                            " contain the task slot number")
+                                      % re.escape(self.mom.shortname),
+                                      qstat_out), None, "The exec host does"
+                            " not contain the task slot number")

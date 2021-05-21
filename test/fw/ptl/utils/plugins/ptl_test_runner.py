@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -70,7 +70,7 @@ from ptl.utils.pbs_dshutils import TimeOut
 from ptl.utils.pbs_testsuite import (MINIMUM_TESTCASE_TIMEOUT,
                                      REQUIREMENTS_KEY, TIMEOUT_KEY)
 from ptl.utils.plugins.ptl_test_info import get_effective_reqs
-from ptl.utils.pbs_testusers import PBS_ALL_USERS
+from ptl.utils.pbs_testusers import PBS_ALL_USERS, PBS_USERS, PbsUser
 from io import StringIO
 
 log = logging.getLogger('nose.plugins.PTLTestRunner')
@@ -466,6 +466,8 @@ class PtlTextTestRunner(TextTestRunner):
     output stream, results, and the test case itself.
     """
 
+    cur_repeat_count = 1
+
     def __init__(self, stream=sys.stdout, descriptions=True, verbosity=3,
                  config=None, repeat_count=1, repeat_delay=0):
         self.logger = logging.getLogger(__name__)
@@ -494,6 +496,7 @@ class PtlTextTestRunner(TextTestRunner):
         self.result.start = datetime.datetime.now()
         try:
             for i in range(self.repeat_count):
+                PtlTextTestRunner.cur_repeat_count = i + 1
                 if i != 0:
                     time.sleep(self.repeat_delay)
                 test(result)
@@ -520,6 +523,7 @@ class PTLTestRunner(Plugin):
     name = 'PTLTestRunner'
     score = sys.maxsize - 4
     logger = logging.getLogger(__name__)
+    timeout = None
 
     def __init__(self):
         Plugin.__init__(self)
@@ -672,6 +676,7 @@ class PTLTestRunner(Plugin):
         shortname = (socket.gethostname()).split('.', 1)[0]
         for key in ['servers', 'moms', 'comms', 'clients', 'nomom']:
             tparam_contents[key] = []
+        tparam_contents['mom_on_server'] = False
         tparam_contents['no_mom_on_server'] = False
         tparam_contents['no_comm_on_server'] = False
         tparam_contents['no_comm_on_mom'] = False
@@ -690,6 +695,8 @@ class PTLTestRunner(Plugin):
                         tparam_contents['clients'] = hosts
                     elif k == 'nomom':
                         nomomlist = hosts
+                    elif k == 'mom_on_server':
+                        tparam_contents['mom_on_server'] = v
                     elif k == 'no_mom_on_server':
                         tparam_contents['no_mom_on_server'] = v
                     elif k == 'no_comm_on_mom':
@@ -725,6 +732,7 @@ class PTLTestRunner(Plugin):
         _moms = set(param_dic['moms'])
         _comms = set(param_dic['comms'])
         _nomom = set(param_dic['nomom'])
+        _mom_on_server = param_dic['mom_on_server']
         _no_mom_on_server = param_dic['no_mom_on_server']
         _no_comm_on_mom = param_dic['no_comm_on_mom']
         _no_comm_on_server = param_dic['no_comm_on_server']
@@ -752,7 +760,23 @@ class PTLTestRunner(Plugin):
                 _msg += " (" + str(eff_tc_req[pk]) + ")"
                 logger.error(_msg)
                 return _msg
-        for hostname in param_dic['moms']:
+
+        if hasattr(test, 'test'):
+            _test = test.test
+        elif hasattr(test, 'context'):
+            _test = test.context
+        else:
+            return None
+
+        name = 'moms'
+        if (hasattr(_test, name) and
+                (getattr(_test, name, None) is not None)):
+            for mc in getattr(_test, name).values():
+                platform = mc.platform
+                if platform not in ['linux', 'shasta',
+                                    'cray'] and mc.hostname in _moms:
+                    _moms.remove(mc.hostname)
+        for hostname in _moms:
             si = SystemInfo()
             si.get_system_info(hostname)
             available_sys_ram = getattr(si, 'system_ram', None)
@@ -815,6 +839,12 @@ class PTLTestRunner(Plugin):
                 _msg = 'no mom on server'
                 logger.error(_msg)
                 return _msg
+        else:
+            if eff_tc_req['mom_on_server'] or \
+               _mom_on_server:
+                _msg = 'mom on server'
+                logger.error(_msg)
+                return _msg
         if _comms & _servers:
             if eff_tc_req['no_comm_on_server'] or _no_comm_on_server:
                 return False
@@ -836,19 +866,40 @@ class PTLTestRunner(Plugin):
                 logger.error(_msg)
                 return _msg
 
-    def check_hardware_status_and_core_files(self):
+    def check_hardware_status_and_core_files(self, test):
         """
         function checks hardware status and core files
         every 5 minutes
         """
         du = DshUtils()
-        self.hardware_report_timer = Timer(
-            300, self.check_hardware_status_and_core_files)
-        self.hardware_report_timer.start()
         systems = list(self.param_dict['servers'])
         systems.extend(self.param_dict['moms'])
         systems.extend(self.param_dict['comms'])
         systems = list(set(systems))
+
+        if hasattr(test, 'test'):
+            _test = test.test
+        elif hasattr(test, 'context'):
+            _test = test.context
+        else:
+            return None
+
+        for name in ['servers', 'moms', 'comms', 'clients']:
+            mlist = None
+            if (hasattr(_test, name) and
+                    (getattr(_test, name, None) is not None)):
+                mlist = getattr(_test, name).values()
+            if mlist:
+                for mc in mlist:
+                    platform = mc.platform
+                    if ((platform not in ['linux', 'shasta', 'cray']) and
+                            (mc.hostname in systems)):
+                        systems.remove(mc.hostname)
+
+        self.hardware_report_timer = Timer(
+            300, self.check_hardware_status_and_core_files, args=(test,))
+        self.hardware_report_timer.start()
+
         for hostname in systems:
             hr = SystemInfo()
             hr.get_system_info(hostname)
@@ -945,14 +996,15 @@ class PTLTestRunner(Plugin):
             self.result.startTest(test)
             raise SkipTest(rv)
         # function report hardware status and core files
-        self.check_hardware_status_and_core_files()
+        self.check_hardware_status_and_core_files(test)
 
         def timeout_handler(signum, frame):
             raise TimeOut('Timed out after %s second' % timeout)
-        timeout = self.__get_timeout(test)
-        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-        setattr(test, 'old_sigalrm_handler', old_handler)
-        signal.alarm(timeout)
+        if PTLTestRunner.timeout is None:
+            timeout = self.__get_timeout(test)
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            setattr(test, 'old_sigalrm_handler', old_handler)
+            signal.alarm(timeout)
 
     def stopTest(self, test):
         """
@@ -986,6 +1038,34 @@ class PTLTestRunner(Plugin):
     def _cleanup(self):
         self.logger.info('Cleaning up temporary files')
         du = DshUtils()
+        hosts = set(self.param_dict['moms'])
+        for server in self.param_dict['servers']:
+            if server not in hosts:
+                hosts.update(server)
+        for user in PBS_USERS:
+            self.logger.debug('Cleaning %s\'s home directory' % (str(user)))
+            runas = PbsUser.get_user(user)
+            for host in hosts:
+                ret = du.run_cmd(host, cmd=['echo', '$HOME'], sudo=True,
+                                 runas=runas, logerr=False, as_script=True,
+                                 level=logging.DEBUG)
+                if ret['rc'] == 0:
+                    path = ret['out'][0].strip()
+                else:
+                    return None
+                ftd = []
+                files = du.listdir(host, path=path, runas=user,
+                                   level=logging.DEBUG)
+                bn = os.path.basename
+                ftd.extend([f for f in files if bn(f).startswith('PtlPbs')])
+                ftd.extend([f for f in files if bn(f).startswith('STDIN')])
+
+                if len(ftd) > 1000:
+                    for i in range(0, len(ftd), 1000):
+                        j = i + 1000
+                        du.rm(host, path=ftd[i:j], runas=user,
+                              force=True, level=logging.DEBUG)
+
         root_dir = os.sep
         dirlist = set([os.path.join(root_dir, 'tmp'),
                        os.path.join(root_dir, 'var', 'tmp')])

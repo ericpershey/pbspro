@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -101,24 +101,20 @@ determine_euser(void *pobj, int objtype, attribute *pattr, int *isowner)
 	struct array_strings *parst;
 	char	*pn;
 	char	*ptr;
-	int	idx_owner;
-	attribute *objattrs;
+	attribute *objattr;
 	static char username[PBS_MAXUSER+1];
 
 	memset(username,'\0', sizeof(username));
 
 	/* set index and pointers based on object type */
-	if (objtype == JOB_OBJECT) {
-		idx_owner = (int)JOB_ATR_job_owner;
-		objattrs = &((job *)pobj)->ji_wattr[0];
-	} else {
-		idx_owner = (int)RESV_ATR_resv_owner;
-		objattrs = &((resc_resv *)pobj)->ri_wattr[0];
-	}
+	if (objtype == JOB_OBJECT)
+		objattr = get_jattr((job *)pobj, JOB_ATR_job_owner);
+	else
+		objattr = get_rattr((resc_resv *)pobj, RESV_ATR_resv_owner);
 
 	/* search the User_List attribute */
 
-	if ((pattr->at_flags & ATR_VFLAG_SET) &&
+	if (is_attr_set(pattr) &&
 		(parst = pattr->at_val.at_arst)  ) {
 		*isowner = 0;
 		for (i=0; i<parst->as_usedptr; i++) {
@@ -134,8 +130,8 @@ determine_euser(void *pobj, int objtype, attribute *pattr, int *isowner)
 			}
 		}
 	}
-	if (!(pattr->at_flags & ATR_VFLAG_SET)) {	/* if no user is specified, default to the object owner ( 3.) */
-		hit = objattrs[idx_owner].at_val.at_str;
+	if (!is_attr_set(pattr)) {	/* if no user is specified, default to the object owner ( 3.) */
+		hit = get_attr_str(objattr);
 		*isowner = 1;
 	}
 
@@ -186,7 +182,7 @@ determine_egroup(void *pobj, int objtype, attribute *pattr)
 
 	/* search the group-list attribute */
 
-	if ((pattr->at_flags & ATR_VFLAG_SET) &&
+	if ((is_attr_set(pattr)) &&
 		(parst = pattr->at_val.at_arst)) {
 		for (i=0; i<parst->as_usedptr; i++) {
 			pn = parst->as_string[i];
@@ -213,10 +209,8 @@ determine_egroup(void *pobj, int objtype, attribute *pattr)
  * @brief
  * 		set_objexid - validate and set the object's effective/execution username
  *		and its effective/execution group name attributes.  For jobs, these
- *		are the attributes at positions JOB_ATR_euser and JOB_ATR_egroup in
- *		the attribute array ji_wattr[] of the job structure.
- *		For reservations, they	are the attributes at positions
- *		RESV_ATR_euser and RESV_ATR_egroup in array ri_wattr of the
+ *		are JOB_ATR_euser and JOB_ATR_egroup attributes of the job structure.
+ *		For reservations, they are RESV_ATR_euser and RESV_ATR_egroup of the
  *		resc_resv structure.
  *
  * @par	Functionality:
@@ -250,23 +244,23 @@ determine_egroup(void *pobj, int objtype, attribute *pattr)
 int
 set_objexid(void *pobj, int objtype, attribute *attrry)
 {
-	int		 addflags = 0;
-	int		 isowner;
-	attribute	*pattr;
-	char		*puser;
-	char		*pgrpn;
-	char		*owner;
-	int		idx_ul,	idx_gl;
-	int		idx_owner, idx_euser, idx_egroup;
-	int		idx_acct;
-	int		bad_euser, bad_egrp;
-	attribute	*objattrs;
-	attribute_def	*obj_attr_def;
-	attribute	*paclRoot;	/*future: aclRoot resv != aclRoot job*/
-	char	       **pmem;
-	struct group	*gpent;
-	struct passwd	*pwent;
-	char		 gname[PBS_MAXGRPN+1];
+	int addflags = 0;
+	int isowner;
+	attribute *pattr;
+	char *puser;
+	char *pgrpn;
+	char *owner;
+	int idx_ul, idx_gl;
+	int idx_owner, idx_euser, idx_egroup;
+	int idx_acct;
+	int bad_euser, bad_egrp;
+	attribute *objattrs;
+	attribute_def *obj_attr_def;
+	attribute *paclRoot; /*future: aclRoot resv != aclRoot job*/
+	char **pmem;
+	struct group *gpent;
+	struct passwd *pwent;
+	char gname[PBS_MAXGRPN + 1];
 
 	/* determine index values and pointers based on object type */
 	if (objtype == JOB_OBJECT) {
@@ -278,8 +272,8 @@ set_objexid(void *pobj, int objtype, attribute *attrry)
 		idx_acct = (int)JOB_ATR_account;
 		obj_attr_def = job_attr_def;
 		objattrs = ((job *)pobj)->ji_wattr;
-		owner = ((job *)pobj)->ji_wattr[idx_owner].at_val.at_str;
-		paclRoot = &server.sv_attr[(int)SVR_ATR_AclRoot];
+		owner = get_jattr_str(pobj, idx_owner);
+		paclRoot = get_sattr(SVR_ATR_AclRoot);
 		bad_euser = PBSE_BADUSER;
 		bad_egrp = PBSE_BADGRP;
 	} else {
@@ -291,8 +285,8 @@ set_objexid(void *pobj, int objtype, attribute *attrry)
 		idx_acct = (int)RESV_ATR_account;
 		obj_attr_def = resv_attr_def;
 		objattrs = ((resc_resv *)pobj)->ri_wattr;
-		owner = ((resc_resv *)pobj)->ri_wattr[idx_owner].at_val.at_str;
-		paclRoot = &server.sv_attr[(int)SVR_ATR_AclRoot];
+		owner = get_rattr_str(pobj, idx_owner);
+		paclRoot = get_sattr(SVR_ATR_AclRoot);
 		bad_euser = PBSE_R_UID;
 		bad_egrp = PBSE_R_GID;
 	}
@@ -313,32 +307,30 @@ set_objexid(void *pobj, int objtype, attribute *attrry)
 
 	pwent = getpwnam(puser);
 	if (pwent == NULL) {
-		if (!server.sv_attr[(int)SVR_ATR_FlatUID].at_val.at_long)
+		if (!get_sattr_long(SVR_ATR_FlatUID))
 			return (bad_euser);
 	} else if (pwent->pw_uid == 0) {
-		if ((paclRoot->at_flags & ATR_VFLAG_SET) == 0)
+		if (!is_attr_set(paclRoot))
 			return (bad_euser); /* root not allowed */
 		if (acl_check(paclRoot, owner, ACL_User) == 0)
 			return (bad_euser); /* root not allowed */
 	}
 
-	if (!isowner || !server.sv_attr[(int)SVR_ATR_FlatUID].at_val.at_long) {
+	if (!isowner || !get_sattr_long(SVR_ATR_FlatUID)) {
 		if (site_check_user_map(pobj, objtype, puser) == -1)
 			return (bad_euser);
 	}
 
 	pattr = &objattrs[idx_euser];
-	obj_attr_def[idx_euser].at_free(pattr);
-	obj_attr_def[idx_euser].at_decode(pattr, NULL, NULL, puser);
+	free_attr(obj_attr_def, pattr, idx_euser);
+	set_attr_generic(pattr, &obj_attr_def[idx_euser], puser, NULL, INTERNAL);
 
 	if (pwent != NULL) {
 		/* if account (qsub -A) is not specified, set to empty string */
 
 		pattr = &objattrs[idx_acct];
-		if ((pattr->at_flags & ATR_VFLAG_SET) == 0) {
-			(void)obj_attr_def[idx_acct].at_decode(pattr,
-				NULL, NULL, "\0");
-		}
+		if (!is_attr_set(pattr))
+			set_attr_generic(pattr, &obj_attr_def[idx_acct], "\0", NULL, INTERNAL);
 
 		/*
 		 * now figure out (for this host) the effective/execute "group name"
@@ -351,7 +343,7 @@ set_objexid(void *pobj, int objtype, attribute *attrry)
 		 * be same as what was passed
 		 */
 
-		if ((attrry + idx_gl)->at_flags & ATR_VFLAG_SET)
+		if (is_attr_set(attrry + idx_gl))
 			pattr = attrry + idx_gl;
 		else
 			pattr = &objattrs[idx_gl];
@@ -409,10 +401,10 @@ set_objexid(void *pobj, int objtype, attribute *attrry)
 	}
 
 	pattr = attrry + idx_egroup;
-	obj_attr_def[idx_egroup].at_free(pattr);
+	free_attr(obj_attr_def, pattr, idx_egroup);
 
 	if (addflags != 0) {
-		obj_attr_def[idx_egroup].at_decode(pattr, NULL, NULL, pgrpn);
+		set_attr_generic(pattr, &obj_attr_def[idx_egroup], pgrpn, NULL, INTERNAL);
 		pattr->at_flags |= addflags;
 	}
 

@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -41,7 +41,7 @@ from tests.functional import *
 
 
 class TestSchedAttrUpdates(TestFunctional):
-    @skipOnCpuSet
+
     def test_basic_throttling(self):
         """
         Test the behavior of sched's 'attr_update_period' attribute
@@ -96,7 +96,6 @@ class TestSchedAttrUpdates(TestFunctional):
         self.server.expect(JOB, "comment", op=SET, id=jid8)
         self.server.log_match("Type 96 request received", starttime=t)
 
-    @skipOnCpuSet
     def test_accrue_type(self):
         """
         Test that accrue_type updates are sent immediately

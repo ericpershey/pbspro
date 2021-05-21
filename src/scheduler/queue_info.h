@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -40,9 +40,6 @@
 
 #ifndef _QUEUE_INFO_H
 #define _QUEUE_INFO_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 #include <pbs_ifl.h>
 #include "data_types.h"
 
@@ -77,19 +74,9 @@ void free_queues(queue_info **qinfo);
 void update_queue_on_run(queue_info *qinfo, resource_resv *resresv, char *job_state);
 
 /*
- *      free_queue_info - free space used by a queue info struct
- */
-void free_queue_info(queue_info *qinfo);
-
-/*
  *      dup_queues - duplicate the queues on a server
  */
 queue_info **dup_queues(queue_info **oqueues, server_info *nsinfo);
-
-/*
- *      dup_queue_info - duplicate a queue_info structure
- */
-queue_info *dup_queue_info(queue_info *oqinfo, server_info *nsinfo);
 
 /*
  *
@@ -101,19 +88,16 @@ queue_info *dup_queue_info(queue_info *oqinfo, server_info *nsinfo);
  *	return the found queue or NULL
  *
  */
-queue_info *find_queue_info(queue_info **qinfo_arr, char *name);
+queue_info *find_queue_info(queue_info **qinfo_arr, const std::string& name);
 
 /*
  *      update_queue_on_end - update a queue when a job has finished running
  */
 void
 update_queue_on_end(queue_info *qinfo, resource_resv *resresv,
-	char *job_state);
+	const char *job_state);
 
 int queue_in_partition(queue_info *qinfo, char *partition);
 
 
-#ifdef	__cplusplus
-}
-#endif
 #endif /* _QUEUE_INFO_H */

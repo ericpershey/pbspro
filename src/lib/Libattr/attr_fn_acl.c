@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -47,10 +47,9 @@
 #endif
 #include <stdlib.h>
 #include <string.h>
-#ifndef WIN32
 #include <pwd.h>
 #include <grp.h>
-#endif
+#include <unistd.h>
 #include "pbs_ifl.h"
 #include "list_link.h"
 #include "attribute.h"
@@ -122,7 +121,7 @@ set_allacl(attribute *, attribute *, enum batch_op,
  */
 
 int
-set_uacl(struct attribute *attr, struct attribute *new, enum batch_op op)
+set_uacl(attribute *attr, attribute *new, enum batch_op op)
 {
 
 	return (set_allacl(attr, new, op, user_order));
@@ -148,7 +147,7 @@ set_uacl(struct attribute *attr, struct attribute *new, enum batch_op op)
  */
 
 int
-set_gacl(struct attribute *attr, struct attribute *new, enum batch_op op)
+set_gacl(attribute *attr, attribute *new, enum batch_op op)
 {
 
 	return (set_allacl(attr, new, op, group_order));
@@ -174,7 +173,7 @@ set_gacl(struct attribute *attr, struct attribute *new, enum batch_op op)
  */
 
 int
-set_hostacl(struct attribute *attr, struct attribute *new, enum batch_op op)
+set_hostacl(attribute *attr, attribute *new, enum batch_op op)
 {
 
 	return (set_allacl(attr, new, op, host_order));
@@ -335,7 +334,7 @@ chk_dup_acl(struct array_strings *old, struct array_strings *new)
  */
 
 static int
-set_allacl(struct attribute *attr, struct attribute *new, enum batch_op op, int (*order_func)(char *, char *))
+set_allacl(attribute *attr, attribute *new, enum batch_op op, int (*order_func)(char *, char *))
 {
 	int	 i;
 	int	 j;
@@ -514,7 +513,7 @@ set_allacl(struct attribute *attr, struct attribute *new, enum batch_op op, int 
 
 		default:	return (PBSE_INTERNAL);
 	}
-	attr->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(attr);
 	return (0);
 }
 

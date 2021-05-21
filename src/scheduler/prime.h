@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,8 @@
 
 #ifndef	_PRIME_H
 #define	_PRIME_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
+
+#include "time.h"
 
 /*
  *	time_left_today - macro - return the time left today
@@ -70,13 +69,13 @@ int is_holiday(long date);
 /*
  *      load_day - fill in the prime time part of the config structure
  */
-int load_day(enum days d, enum prime_time pr, char *tok);
+int load_day(enum days d, enum prime_time pr, const char *tok);
 
 /*
  *      parse_holidays - parse the holidays file.  It should be in UNICOS 8
  *                       format.
  */
-int parse_holidays(char *fname);
+int parse_holidays(const char *fname);
 
 /*
  *      init_prime_time - do any initializations that need to happen at the
@@ -108,7 +107,4 @@ int init_non_prime_time(struct status *, char *);
 time_t end_prime_status(time_t date);
 
 
-#ifdef	__cplusplus
-}
-#endif
 #endif	/* _PRIME_H */

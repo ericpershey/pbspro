@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -279,7 +279,6 @@ decode_DIS_replySvr_inner(int sock, struct batch_reply *reply)
 	int		      ct;
 	struct brp_select    *psel;
 	struct brp_select   **pselx;
-	struct brp_status    *pstsvr;
 	int		      rc = 0;
 	size_t		      txtlen;
 
@@ -290,6 +289,8 @@ decode_DIS_replySvr_inner(int sock, struct batch_reply *reply)
 	reply->brp_auxcode = disrsi(sock, &rc);
 	if (rc) return rc;
 	reply->brp_choice  = disrui(sock, &rc);
+	if (rc) return rc;
+	reply->brp_is_part  = disrui(sock, &rc);
 	if (rc) return rc;
 
 
@@ -314,6 +315,7 @@ decode_DIS_replySvr_inner(int sock, struct batch_reply *reply)
 			pselx = &reply->brp_un.brp_select;
 			ct = disrui(sock, &rc);
 			if (rc) return rc;
+			reply->brp_count = ct;
 
 			while (ct--) {
 				psel = (struct brp_select *)malloc(sizeof(struct brp_select));
@@ -327,37 +329,6 @@ decode_DIS_replySvr_inner(int sock, struct batch_reply *reply)
 				}
 				*pselx = psel;
 				pselx = &psel->brp_next;
-			}
-			break;
-
-		case BATCH_REPLY_CHOICE_Status:
-
-			/* have to get count of number of status objects first */
-
-			CLEAR_HEAD(reply->brp_un.brp_status);
-			ct = disrui(sock, &rc);
-			if (rc) return rc;
-
-			while (ct--) {
-				pstsvr = (struct brp_status *)malloc(sizeof(struct brp_status));
-				if (pstsvr == 0) return DIS_NOMALLOC;
-
-				CLEAR_LINK(pstsvr->brp_stlink);
-				pstsvr->brp_objname[0] = '\0';
-				CLEAR_HEAD(pstsvr->brp_attr);
-
-				pstsvr->brp_objtype = disrui(sock, &rc);
-				if (rc == 0) {
-					rc = disrfst(sock, PBS_MAXSVRJOBID+1,
-						pstsvr->brp_objname);
-				}
-				if (rc) {
-					(void)free(pstsvr);
-					return rc;
-				}
-				append_link(&reply->brp_un.brp_status,
-					&pstsvr->brp_stlink, pstsvr);
-				rc = decode_DIS_svrattrl(sock, &pstsvr->brp_attr);
 			}
 			break;
 
@@ -529,6 +500,10 @@ dis_request_read(int sfds, struct batch_request *request)
 			rc = decode_DIS_JobId(sfds, request->rq_ind.rq_commit);
 			break;
 
+		case PBS_BATCH_DeleteJobList:
+			rc = decode_DIS_DelJobList(sfds, request);
+			break;
+
 		case PBS_BATCH_DeleteJob:
 		case PBS_BATCH_DeleteResv:
 		case PBS_BATCH_ResvOccurEnd:
@@ -564,6 +539,10 @@ dis_request_read(int sfds, struct batch_request *request)
 			break;
 
 #ifndef PBS_MOM
+		case PBS_BATCH_RegisterSched:
+			request->rq_ind.rq_register_sched.rq_name = disrst(sfds, &rc);
+			break;
+
 		case PBS_BATCH_RelnodesJob:
 			rc = decode_DIS_RelnodesJob(sfds, request);
 			break;
@@ -620,6 +599,7 @@ dis_request_read(int sfds, struct batch_request *request)
 		case PBS_BATCH_StatusSched:
 		case PBS_BATCH_StatusRsc:
 		case PBS_BATCH_StatusHook:
+		case PBS_BATCH_ServerReady:
 			rc = decode_DIS_Status(sfds, request);
 			break;
 

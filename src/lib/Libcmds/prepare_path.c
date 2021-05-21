@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -165,10 +165,21 @@ prepare_path(char *path_in, char *path_out)
 					break;
 				}
 			}
-			if (*c != ':')
-				return 1;
-			/* Advance past the colon */
-			c++;
+			if (*c != ':') {
+				if (*c == '/') {
+					/* There's a colon in the path */ 
+					host_given = NULL;
+					host_name[0] = '\0';
+					for (c = path_in; *c; c++) {
+						if (isspace(*c) == 0)
+							break;
+					}
+				} else
+					return 1;
+			} else {
+				/* Advance past the colon */
+				c++;
+			}
 		}
 	}
 
@@ -333,7 +344,7 @@ prepare_path(char *path_in, char *path_out)
 		}
 		strncat(path_out, path_name, MAXPATHLEN - strlen(path_out));
 	}
-	back2forward_slash(path_out);	/* "\" translate to "/" for path */
+	fix_path(path_out, 1);
 	strcpy(path_out, replace_space(path_out, "\\ "));
 	path_out[MAXPATHLEN - 1] = '\0';
 #else

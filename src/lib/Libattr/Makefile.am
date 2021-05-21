@@ -1,6 +1,6 @@
 
 #
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -67,7 +67,6 @@ libattr_a_SOURCES = \
 	attr_resc_func.c \
 	job_attr_def.c \
 	Long_.c \
-	LTostr.c \
 	node_attr_def.c \
 	queue_attr_def.c \
 	resc_def_all.c \

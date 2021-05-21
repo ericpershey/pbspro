@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,6 +39,11 @@
 
 #ifndef	_LOG_H
 #define	_LOG_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #if SYSLOG
 #include <syslog.h>
@@ -98,11 +103,10 @@ extern char *msg_daemonname;
 extern long *log_event_mask;
 
 extern void set_logfile(FILE *fp);
-extern int set_msgdaemonname(char *ch);
+extern int set_msgdaemonname(const char *ch);
 void set_log_conf(char *leafname, char *nodename,
 		  unsigned int islocallog, unsigned int sl_fac, unsigned int sl_svr,
 		  unsigned int log_highres);
-extern void *log_get_tls_data(void);
 
 extern struct log_net_info *get_if_info(char *msg);
 extern void free_if_info(struct log_net_info *ni);
@@ -112,6 +116,7 @@ extern void log_err(int err, const char *func, const char *text);
 extern void log_errf(int errnum, const char *routine, const char *fmt, ...);
 extern void log_joberr(int err, const char *func, const char *text, const char *pjid);
 extern void log_event(int type, int objclass, int severity, const char *objname, const char *text);
+extern void do_log_eventf(int eventtype, int objclass, int sev, const char *objname, const char *fmt, va_list args);
 extern void log_eventf(int eventtype, int objclass, int sev, const char *objname, const char *fmt, ...);
 extern int will_log_event(int type);
 extern void log_suspect_file(const char *func, const char *text, const char *file, struct stat *sb);
@@ -122,10 +127,11 @@ extern char log_buffer[LOG_BUF_SIZE];
 extern int log_level_2_etype(int level);
 
 extern int  chk_path_sec(char *path, int dir, int sticky, int bad, int);
-extern int  chk_file_sec(char *path, int isdir, int sticky,
-	int disallow, int fullpath);
-extern int  tmp_file_sec(char *path, int isdir, int sticky,
-	int disallow, int fullpath);
+extern int  chk_file_sec(char *path, int isdir, int sticky, int disallow, int fullpath);
+extern int  chk_file_sec_user(char *path, int isdir, int sticky, int disallow, int fullpath, int uid);
+extern int  tmp_file_sec(char *path, int isdir, int sticky, int disallow, int fullpath);
+extern int  tmp_file_sec_user(char *path, int isdir, int sticky, int disallow, int fullpath, int uid);
+
 #ifdef WIN32
 extern int  chk_file_sec2(char *path, int isdir, int sticky,
 	int disallow, int fullpath, char *owner);
@@ -174,4 +180,10 @@ extern void log_supported_auth_methods(char **supported_auth_methods);
 /* Logging Masks */
 
 #define PBSEVENT_MASK	0x01ff
+
+#ifdef __cplusplus
+}
+#endif
+
+
 #endif /* _LOG_H */

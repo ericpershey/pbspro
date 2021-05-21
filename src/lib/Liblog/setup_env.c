@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -46,9 +46,7 @@
 #include "portability.h"
 #include "libutil.h"
 #include "log.h"
-#ifdef WIN32
-#include "win.h"
-#endif
+
 
 /**
  * @file	setup_env.c

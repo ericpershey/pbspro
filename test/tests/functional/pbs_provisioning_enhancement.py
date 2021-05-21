@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -127,13 +127,11 @@ e.reject()
 
         self.server.manager(MGR_CMD_SET, SERVER, {'log_events': 2047})
 
-    @skipOnCpuSet
     def test_app_provisioning(self):
         """
         Test application provisioning
         """
         j = Job(TEST_USER1)
-        j.set_sleep_time(5)
         j.set_attributes({'Resource_List.select': '1:aoe=App1'})
         jid = self.server.submit(j)
 
@@ -151,14 +149,12 @@ e.reject()
             max_attempts=20,
             interval=1)
 
-    @skipOnCpuSet
     def test_os_provisioning(self):
         """
         Test os provisioning
         """
 
         j = Job(TEST_USER1)
-        j.set_sleep_time(10)
         j.set_attributes({'Resource_List.select': '1:aoe=osimage1'})
         jid = self.server.submit(j)
 
@@ -181,7 +177,6 @@ e.reject()
         # OS provisioining completes affer mom restart.
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
 
-    @skipOnCpuSet
     def test_subchunk_application_provisioning(self):
         """
         Test application provisioning job request consist of subchunks
@@ -190,7 +185,6 @@ e.reject()
         j = Job(TEST_USER1)
         j.set_attributes({'Resource_List.select':
                           '1:ncpus=1:aoe=App1+1:ncpus=12'})
-        j.set_sleep_time(5)
         jid = self.server.submit(j)
 
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
@@ -207,7 +201,6 @@ e.reject()
         # Current aoe on momA, should be set to the requested aoe in job.
         self.server.expect(NODE, {'current_aoe': 'App1'}, id=self.hostA)
 
-    @skipOnCpuSet
     def test_subchunk_os_provisioning(self):
         """
         Test os provisioning job request consist of subchunks
@@ -215,7 +208,6 @@ e.reject()
         """
         a = {'Resource_List.select': '1:aoe=osimage1+1:ncpus=12'}
         j = Job(TEST_USER1, a)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         self.server.expect(JOB, ATTR_execvnode, id=jid, op=SET)
         nodes = j.get_vnodes(j.exec_vnode)
@@ -233,7 +225,6 @@ e.reject()
         # Current aoe on momA, should be set to the requested aoe in job.
         self.server.expect(NODE, {'current_aoe': 'osimage1'}, id=self.hostA)
 
-    @skipOnCpuSet
     def test_job_wide_provisioining_request(self):
         """
         Test jobs with jobwide aoe resource request.
@@ -243,7 +234,6 @@ e.reject()
         # and no single node have all the requested resource.
 
         j = Job(TEST_USER1)
-        j.set_sleep_time(5)
         j.set_attributes({"Resource_List.aoe": "App1",
                           "Resource_List.ncpus": 12})
         jid = self.server.submit(j)
@@ -261,7 +251,6 @@ e.reject()
         # Current aoe on momA, should be set to the requested aoe in job.
         self.server.expect(NODE, {'current_aoe': 'App1'}, id=self.hostA)
 
-    @skipOnCpuSet
     def test_multiple_aoe_request(self):
         """
         Test jobs with multiple similar/various aoe request in subchunks.
@@ -281,7 +270,6 @@ e.reject()
 
         j = Job(TEST_USER1)
         j.set_attributes(a1)
-        j.set_sleep_time(5)
         jid = None
         try:
             jid = self.server.submit(j)
@@ -304,7 +292,6 @@ e.reject()
                         'when it should have succeeded')
         self.logger.info("Job submission succeeded, as expected")
 
-    @skipOnCpuSet
     def test_provisioning_with_placement(self):
         """
         Test provisioining job with various placement options.
@@ -317,7 +304,6 @@ e.reject()
         j.set_attributes({'Resource_List.select':
                           '1:ncpus=1:aoe=App1+1:ncpus=12',
                           'Resource_List.place': 'pack'})
-        j.set_sleep_time(5)
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'Q',
                                  ATTR_comment:
@@ -331,7 +317,6 @@ e.reject()
         j.set_attributes({'Resource_List.select':
                           '1:ncpus=1:aoe=App1+1:ncpus=1',
                           'Resource_List.place': 'pack'})
-        j.set_sleep_time(5)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
         self.server.expect(JOB, ATTR_execvnode, id=jid, op=SET)
@@ -353,7 +338,6 @@ e.reject()
         j.set_attributes({'Resource_List.select':
                           '1:ncpus=1:aoe=App1+1:ncpus=1',
                           'Resource_List.place': 'scatter'})
-        j.set_sleep_time(5)
         jid = self.server.submit(j)
         self.server.expect(JOB, ATTR_execvnode, id=jid, op=SET)
         nodes = j.get_vnodes(j.exec_vnode)
@@ -366,7 +350,6 @@ e.reject()
         # Current aoe on momA, should be set to the requested aoe in job.
         self.server.expect(NODE, {'current_aoe': 'App1'}, id=self.hostA)
 
-    @skipOnCpuSet
     def test_sched_provisioning_response_with_runjob(self):
         """
         Test that if one provisioning job fails to run then scheduler
@@ -405,7 +388,6 @@ e.reject()
         self.server.log_match(job1_msg)
         self.server.log_match(job2_msg)
 
-    @skipOnCpuSet
     def test_sched_provisioning_response(self):
         """
         Test that if scheduler could not find node solution for one
@@ -451,14 +433,12 @@ e.reject()
         job_state = self.server.status(JOB, id=jid3)
         self.assertEqual(job_state[0]['exec_vnode'], solution)
 
-    @skipOnCpuSet
     def test_multinode_provisioning(self):
         """
         Test the effect of max_concurrent_provision
         If set to 1 and job requests a 4 node provision, the provision should
         occur 1 node at a time
         """
-
         # Setup provisioning hook with smaller alarm.
         a = {'event': 'provision', 'enabled': 'True', 'alarm': '5'}
         rv = self.server.create_import_hook(
@@ -470,15 +450,16 @@ e.reject()
              'current_aoe': 'App1',
              'provision_enable': 'True',
              'resources_available.ncpus': 1}
-        rv = self.server.create_vnodes('vnode', a, 4, self.momA,
-                                       sharednode=False)
+        rv = self.momA.create_vnodes(a, 4,
+                                     sharednode=False)
         self.assertTrue(rv)
         j = Job(TEST_USER,
                 attrs={'Resource_List.select': '4:ncpus=1:aoe=osimage1'})
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'R',
-                           'substate': 71}, attrop=PTL_AND, id=jid)
-        exp_msg = "Provisioning vnode vnode\[[0-3]\] with AOE osimage1 started"
+                                 'substate': 71}, attrop=PTL_AND, id=jid)
+        exp_msg = "Provisioning vnode " + self.momA.shortname
+        exp_msg += "\[[0-3]\] with AOE osimage1 started"
         logs = self.server.log_match(msg=exp_msg, regexp=True, allmatch=True)
 
         # since max_concurrent_provision is 1, there should be only one

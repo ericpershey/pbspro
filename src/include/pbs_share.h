@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -46,6 +46,10 @@
 
 #ifndef PBS_SHARE
 #define PBS_SHARE
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "pbs_ifl.h"
 
@@ -119,4 +123,7 @@ struct preempt_ordering
 	enum preempt_method order[PREEMPT_METHOD_HIGH];/* the order to preempt jobs */
 };
 
+#ifdef __cplusplus
+}
+#endif
 #endif

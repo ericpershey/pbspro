@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -254,7 +254,7 @@ svr_addleaf(void *ctx, enum lim_keytypes kt, char *fulent, char *entity,
  */
 
 static int
-internal_decode_entlim(struct attribute *patr,  char *name, char *rn,
+internal_decode_entlim(attribute *patr,  char *name, char *rn,
 	struct resource_def *prdef, char *val)
 {
 	void		*petree;
@@ -285,7 +285,7 @@ internal_decode_entlim(struct attribute *patr,  char *name, char *rn,
 		return (PBSE_BADATVAL);
 	}
 	patr->at_val.at_enty.ae_tree = petree;
-	patr->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(patr);
 
 	return (0);
 }
@@ -311,7 +311,7 @@ internal_decode_entlim(struct attribute *patr,  char *name, char *rn,
  */
 
 int
-decode_entlim(struct attribute *patr, char *name, char *rescn, char *val)
+decode_entlim(attribute *patr, char *name, char *rescn, char *val)
 {
 
 	if (patr == NULL)
@@ -344,7 +344,7 @@ decode_entlim(struct attribute *patr, char *name, char *rescn, char *val)
  */
 
 int
-decode_entlim_res(struct attribute *patr, char *name, char *rescn, char *val)
+decode_entlim_res(attribute *patr, char *name, char *rescn, char *val)
 {
 	resource_def	*prdef;
 
@@ -889,7 +889,7 @@ set_entlim(attribute *old, attribute *new, enum batch_op op)
 			return (PBSE_INTERNAL);
 	}
 
-	old->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(old);
 	return (0);
 }
 

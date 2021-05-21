@@ -1,6 +1,6 @@
 #!/bin/bash -x
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -47,32 +47,33 @@ groupadd -g 1906 tstgrp06
 groupadd -g 1907 tstgrp07
 groupadd -g 901 pbs
 groupadd -g 1146 agt
-useradd -K UMASK=0022 -m -s /bin/bash -u 4357 -g tstgrp00 -G tstgrp00 pbsadmin
-useradd -K UMASK=0022 -m -s /bin/bash -u 9000 -g tstgrp00 -G tstgrp00 pbsbuild
-useradd -K UMASK=0022 -m -s /bin/bash -u 884 -g tstgrp00 -G tstgrp00 pbsdata
-useradd -K UMASK=0022 -m -s /bin/bash -u 4367 -g tstgrp00 -G tstgrp00 pbsmgr
-useradd -K UMASK=0022 -m -s /bin/bash -u 4373 -g tstgrp00 -G tstgrp00 pbsnonroot
-useradd -K UMASK=0022 -m -s /bin/bash -u 4356 -g tstgrp00 -G tstgrp00 pbsoper
-useradd -K UMASK=0022 -m -s /bin/bash -u 4358 -g tstgrp00 -G tstgrp00 pbsother
-useradd -K UMASK=0022 -m -s /bin/bash -u 4371 -g tstgrp00 -G tstgrp00 pbsroot
-useradd -K UMASK=0022 -m -s /bin/bash -u 4355 -g tstgrp00 -G tstgrp02,tstgrp00 pbstest
-useradd -K UMASK=0022 -m -s /bin/bash -u 4359 -g tstgrp00 -G tstgrp00 pbsuser
-useradd -K UMASK=0022 -m -s /bin/bash -u 4361 -g tstgrp00 -G tstgrp01,tstgrp02,tstgrp00 pbsuser1
-useradd -K UMASK=0022 -m -s /bin/bash -u 4362 -g tstgrp00 -G tstgrp01,tstgrp03,tstgrp00 pbsuser2
-useradd -K UMASK=0022 -m -s /bin/bash -u 4363 -g tstgrp00 -G tstgrp01,tstgrp04,tstgrp00 pbsuser3
-useradd -K UMASK=0022 -m -s /bin/bash -u 4364 -g tstgrp01 -G tstgrp04,tstgrp05,tstgrp01 pbsuser4
-useradd -K UMASK=0022 -m -s /bin/bash -u 4365 -g tstgrp02 -G tstgrp04,tstgrp06,tstgrp02 pbsuser5
-useradd -K UMASK=0022 -m -s /bin/bash -u 4366 -g tstgrp03 -G tstgrp04,tstgrp07,tstgrp03 pbsuser6
-useradd -K UMASK=0022 -m -s /bin/bash -u 4368 -g tstgrp01 -G tstgrp01 pbsuser7
-useradd -K UMASK=0022 -m -s /bin/bash -u 11000 -g tstgrp00 -G tstgrp00 tstusr00
-useradd -K UMASK=0022 -m -s /bin/bash -u 11001 -g tstgrp00 -G tstgrp00 tstusr01
+useradd -m -s /bin/bash -u 4357 -g tstgrp00 -G tstgrp00 pbsadmin
+useradd -m -s /bin/bash -u 9000 -g tstgrp00 -G tstgrp00 pbsbuild
+useradd -m -s /bin/bash -u 884 -g tstgrp00 -G tstgrp00 pbsdata
+useradd -m -s /bin/bash -u 4367 -g tstgrp00 -G tstgrp00 pbsmgr
+useradd -m -s /bin/bash -u 4373 -g tstgrp00 -G tstgrp00 pbsnonroot
+useradd -m -s /bin/bash -u 4356 -g tstgrp00 -G tstgrp00 pbsoper
+useradd -m -s /bin/bash -u 4358 -g tstgrp00 -G tstgrp00 pbsother
+useradd -m -s /bin/bash -u 4371 -g tstgrp00 -G tstgrp00 pbsroot
+useradd -m -s /bin/bash -u 4355 -g tstgrp00 -G tstgrp02,tstgrp00 pbstest
+useradd -m -s /bin/bash -u 4359 -g tstgrp00 -G tstgrp00 pbsuser
+useradd -m -s /bin/bash -u 4361 -g tstgrp00 -G tstgrp01,tstgrp02,tstgrp00 pbsuser1
+useradd -m -s /bin/bash -u 4362 -g tstgrp00 -G tstgrp01,tstgrp03,tstgrp00 pbsuser2
+useradd -m -s /bin/bash -u 4363 -g tstgrp00 -G tstgrp01,tstgrp04,tstgrp00 pbsuser3
+useradd -m -s /bin/bash -u 4364 -g tstgrp01 -G tstgrp04,tstgrp05,tstgrp01 pbsuser4
+useradd -m -s /bin/bash -u 4365 -g tstgrp02 -G tstgrp04,tstgrp06,tstgrp02 pbsuser5
+useradd -m -s /bin/bash -u 4366 -g tstgrp03 -G tstgrp04,tstgrp07,tstgrp03 pbsuser6
+useradd -m -s /bin/bash -u 4368 -g tstgrp01 -G tstgrp01 pbsuser7
+useradd -m -s /bin/bash -u 11000 -g tstgrp00 -G tstgrp00 tstusr00
+useradd -m -s /bin/bash -u 11001 -g tstgrp00 -G tstgrp00 tstusr01
+chmod g+x,o+x /home/*
 
 . /etc/os-release
 
 if [ "x${ID}" == "xcentos" -a "x${VERSION_ID}" == "x8" ]; then
   dnf -y clean all
   dnf -y install 'dnf-command(config-manager)'
-  dnf -y config-manager --set-enabled PowerTools
+  dnf -y config-manager --set-enabled powertools
   dnf -y install epel-release
   dnf -y update
   dnf -y install git gcc make m4 autoconf automake libtool rpm-build rpmdevtools \
@@ -81,7 +82,7 @@ if [ "x${ID}" == "xcentos" -a "x${VERSION_ID}" == "x8" ]; then
     ncurses-devel postgresql-devel python3-devel tcl-devel tk-devel swig \
     expat-devel openssl-devel libXext libXft expat libedit glibc-static \
     postgresql-server python3 tcl tk libical perl tar sendmail sudo perl-Env \
-    perl-Switch gcc-c++ doxygen elfutils bison flex \
+    perl-Switch gcc-c++ doxygen elfutils bison flex glibc-langpack-en \
     which net-tools man-db time csh lsof tzdata file \
     expect perl-App-cpanminus cpan initscripts \
     systemd systemd-sysv libcap rsyslog \
@@ -109,7 +110,7 @@ elif [ "x${ID}" == "xcentos" -a "x${VERSION_ID}" == "x7" ]; then
     expat-devel openssl-devel libXext libXft expat libedit glibc-static \
     postgresql-server python3 tcl tk libical perl tar sendmail sudo perl-Env \
     perl-Switch gcc-c++ doxygen elfutils bison flex postgresql-contrib \
-    which net-tools man-db time csh lsof tzdata file \
+    which net-tools man-db time csh lsof tzdata file glibc-langpack-en \
     expect perl-App-cpanminus cpan \
     systemd systemd-sysv libcap rsyslog \
     openssh-clients openssh-server valgrind-devel valgrind libasan pam-devel \
@@ -222,14 +223,13 @@ chmod 0600 ~/.ssh/id_rsa
 chmod 0644 ~/.ssh/id_rsa.pub
 cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
 chmod 0600 ~/.ssh/authorized_keys
-echo 'Host *' >>/etc/ssh/ssh_config
-echo '  StrictHostKeyChecking no' >>/etc/ssh/ssh_config
-echo 'PermitRootLogin yes' >>/etc/ssh/sshd_config
 echo 'root:pbs' | chpasswd
 cat /etc/profile.d/0container-env-setup.sh >>/root/.profile
 cat /etc/profile.d/0container-env-setup.sh >>/root/.bash_profile
 cat /etc/profile.d/0container-env-setup.sh >>/root/.bashrc
 for user in $(awk -F: '/^(pbs|tst)/ {print $1}' /etc/passwd); do
+  rm -rf /home/${user}/.ssh
+  cp -rfp ~/.ssh /home/${user}/
   chown -R ${user}: /home/${user}/.ssh
   echo "${user}:pbs" | chpasswd
   cat /etc/profile.d/0container-env-setup.sh >>/home/${user}/.profile
@@ -237,6 +237,16 @@ for user in $(awk -F: '/^(pbs|tst)/ {print $1}' /etc/passwd); do
   cat /etc/profile.d/0container-env-setup.sh >>/home/${user}/.bashrc
   chown ${user}: /home/${user}/.bashrc /home/${user}/.profile /home/${user}/.bash_profile
 done
+echo 'Host *' >>/etc/ssh/ssh_config
+echo '  StrictHostKeyChecking no' >>/etc/ssh/ssh_config
+echo '  ConnectionAttempts 3' >>/etc/ssh/ssh_config
+echo '  IdentityFile ~/.ssh/id_rsa' >>/etc/ssh/ssh_config
+echo '  PreferredAuthentications publickey,password' >>/etc/ssh/ssh_config
+echo 'PermitRootLogin yes' >>/etc/ssh/sshd_config
+echo 'UseDNS no' >>/etc/ssh/sshd_config
+sed -i 's/AcceptEnv/# AcceptEnv/g' /etc/ssh/sshd_config
+ssh-keygen -A
+rm -f /var/run/*.pid /run/nologin
 
 rm -rf ~/.cache ~/.cpanm /var/{log,cache} /tmp /var/tmp /run/*.pid /var/run/*.pid
 mkdir -p --mode=0755 /var/{log,cache}

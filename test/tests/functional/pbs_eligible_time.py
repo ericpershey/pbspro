@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -95,7 +95,6 @@ class TestEligibleTime(TestFunctional):
         # lag on some slow systems, add a little leeway.
         self.server.expect(JOB, {'eligible_time': 10}, op=LT)
 
-    @skipOnCpuSet
     def test_job_array(self):
         """
         Test that a job array switches from accruing eligible time
@@ -174,7 +173,6 @@ class TestEligibleTime(TestFunctional):
             else:
                 raise PtlLogMatchError(rc=1, rv=False, msg=e.msg)
 
-    @skipOnCpuSet
     def test_after_depend(self):
         """
         Make sure jobs accrue eligible time (or not) approprately with an

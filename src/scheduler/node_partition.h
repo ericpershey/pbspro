@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -39,9 +39,6 @@
 
 #ifndef	_NODE_PARTITION_H
 #define _NODE_PARTITION_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include "data_types.h"
 #include <pbs_ifl.h>
@@ -122,7 +119,7 @@ node_partition **copy_node_partition_ptr_array(node_partition **onp_arr, node_pa
  *
  *
  */
-node_partition **create_node_partitions(status *policy, node_info **nodes, char **resnames,
+node_partition **create_node_partitions(status *policy, node_info **nodes, const char * const *resnames,
 					unsigned int flags, int *num_parts);
 
 /*
@@ -198,7 +195,7 @@ find_np_cache(np_cache **npc_arr,
  */
 np_cache *
 find_alloc_np_cache(status *policy, np_cache ***pnpc_arr,
-	char **resnames, node_info **ninfo_arr,
+	const char * const *resnames, node_info **ninfo_arr,
 	int (*sort_func)(const void *, const void *));
 /*
  *	add_np_cache - add an np_cache to an array
@@ -217,7 +214,7 @@ int resresv_can_fit_nodepart(status *policy, node_partition *np, resource_resv *
  *				   nodes, rather than from a placement
  *				   set resource=value
  */
-node_partition *create_specific_nodepart(status *policy, char *name, node_info **nodes, int flags );
+node_partition *create_specific_nodepart(status *policy, const char *name, node_info **nodes, int flags );
 /* create the placement sets for the server and queues */
 int create_placement_sets(status *policy, server_info *sinfo);
 
@@ -227,7 +224,15 @@ void update_all_nodepart(status *policy, server_info *sinfo, unsigned int flags)
 /* Sort all placement sets (server's psets, queue's psets, and hostsets) */
 void sort_all_nodepart(status *policy, server_info *sinfo);
 
-#ifdef	__cplusplus
-}
-#endif
+/*
+ * update the node buckets associated with a node
+ */
+void update_buckets_for_node(node_bucket **bkts, node_info *ninfo);
+
+/*
+ * update the node buckets associated with a node partition on
+ * job/resv run/end
+ */
+void update_buckets_for_node_array(node_bucket **bkts, node_info **ninfo_arr);
+
 #endif	/* _NODE_PARTITION_H */

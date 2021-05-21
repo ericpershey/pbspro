@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -62,8 +62,7 @@ class StandingResvQuasihang(TestPerformance):
             self.tzone = 'Asia/Kolkata'
 
         a = {'resources_available.ncpus': 2}
-        self.server.create_vnodes('vnode', a, num=2000, mom=self.mom,
-                                  usenatvnode=True)
+        self.mom.create_vnodes(a, num=2000, usenatvnode=True)
 
     @timeout(6000)
     def test_time_for_stat_after_mom_hup(self):

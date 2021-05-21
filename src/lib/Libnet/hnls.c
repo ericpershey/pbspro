@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -37,6 +37,8 @@
  * subject to Altair's trademark licensing policies.
  */
 
+#include <pbs_config.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,14 +58,9 @@
 
 #elif defined(WIN32)
 
-#include <Winsock2.h>
-#include <Ws2tcpip.h>
-#include <Iphlpapi.h>
-
 #pragma comment(lib,"Ws2_32.lib")
 #pragma comment(lib,"Iphlpapi.lib")
-#include <windows.h>
-#include "win.h"
+
 
 #else
 
@@ -75,7 +72,6 @@
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <stropts.h>
 #include <netdb.h>
 
 #endif
@@ -298,8 +294,7 @@ get_if_info(char *msg)
 		if (!head)
 			head = curr;
 		get_sa_family(listp->ifa_addr, curr->iffamily);
-		strncpy(curr->ifname, listp->ifa_name, IFNAME_MAX);
-		curr->ifname[IFNAME_MAX - 1] = '\0';
+		pbs_strncpy(curr->ifname, listp->ifa_name, IFNAME_MAX);
 		/* Count the hostname entries and allocate space */
 		for (c = 0; hostnames[c]; c++)
 			;

@@ -1,4 +1,4 @@
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -78,41 +78,9 @@ by_queue: True		non_prime
 #	"less deserving" jobs provided that they do not delay the start time
 #	of the "most deserving" job.
 #
-#       PRIME OPTION
-
-strict_ordering: false	ALL
-
-#### STARVING JOB OPTIONS
-
-#
-# help_starving_jobs
-#
-#	NOTE: The help_starving_jobs option is deprecated and will likely go away in a future release.
-#	      Use job_sort_formula specifying eligible_time to establish equivalent behavior.
-#
-#	When this option is turned on, jobs which have been waiting a long
-#	time are considered to be "starving".  The default amount of time for
-#	a job to wait before it is considered starving is 24 hours, but you can
-#	specify the minimum time in the max_starve scheduler parameter.  Note
-#	that unless you use backfilling, this option can result in significant
-#	idle time while starving jobs wait for resources.
-#
 #	PRIME OPTION
 
-help_starving_jobs:	true	ALL
-
-#
-# max_starve
-#	Maximum  duration before a job is considered starving.
-#
-#  	Examples:
-#  	max_starve: 24:00:00
-#  	This means that jobs waiting/queued for 24 hours will be given higher
-#  	priority to run. NOTE: help_starving_jobs must be enabled.
-#
-#	NO PRIME OPTION
-
-max_starve: 24:00:00
+strict_ordering: false	ALL
 
 #### PRIMETIME OPTIONS:
 
@@ -134,7 +102,7 @@ backfill_prime:	false	ALL
 #
 #	Avoid backfill on queues that are not defined as primetime
 #	or nonprimetime.
-#	NOTE: This is not related to backfill for starving jobs.
+#	NOTE: This is not related to backfill for strict_ordering.
 #
 #	NO PRIME OPTION
 
@@ -274,17 +242,6 @@ provision_policy: "aggressive_provision"
 resources: "ncpus, mem, arch, host, vnode, aoe, eoe"
 
 #
-# load_balancing
-#	NOTE: The load_balancing option is deprecated and will likely go away in a future release.
-#             Use exechost_periodic hook to set the resource and use node_sort_key.
-#	Load balance between timesharing nodes
-#
-#	PRIME OPTION
-#
-#
-# load_balancing: false	ALL
-
-#
 # smp_cluster_dist
 #
 #	This option allows you to decide how to distribute jobs to all the
@@ -293,7 +250,6 @@ resources: "ncpus, mem, arch, host, vnode, aoe, eoe"
 #	pack 	    - pack as many jobs onto a node that will fit before
 #		      running on another node
 #	round_robin - run one job on each node in a cycle
-#	lowest_load - run the job on the lowest loaded node
 #
 #	PRIME OPTION
 

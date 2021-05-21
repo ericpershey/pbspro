@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -59,7 +59,6 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         a = {'job_history_enable': 'True'}
         self.server.manager(MGR_CMD_SET, SERVER, a)
 
-    @skipOnCpuSet
     def test_filler_job_higher_walltime(self):
         """
         This test confirms that the filler job does not run if it conflicts
@@ -90,7 +89,6 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         self.scheduler.log_match(jid3 + logmsg)
         self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid3)
 
-    @skipOnCpuSet
     def test_suspended_job_ded_time_calendared(self):
         """
         This test confirms that a suspended job becomes top job when unable to
@@ -106,8 +104,9 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         self.scheduler.add_dedicated_time(start=start, end=end)
 
         j1 = Job(TEST_USER)
+        jtime = int(time.time())
         j1.set_attributes({ATTR_l + '.select': '1:ncpus=2',
-                           ATTR_l + '.walltime': start-int(time.time())-10})
+                           ATTR_l + '.walltime': start - jtime - 10})
         jid1 = self.server.submit(j1)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
 
@@ -131,7 +130,6 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
 
         self.assertGreaterEqual(est_start_time, end)
 
-    @skipOnCpuSet
     def test_filler_job_lesser_walltime(self):
         """
         This test confirms that the filler job does run when the walltime does
@@ -179,7 +177,6 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         logmsg = ";Job would conflict with reservation or top job"
         self.scheduler.log_match(jid4 + logmsg)
 
-    @skipOnCpuSet
     def test_filler_job_suspend(self):
         """
         This test confirms that the filler gets suspended by a high
@@ -190,12 +187,12 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
 
         j1 = Job(TEST_USER)
         j1.set_attributes({ATTR_l + '.select': '1:ncpus=4',
-                           ATTR_l + '.walltime': 30})
+                           ATTR_l + '.walltime': 90})
         jid1 = self.server.submit(j1)
 
         j2 = Job(TEST_USER)
         j2.set_attributes({ATTR_l + '.select': '1:ncpus=2',
-                           ATTR_l + '.walltime': 18})
+                           ATTR_l + '.walltime': 30})
         jid2 = self.server.submit(j2)
 
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
@@ -204,7 +201,7 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         j3 = Job(TEST_USER)
         j3.set_attributes({ATTR_l + '.select': '1:ncpus=2',
                            ATTR_q: 'expressq',
-                           ATTR_l + '.walltime': 20})
+                           ATTR_l + '.walltime': 50})
         jid3 = self.server.submit(j3)
 
         self.server.expect(JOB, {ATTR_state: 'S'}, id=jid1)
@@ -212,9 +209,10 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid3)
 
         j4 = Job(TEST_USER)
+        j4.set_sleep_time(30)
         j4.set_attributes({ATTR_l + '.select': '1:ncpus=2',
                            ATTR_q: 'expressq',
-                           ATTR_l + '.walltime': 5})
+                           ATTR_l + '.walltime': 30})
         jid4 = self.server.submit(j4)
 
         self.server.expect(JOB, {ATTR_state: 'S'}, id=jid1)
@@ -240,7 +238,6 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
                            offset=30, interval=2)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid2)
 
-    @skipOnCpuSet
     def test_preempted_job_server_soft_limits(self):
         """
         This test confirms that a preempted job remains suspended if it has
@@ -287,7 +284,6 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
                            offset=30, interval=2)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
 
-    @skipOnCpuSet
     def test_preempted_job_queue_soft_limits(self):
         """
         This test confirms that a preempted job remains suspended if it has
@@ -334,7 +330,6 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
                            offset=30, interval=2)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
 
-    @skipOnCpuSet
     def test_filler_jobs_with_no_walltime(self):
         """
         This test confirms that filler jobs with no walltime remain queued
@@ -369,7 +364,6 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid3)
         self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid4)
 
-    @skipOnCpuSet
     def test_filler_stf(self):
         """
         Test that confirms filler shrink to fit jobs will shrink correctly

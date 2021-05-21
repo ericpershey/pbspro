@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -91,6 +91,8 @@
 #include "pbs_sched.h"
 #include "libutil.h"
 
+#include "liblicense.h"
+#include "ifl_internal.h"
 
 /* Global Data Items: */
 
@@ -106,6 +108,8 @@ extern char	    *msg_init_norerun;
 extern int resc_access_perm;
 extern long svr_history_enable;
 extern pbs_list_head svr_runjob_hooks;
+
+extern pbs_license_counts license_counts;
 
 /* Extern Functions */
 
@@ -124,78 +128,80 @@ static int bad;
 static int status_que(pbs_queue *, struct batch_request *, pbs_list_head *);
 static int status_node(struct pbsnode *, struct batch_request *, pbs_list_head *);
 static int status_resv(resc_resv *, struct batch_request *, pbs_list_head *);
+
 /**
  * @brief
- * 		Support function for req_stat_job() and stat_a_jobidname().
- * 		Builds status reply for normal job, Array job, and if requested all of the
- * 		subjobs of the array (but not a single or range of subjobs).
- * @par
- * 		Note,  if dohistjobs is not set and the job is history, no status or error
- * 		is returned.  If an error return is needed, the caller must make that check.
+ * 	Support function for req_stat_job() and stat_a_jobidname().
+ * 	Builds status reply for normal job, Array job, and if requested all of the
+ * 	subjobs of the array (but not a single or range of subjobs).
  *
- * @param[in,out]	preq	-	pointer to the stat job batch request, reply updated
- * @param[in]	pjob	-	pointer to the job to be statused
- * @param[in]	dohistjobs	-	flag to include job if it is a history job
- * @param[in]	dosubjobs	-	flag to expand a Array job to include all subjobs
+ * @note
+ * 	If dohistjobs is not set and the job is history, no status or error
+ * 	is returned. If an error return is needed, the caller must make that check.
  *
- * @return	int
- * @retval	PBSE_NONE (0)	: no error
- * @retval	non-zero	: PBS error code to return to client
+ * @param[in,out] preq       - pointer to the stat job batch request, reply updated
+ * @param[in]     pjob       - pointer to the job to be statused
+ * @param[in]     dohistjobs - flag to include job if it is a history job
+ * @param[in]     dosubjobs  - flag to expand a Array job to include all subjobs
+ *
+ * @return int
+ * @retval PBSE_NONE  - no error
+ * @retval !PBSE_NONE - PBS error code to return to client
  */
 static int
 do_stat_of_a_job(struct batch_request *preq, job *pjob, int dohistjobs, int dosubjobs)
 {
-	int       indx;
+	int i;
 	svrattrl *pal;
-	int       rc;
+	int rc;
 	struct batch_reply *preply = &preq->rq_reply;
 
 	/* if history job and not asking for them, just return */
-	if ((!dohistjobs) &&
-			((pjob->ji_qs.ji_state == JOB_STATE_FINISHED) ||
-			(pjob->ji_qs.ji_state == JOB_STATE_MOVED))) {
-		return (PBSE_NONE);	/* just return nothing */
+	if (!dohistjobs
+			&& (check_job_state(pjob, JOB_STATE_LTR_FINISHED)
+					|| check_job_state(pjob, JOB_STATE_LTR_MOVED))) {
+		return (PBSE_NONE); /* just return nothing */
 	}
 
 	if ((pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) == 0) {
-		/* this is not a subjob, go ahead and  */
-		/* build the status reply for this job */
-
-		pal = (svrattrl *)GET_NEXT(preq->rq_ind.rq_status.rq_attr);
-
-		rc = status_job(pjob, preq, pal, &preply->brp_un.brp_status, &bad);
-		if (dosubjobs && (pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) &&
-			((rc == PBSE_NONE) || (rc != PBSE_PERM)) && pjob->ji_ajtrk != NULL) {
-
-		    for (indx=0; indx<pjob->ji_ajtrk->tkm_ct; ++indx) {
-			 rc = status_subjob(pjob, preq, pal, indx, &preply->brp_un.brp_status, &bad);
-			    if (rc && (rc != PBSE_PERM))
-				break;
-		    }
+		/* this is not a subjob, go ahead and build the status reply for this job */
+		pal = (svrattrl *) GET_NEXT(preq->rq_ind.rq_status.rq_attr);
+		rc = status_job(pjob, preq, pal, &preply->brp_un.brp_status, &bad, dosubjobs);
+		if (dosubjobs
+		    && (pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob)
+		    && (rc == PBSE_NONE || rc != PBSE_PERM)
+		    && pjob->ji_ajinfo != NULL
+		    && pjob->ji_ajinfo->tkm_ct != pjob->ji_ajinfo->tkm_subjsct[JOB_STATE_QUEUED]) {
+			for (i = pjob->ji_ajinfo->tkm_start; i <= pjob->ji_ajinfo->tkm_end; i += pjob->ji_ajinfo->tkm_step) {
+				if (range_contains(pjob->ji_ajinfo->trm_quelist, i))
+					continue;
+				rc = status_subjob(pjob, preq, pal, i, &preply->brp_un.brp_status, &bad, 1);
+				if (rc && rc != PBSE_PERM)
+					break;
+			}
 		}
-		if (rc && (rc != PBSE_PERM)) {
+		if (rc && rc != PBSE_PERM)
 			return (rc);
-		}
 	}
-	return (PBSE_NONE);
+	return PBSE_NONE;
 }
 
 /**
  * @brief
- * 		Support function for req_stat_job().
- * 		Builds status reply for a single job id, which may be: a normal job,
- * 		an Array job, a single subjob or a range of subjobs.
- * 		Finds the job structure for the job id and calls either do_stat_of_a_job()
- * 		or status_subjob() to build that actual status reply.
+ * 	Support function for req_stat_job().
+ * 	Builds status reply for a single job id, which may be: a normal job,
+ * 	an Array job, a single subjob or a range of subjobs.
+ * 	Finds the job structure for the job id and calls either do_stat_of_a_job()
+ * 	or status_subjob() to build that actual status reply.
  *
- * @param[in,out]	preq	-	pointer to the stat job batch request, reply updated
- * @param[in]	name	-	job id to be statused
- * @param[in]	dohistjobs	-	flag to include job if it is a history job
- * @param[in]	dosubjobs	-	flag to expand a Array job to include all subjobs
+ * @param[in,out] preq       - pointer to the stat job batch request, reply updated
+ * @param[in]     name       - job id to be statused
+ * @param[in]     dohistjobs - flag to include job if it is a history job
+ * @param[in]     dosubjobs  - flag to expand a Array job to include all subjobs
  *
- * @return	int
- * @retval	PBSE_NONE (0)	: no error
- * @retval	non-zero	: PBS error code to return to client
+ * @return int
+ * @retval PBSE_NONE  - no error
+ * @retval !PBSE_NONE - PBS error code to return to client
  */
 static int
 stat_a_jobidname(struct batch_request *preq, char *name, int dohistjobs, int dosubjobs)
@@ -208,100 +214,98 @@ stat_a_jobidname(struct batch_request *preq, char *name, int dohistjobs, int dos
 	struct batch_reply *preply = &preq->rq_reply;
 	svrattrl *pal;
 
-	if ((i = is_job_array(name)) == IS_ARRAY_Single) {
+	i = is_job_array(name);
+	if (i == IS_ARRAY_Single) {
 		int idx;
 
 		pjob = find_arrayparent(name);
-		if (pjob == NULL) {
-			return (PBSE_UNKJOBID);
-		} else if ((!dohistjobs) && (rc = svr_chk_histjob(pjob))) {
-			return (rc);
-		}
-		idx = subjob_index_to_offset(pjob, get_index_from_jid(name));
+		if (pjob == NULL)
+			return PBSE_UNKJOBID;
+		else if (!dohistjobs && (rc = svr_chk_histjob(pjob)))
+			return rc;
+		idx = get_index_from_jid(name);
 		if (idx != -1) {
 			pal = (svrattrl *) GET_NEXT(preq->rq_ind.rq_status.rq_attr);
-			rc = status_subjob(pjob, preq, pal, idx, &preply->brp_un.brp_status, &bad);
-		} else {
+			rc = status_subjob(pjob, preq, pal, idx, &preply->brp_un.brp_status, &bad, 0);
+		} else
 			rc = PBSE_UNKJOBID;
-		}
-		return (rc); /* no job still needs to be stat-ed */
+		return rc; /* no job still needs to be stat-ed */
 
 	} else if ((i == IS_ARRAY_NO) || (i == IS_ARRAY_ArrayJob)) {
 		pjob = find_job(name);
-		if (pjob == NULL) {
-			return (PBSE_UNKJOBID);
-		} else if ((!dohistjobs) && (rc = svr_chk_histjob(pjob))) {
-			return (rc);
-		}
-		return (do_stat_of_a_job(preq, pjob, dohistjobs, dosubjobs));
+		if (pjob == NULL)
+			return PBSE_UNKJOBID;
+		else if (!dohistjobs && (rc = svr_chk_histjob(pjob)) != PBSE_NONE)
+			return rc;
+		return do_stat_of_a_job(preq, pjob, dohistjobs, dosubjobs);
 	} else {
 		/* range of sub jobs */
-		range = get_index_from_jid(name);
-		if (range == NULL) {
-			return (PBSE_IVALREQ);
-		}
+		range = get_range_from_jid(name);
+		if (range == NULL)
+			return PBSE_IVALREQ;
 		pjob = find_arrayparent(name);
-		if (pjob == NULL) {
-			return (PBSE_UNKJOBID);
-		} else if ((!dohistjobs) && (rc = svr_chk_histjob(pjob))) {
-			return (rc);
-		}
+		if (pjob == NULL)
+			return PBSE_UNKJOBID;
+		else if (!dohistjobs && (rc = svr_chk_histjob(pjob)) != PBSE_NONE)
+			return rc;
 		pal = (svrattrl *) GET_NEXT(preq->rq_ind.rq_status.rq_attr);
 		while (1) {
 			int start;
 			int end;
 			int step;
-			int count;
+			int unused;
 
-			if ((i = parse_subjob_index(range, &pc, &start, &end, &step, &count)) == -1) {
-				return (PBSE_IVALREQ);
-			} else if (i == 1)
+			if ((i = parse_subjob_index(range, &pc, &start, &end, &step, &unused)) == -1)
+				return PBSE_IVALREQ;
+			else if (i == 1)
 				break;
 			for (i = start; i <= end; i += step) {
-				int idx = numindex_to_offset(pjob, i);
-				if (idx == -1)
-					continue;
-				rc = status_subjob(pjob, preq, pal, idx, &preply->brp_un.brp_status, &bad);
-				if (rc && (rc != PBSE_PERM))
-					return (rc);
+				if (preply->brp_count >= MAX_JOBS_PER_REPLY) {
+					rc = reply_send_status_part(preq);
+					if (rc != PBSE_NONE)
+						return rc;
+				}
+				rc = status_subjob(pjob, preq, pal, i, &preply->brp_un.brp_status, &bad, 0);
+				if (rc && rc != PBSE_PERM)
+					return rc;
 			}
 			range = pc;
 		}
 		/* stat-ed the range, no more to stat for this id */
-		return (PBSE_NONE);
+		return PBSE_NONE;
 	}
 }
 
 /**
  * @brief
- * 		Service the Status Job Request
- * @par
- * 		This request processes the request for status of a single job or
- * 		the set of jobs at a destination.  It uses the currently known data
- * 		for resources_used in the case of a running job.  If Mom for that
- * 		job is down, the data is likely stale.
- * @par
- * 		The requested object may be a job id (either a single regular job, an Array
- * 		job, a subjob or a range of subjobs), a comma separated list of the above,
- * 		a queue name or null (or @...) for all jobs in the Server.
+ * 	Service the Status Job Request
  *
- * @param[in,out]	preq	-	pointer to the stat job batch request, reply updated
+ * 	This processes the request for status of a single job or
+ * 	the set of jobs at a destination.  It uses the currently known data
+ * 	for resources_used in the case of a running job.  If Mom for that
+ * 	job is down, the data is likely stale.
+ * 	The requested object may be a job id (either a single regular job, an Array
+ * 	job, a subjob or a range of subjobs), a comma separated list of the above,
+ * 	a queue name or null (or @...) for all jobs in the Server.
  *
- * @return	void
+ * @param[in/out] preq - pointer to the stat job batch request, reply updated
+ *
+ * @return void
+ *
  */
-
-void req_stat_job(struct batch_request *preq)
+void
+req_stat_job(struct batch_request *preq)
 {
-	int		    at_least_one_success = 0;
-	int		    dosubjobs = 0;
-	int		    dohistjobs = 0;
-	char		   *name;
-	job		   *pjob = NULL;
-	pbs_queue	   *pque = NULL;
+	int at_least_one_success = 0;
+	int dosubjobs = 0;
+	int dohistjobs = 0;
+	char *name;
+	job *pjob = NULL;
+	pbs_queue *pque = NULL;
 	struct batch_reply *preply;
-	int		    rc   = 0;
-	int		    type = 0;
-	char		   *pnxtjid = NULL;
+	int rc = 0;
+	int type = 0;
+	char *pnxtjid = NULL;
 
 	/* check for any extended flag in the batch request. 't' for
 	 * the sub jobs. If 'x' is there, then check if the server is
@@ -310,14 +314,14 @@ void req_stat_job(struct batch_request *preq)
 	 * jobs.
 	 */
 	if (preq->rq_extend) {
-		if (strchr(preq->rq_extend, (int)'t'))
-			dosubjobs = 1;	/* status sub jobs of an Array Job */
-		if (strchr(preq->rq_extend, (int)'x')) {
+		if (strchr(preq->rq_extend, (int) 't'))
+			dosubjobs = 1; /* status sub jobs of an Array Job */
+		if (strchr(preq->rq_extend, (int) 'x')) {
 			if (svr_history_enable == 0) {
 				req_reject(PBSE_JOBHISTNOTSET, 0, preq);
 				return;
 			}
-			dohistjobs = 1;	/* status history jobs */
+			dohistjobs = 1; /* status history jobs */
 		}
 	}
 
@@ -332,13 +336,13 @@ void req_stat_job(struct batch_request *preq)
 
 	name = preq->rq_ind.rq_status.rq_id;
 
-	if ( isdigit((int)*name) ) {
+	if (isdigit((int) *name)) {
 		/* a single job id */
 		type = 1;
 		rc = PBSE_UNKJOBID;
 
-	} else if (isalpha((int)*name) ) {
-		pque = find_queuebyname(name)	/* status jobs in a queue */;
+	} else if (isalpha((int) *name)) {
+		pque = find_queuebyname(name) /* status jobs in a queue */;
 #ifdef NAS /* localmod 075 */
 		if (pque == NULL)
 			pque = find_resvqueuebyname(name);
@@ -348,21 +352,26 @@ void req_stat_job(struct batch_request *preq)
 		else
 			rc = PBSE_UNKQUE;
 
-	} else if ((*name == '\0') || (*name == '@')) {
-		type = 3;	/* status all jobs at server */
-	} else
+	} else if ((*name == '\0') || (*name == '@'))
+		type = 3; /* status all jobs at server */
+	else
 		rc = PBSE_IVALREQ;
 
-	if (type == 0) {		/* is invalid - an error */
+	if (type == 0) { /* is invalid - an error */
 		req_reject(rc, 0, preq);
 		return;
 	}
 	preply = &preq->rq_reply;
 	preply->brp_choice = BATCH_REPLY_CHOICE_Status;
 	CLEAR_HEAD(preply->brp_un.brp_status);
+	preply->brp_count = 0;
+
+	if (dosubjobs && GET_NEXT(preq->rq_ind.rq_status.rq_attr) != NULL) {
+		if (find_svrattrl_list_entry(&preq->rq_ind.rq_status.rq_attr, ATTR_array_indices_remaining, NULL) == NULL)
+			add_to_svrattrl_list(&preq->rq_ind.rq_status.rq_attr, ATTR_array_indices_remaining, NULL, "", SET, NULL);
+	}
 
 	rc = PBSE_NONE;
-
 	if (type == 1) {
 		/*
 		 * If there is more than one job id, any status for any
@@ -381,27 +390,28 @@ void req_stat_job(struct batch_request *preq)
 			req_reject(rc, 0, preq);
 		return;
 
-	} else if (type == 2) {
-		pjob = (job *)GET_NEXT(pque->qu_jobs);
-		while (pjob && (rc == PBSE_NONE)) {
-			rc = do_stat_of_a_job(preq, pjob, dohistjobs, dosubjobs);
-			pjob = (job *)GET_NEXT(pjob->ji_jobque);
-		}
 	} else {
-		pjob = (job *)GET_NEXT(svr_alljobs);
-		while (pjob && (rc == PBSE_NONE)) {
+		pjob = (job *) GET_NEXT(type == 2 ? pque->qu_jobs : svr_alljobs);
+		while (pjob) {
 			rc = do_stat_of_a_job(preq, pjob, dohistjobs, dosubjobs);
-			pjob = (job *)GET_NEXT(pjob->ji_alljobs);
+			if (rc != PBSE_NONE) {
+				req_reject(rc, bad, preq);
+				return;
+			}
+			pjob = (job *) GET_NEXT(type == 2 ? pjob->ji_jobque : pjob->ji_alljobs);
+			if (preply->brp_count >= MAX_JOBS_PER_REPLY && pjob) {
+				rc = reply_send_status_part(preq);
+				if (rc != PBSE_NONE)
+					return;
+			}
 		}
-
 	}
 
-	if (rc && (rc != PBSE_PERM))
+	if (rc && rc != PBSE_PERM)
 		req_reject(rc, bad, preq);
 	else
 		reply_send(preq);
 }
-
 
 /**
  * @brief
@@ -446,6 +456,7 @@ req_stat_que(struct batch_request *preq)
 	preply = &preq->rq_reply;
 	preply->brp_choice = BATCH_REPLY_CHOICE_Status;
 	CLEAR_HEAD(preply->brp_un.brp_status);
+	preply->brp_count = 0;
 
 	if (type == 0) {	/* get status of the one named queue */
 		rc = status_que(pque, preq, &preply->brp_un.brp_status);
@@ -489,7 +500,10 @@ static int
 status_que(pbs_queue *pque, struct batch_request *preq, pbs_list_head *pstathd)
 {
 	struct brp_status *pstat;
-	svrattrl	  *pal;
+	svrattrl *pal;
+	long total_jobs;
+	int rc = 0;
+	attribute *qattr;
 
 	if ((preq->rq_perm & ATR_DFLAG_RDACC) == 0)
 		return (PBSE_PERM);
@@ -497,16 +511,14 @@ status_que(pbs_queue *pque, struct batch_request *preq, pbs_list_head *pstathd)
 	/* ok going to do status, update count and state counts from qu_qs */
 
 	if (!svr_chk_history_conf()) {
-		pque->qu_attr[(int)QA_ATR_TotalJobs].at_val.at_long = pque->qu_numjobs;
+		total_jobs = pque->qu_numjobs;
 	} else {
-		pque->qu_attr[(int)QA_ATR_TotalJobs].at_val.at_long = pque->qu_numjobs -
-			(pque->qu_njstate[JOB_STATE_MOVED] + pque->qu_njstate[JOB_STATE_FINISHED] + pque->qu_njstate[JOB_STATE_EXPIRED]);
+		total_jobs = pque->qu_numjobs - (pque->qu_njstate[JOB_STATE_MOVED] + pque->qu_njstate[JOB_STATE_FINISHED] + pque->qu_njstate[JOB_STATE_EXPIRED]);
 	}
-	pque->qu_attr[(int)QA_ATR_TotalJobs].at_flags |= ATR_SET_MOD_MCACHE;
+	set_qattr_l_slim(pque, QA_ATR_TotalJobs, total_jobs, SET);
 
-	update_state_ct(&pque->qu_attr[(int)QA_ATR_JobsByState],
-		pque->qu_njstate,
-		pque->qu_jobstbuf);
+	qattr = get_qattr(pque, QA_ATR_JobsByState);
+	update_state_ct(qattr, pque->qu_njstate, &que_attr_def[QA_ATR_JobsByState]);
 
 	/* allocate status sub-structure and fill in header portion */
 
@@ -518,6 +530,7 @@ status_que(pbs_queue *pque, struct batch_request *preq, pbs_list_head *pstathd)
 	CLEAR_LINK(pstat->brp_stlink);
 	CLEAR_HEAD(pstat->brp_attr);
 	append_link(pstathd, &pstat->brp_stlink, pstat);
+	preq->rq_reply.brp_count++;
 
 	/* add attributes to the status reply */
 
@@ -525,12 +538,12 @@ status_que(pbs_queue *pque, struct batch_request *preq, pbs_list_head *pstathd)
 	pal = (svrattrl *)GET_NEXT(preq->rq_ind.rq_status.rq_attr);
 	if (status_attrib(pal, que_attr_idx, que_attr_def, pque->qu_attr, QA_ATR_LAST,
 		preq->rq_perm, &pstat->brp_attr, &bad))
-		return (PBSE_NOATTR);
+		rc = PBSE_NOATTR;
 
-	return (0);
+	if (is_attr_set(qattr))
+		free_attr(que_attr_def, qattr, QA_ATR_JobsByState);
+	return rc;
 }
-
-
 
 /**
  * @brief
@@ -582,12 +595,13 @@ req_stat_node(struct batch_request *preq)
 	preply = &preq->rq_reply;
 	preply->brp_choice = BATCH_REPLY_CHOICE_Status;
 	CLEAR_HEAD(preply->brp_un.brp_status);
+	preply->brp_count = 0;
 
 	if (type == 0) {		/* get status of the named node */
 		rc = status_node(pnode, preq, &preply->brp_un.brp_status);
 
 	} else {			/* get status of all nodes */
-
+	
 		for (i = 0; i < svr_totnodes; i++) {
 			pnode = pbsndlist[i];
 
@@ -611,8 +625,6 @@ req_stat_node(struct batch_request *preq)
 		}
 	}
 }
-
-
 
 /**
  * @brief
@@ -643,20 +655,17 @@ status_node(struct pbsnode *pnode, struct batch_request *preq, pbs_list_head *ps
 
 	/* sync state attribute with nd_state */
 
-	if (pnode->nd_state != pnode->nd_attr[(int)ND_ATR_state].at_val.at_long) {
-		pnode->nd_attr[(int)ND_ATR_state].at_val.at_long = pnode->nd_state;
-		pnode->nd_attr[(int)ND_ATR_state].at_flags |= ATR_MOD_MCACHE;
-	}
+	if (pnode->nd_state != get_nattr_long(pnode, ND_ATR_state))
+		set_nattr_l_slim(pnode, ND_ATR_state, pnode->nd_state, SET);
 
 	/*node is provisioning - mask out the DOWN/UNKNOWN flags while prov is on*/
-	if (pnode->nd_attr[(int)ND_ATR_state].at_val.at_long &
-		(INUSE_PROV | INUSE_WAIT_PROV)) {
-		old_nd_state = pnode->nd_attr[(int)ND_ATR_state].at_val.at_long;
+	if (get_nattr_long(pnode, ND_ATR_state) & (INUSE_PROV | INUSE_WAIT_PROV)) {
+		old_nd_state = get_nattr_long(pnode, ND_ATR_state);
 
 		/* don't want to show job-busy, job/resv-excl while provisioning */
-		pnode->nd_attr[(int)ND_ATR_state].at_val.at_long &=
-			~(INUSE_DOWN | INUSE_UNKNOWN | INUSE_JOB |
-			INUSE_JOBEXCL | INUSE_RESVEXCL);
+		set_nattr_l_slim(pnode, ND_ATR_state,
+				 old_nd_state & ~(INUSE_DOWN | INUSE_UNKNOWN | INUSE_JOB | INUSE_JOBEXCL | INUSE_RESVEXCL),
+				 SET);
 	}
 
 	/*allocate status sub-structure and fill in header portion*/
@@ -674,6 +683,7 @@ status_node(struct pbsnode *pnode, struct batch_request *preq, pbs_list_head *ps
 	/*the request's reply substructure                         */
 
 	append_link(pstathd, &pstat->brp_stlink, pstat);
+	preq->rq_reply.brp_count++;
 
 	/*point to the list of node-attributes about which we want status*/
 	/*hang that status information from the brp_attr field for this  */
@@ -685,9 +695,8 @@ status_node(struct pbsnode *pnode, struct batch_request *preq, pbs_list_head *ps
 
 	/*reverting back the state*/
 
-	if (pnode->nd_attr[(int)ND_ATR_state].at_val.at_long & INUSE_PROV)
-		pnode->nd_attr[(int)ND_ATR_state].at_val.at_long = old_nd_state ;
-
+	if (get_nattr_long(pnode, ND_ATR_state) & INUSE_PROV)
+		set_nattr_l_slim(pnode, ND_ATR_state, old_nd_state, SET);
 
 	return (rc);
 }
@@ -719,7 +728,7 @@ update_isrunhook(attribute *pattr)
 
 	if (new_val != old_val) {
 		pattr->at_val.at_long = new_val;
-		pattr->at_flags |= ATR_SET_MOD_MCACHE;
+		post_attr_set(pattr);
 	}
 }
 
@@ -741,20 +750,19 @@ req_stat_svr(struct batch_request *preq)
 	conn_t *conn;
 
 	/* update count and state counts from sv_numjobs and sv_jobstates */
+	set_sattr_l_slim(SVR_ATR_TotalJobs, server.sv_qs.sv_numjobs, SET);
+	update_state_ct(get_sattr(SVR_ATR_JobsByState), server.sv_jobstates, &svr_attr_def[SVR_ATR_JobsByState]);
 
-	server.sv_attr[(int)SVR_ATR_TotalJobs].at_val.at_long = server.sv_qs.sv_numjobs;
-	server.sv_attr[(int)SVR_ATR_TotalJobs].at_flags |= ATR_SET_MOD_MCACHE;
-	update_state_ct(&server.sv_attr[(int)SVR_ATR_JobsByState],
-		server.sv_jobstates,
-		server.sv_jobstbuf);
-
-	update_license_ct(&server.sv_attr[(int)SVR_ATR_license_count],
-		server.sv_license_ct_buf);
+	update_license_ct();
 
 	conn = get_conn(preq->rq_conn);
-	if (conn->cn_authen & PBS_NET_CONN_TO_SCHED) {
+	if (!conn) {
+		req_reject(PBSE_SYSTEM, 0, preq);
+		return;
+	}
+	if (conn->cn_origin == CONN_SCHED_PRIMARY) {
 		/* Request is from sched so update "has_runjob_hook" */
-		update_isrunhook(&server.sv_attr[SVR_ATR_has_runjob_hook]);
+		update_isrunhook(get_sattr(SVR_ATR_has_runjob_hook));
 	}
 
 	/* allocate a reply structure and a status sub-structure */
@@ -762,6 +770,7 @@ req_stat_svr(struct batch_request *preq)
 	preply = &preq->rq_reply;
 	preply->brp_choice = BATCH_REPLY_CHOICE_Status;
 	CLEAR_HEAD(preply->brp_un.brp_status);
+	preply->brp_count = 0;
 
 	pstat = (struct brp_status *)malloc(sizeof(struct brp_status));
 	if (pstat == NULL) {
@@ -774,6 +783,7 @@ req_stat_svr(struct batch_request *preq)
 	pstat->brp_objtype = MGR_OBJ_SERVER;
 	CLEAR_HEAD(pstat->brp_attr);
 	append_link(&preply->brp_un.brp_status, &pstat->brp_stlink, pstat);
+	preply->brp_count++;
 
 	/* add attributes to the status reply */
 
@@ -784,6 +794,69 @@ req_stat_svr(struct batch_request *preq)
 		reply_badattr(PBSE_NOATTR, bad, pal, preq);
 	else
 		reply_send(preq);
+}
+
+/**
+ * @brief
+ * 		service the Server Ready request
+ * Replies back only if the server is in a consistent state.
+ * Otherwise, it will leave a work task with the request in it
+ * which will be converted to immediate when all acks are received.
+ * 
+ * Scheduler can proceed only when all the servers answers to this which
+ * means the multi-svr cluster is in a consistent state.
+ *
+ * @param[in]	ptask	-	work task which contains the request
+ * 
+ * @return void
+ */
+void
+req_stat_svr_ready(struct work_task *ptask)
+{
+	struct batch_request *preq;
+	struct batch_reply *preply;
+	conn_t *conn;
+	server_t *psvr;
+
+	/* allocate a reply structure and a status sub-structure */
+
+	if (!ptask || !ptask->wt_parm1)
+		return;
+
+	preq = ptask->wt_parm1;
+
+	if ((conn = get_conn(preq->rq_conn)) == NULL) {
+		req_reject(PBSE_SYSTEM, 0, preq);
+		return;
+	}
+
+	if (conn->cn_origin == CONN_SCHED_PRIMARY) {
+
+		poke_peersvr();
+
+		/* If pending acks are not down to 0, scheduler will be blocked */
+		if ((psvr = pending_ack_svr())) {
+
+			if (set_task(WORK_Deferred_Reply, preq->rq_conn, req_stat_svr_ready, (void *) preq) == NULL) {
+				log_err(errno, __func__, "could not set_task");
+				return;
+			}
+
+			update_msvr_stat(1, NUM_SCHED_MISS);
+			log_eventf(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER, LOG_DEBUG, __func__,
+				  "Server is not ready to serve scheduler stat request due to "
+				  "pending replies from peer server %s, Deferring reply.",
+				  psvr->mi_host);
+			return;
+		}
+	}
+
+	preply = &preq->rq_reply;
+	preply->brp_choice = BATCH_REPLY_CHOICE_Status;
+	CLEAR_HEAD(preply->brp_un.brp_status);
+	preply->brp_count = 0;
+
+	reply_send(preq);
 }
 
 /**
@@ -817,6 +890,7 @@ status_sched(pbs_sched *psched, struct batch_request *preq, pbs_list_head *pstat
 	CLEAR_LINK(pstat->brp_stlink);
 	CLEAR_HEAD(pstat->brp_attr);
 	append_link(pstathd, &pstat->brp_stlink, pstat);
+	preq->rq_reply.brp_count++;
 
 
 	bad = 0;
@@ -853,6 +927,7 @@ req_stat_sched(struct batch_request *preq)
 	preply = &preq->rq_reply;
 	preply->brp_choice = BATCH_REPLY_CHOICE_Status;
 	CLEAR_HEAD(preply->brp_un.brp_status);
+	preply->brp_count = 0;
 
 	for (psched = (pbs_sched *) GET_NEXT(svr_allscheds);
 			(psched != NULL);
@@ -885,18 +960,19 @@ req_stat_sched(struct batch_request *preq)
  *
  * @param[out]	pattr	-	queue or server attribute
  * @param[in]	ct_array	-	number of jobs per state
- * @param[out]	buf	-	job string buffer
+ * @param[in] attr_def - attribute def of pattr
  *
  * @par MT-safe: No
  */
 
 void
-update_state_ct(attribute *pattr, int *ct_array, char *buf)
+update_state_ct(attribute *pattr, int *ct_array, attribute_def *attr_def)
 {
 	static char *statename[] = { "Transit", "Queued", "Held", "Waiting",
 		"Running", "Exiting", "Expired", "Begun",
 		"Moved", "Finished" };
 	int  index;
+	char buf[BUF_SIZE];
 
 	buf[0] = '\0';
 	for (index=0; index < (PBS_NUMJOBSTATE); index++) {
@@ -907,28 +983,25 @@ update_state_ct(attribute *pattr, int *ct_array, char *buf)
 		sprintf(buf+strlen(buf), "%s:%d ", statename[index],
 			*(ct_array + index));
 	}
-	pattr->at_val.at_str = buf;
-	pattr->at_flags |= ATR_SET_MOD_MCACHE;
+	set_attr_generic(pattr, attr_def, buf, NULL, INTERNAL);
 }
 
 /**
  * @brief
- * 		update_license_ct - update the # of licenses (counters) in 'license_count'
- *			server attribute.
- *
- * @param[out]	pattr	-	server attribute.
- * @param[out]	buf	-	job string buffer
+ * 	update_license_ct - update the # of licenses (counters) in 'license_count' server attribute.
  */
-
 void
-update_license_ct(attribute *pattr, char *buf)
+update_license_ct(void)
 {
+	char buf[BUF_SIZE];
+
 	buf[0] = '\0';
-	sprintf(buf, "Avail_Global:%d Avail_Local:%d Used:%d High_Use:%d",
-			licenses.lb_glob_floating, licenses.lb_aval_floating,
-			licenses.lb_used_floating, licenses.lb_high_used_floating);
-	pattr->at_val.at_str = buf;
-	pattr->at_flags |= ATR_SET_MOD_MCACHE;
+	snprintf(buf, sizeof(buf), "Avail_Global:%ld Avail_Local:%ld Used:%ld High_Use:%d",
+		 license_counts.licenses_global,
+		 license_counts.licenses_local,
+		 license_counts.licenses_used,
+		 license_counts.licenses_high_use.lu_max_forever);
+	set_sattr_str_slim(SVR_ATR_license_count, buf, NULL);
 }
 
 /**
@@ -971,6 +1044,7 @@ req_stat_resv(struct batch_request * preq)
 	preply = &preq->rq_reply;
 	preply->brp_choice = BATCH_REPLY_CHOICE_Status;
 	CLEAR_HEAD(preply->brp_un.brp_status);
+	preply->brp_count = 0;
 
 	if (type == 0) {
 		/* get status of the specifically named reservation */
@@ -1033,6 +1107,7 @@ status_resv(resc_resv *presv, struct batch_request *preq, pbs_list_head *pstathd
 	CLEAR_LINK(pstat->brp_stlink);
 	CLEAR_HEAD(pstat->brp_attr);
 	append_link(pstathd, &pstat->brp_stlink, pstat);
+	preq->rq_reply.brp_count++;
 
 	/*finally, add the requested attributes to the status reply*/
 
@@ -1068,7 +1143,7 @@ status_resv(resc_resv *presv, struct batch_request *preq, pbs_list_head *pstathd
 static int
 status_resc(struct resource_def *prd, struct batch_request *preq, pbs_list_head *pstathd, int private)
 {
-	struct attribute   attr;
+	attribute   attr;
 	struct brp_status *pstat;
 
 	if (((prd->rs_flags & ATR_DFLAG_USRD) == 0) &&
@@ -1116,6 +1191,7 @@ status_resc(struct resource_def *prd, struct batch_request *preq, pbs_list_head 
 			return PBSE_SYSTEM;
 	}
 	append_link(pstathd, &pstat->brp_stlink, pstat);
+	preq->rq_reply.brp_count++;
 	return 0;
 }
 
@@ -1170,6 +1246,7 @@ req_stat_resc(struct batch_request *preq)
 	preply = &preq->rq_reply;
 	preply->brp_choice = BATCH_REPLY_CHOICE_Status;
 	CLEAR_HEAD(preply->brp_un.brp_status);
+	preply->brp_count = 0;
 
 	if (type == 0) {	/* get status of the one named resource */
 		rc = status_resc(prd, preq, &preply->brp_un.brp_status, private);

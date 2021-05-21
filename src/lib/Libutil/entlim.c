@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -42,10 +42,7 @@
 #include <stdio.h>
 #include "libutil.h"
 #include "pbs_entlim.h"
-#ifdef WIN32
-#include <windows.h>
-#include <win.h>
-#endif
+#include <pbs_config.h>
 
 /* entlim iteration context structure, opaque to caller */
 typedef struct _entlim_ctx {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -94,13 +94,13 @@
  */
 
 int
-decode_c(struct attribute *patr, char *name, char *rescn, char *val)
+decode_c(attribute *patr, char *name, char *rescn, char *val)
 {
 	if ((val == NULL) || (strlen(val) == 0)) {
 		ATR_UNSET(patr);
 		patr->at_val.at_char = '\0';
 	} else {
-		patr->at_flags |= ATR_SET_MOD_MCACHE;
+		post_attr_set(patr);
 		patr->at_val.at_char = *val;
 	}
 	return (0);
@@ -168,7 +168,7 @@ encode_c(const attribute *attr, pbs_list_head *phead, char *atname, char *rsname
  */
 
 int
-set_c(struct attribute *attr, struct attribute *new, enum batch_op op)
+set_c(attribute *attr, attribute *new, enum batch_op op)
 {
 	assert(attr && new && (new->at_flags & ATR_VFLAG_SET));
 
@@ -188,7 +188,7 @@ set_c(struct attribute *attr, struct attribute *new, enum batch_op op)
 
 		default:	return (PBSE_INTERNAL);
 	}
-	attr->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(attr);
 	return (0);
 }
 
@@ -206,7 +206,7 @@ set_c(struct attribute *attr, struct attribute *new, enum batch_op op)
  */
 
 int
-comp_c(struct attribute *attr, struct attribute *with)
+comp_c(attribute *attr, attribute *with)
 {
 	if (!attr || !with)
 		return (-1);
@@ -221,3 +221,83 @@ comp_c(struct attribute *attr, struct attribute *with)
 /*
  * free_c - use free_null() to (not) free space
  */
+
+/**
+ * @brief	Attribute setter function for char type values
+ *
+ * @param[in]	pattr	-	pointer to attribute being set
+ * @param[in]	value	-	value to be set
+ * @param[in]	op		-	operation to do
+ *
+ * @return	void
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ *
+ */
+void
+set_attr_c(attribute *pattr, char value, enum batch_op op)
+{
+	if (pattr == NULL) {
+		log_err(-1, __func__, "Invalid pointer to attribute");
+		return;
+	}
+
+	switch (op) {
+		case SET:
+			pattr->at_val.at_char = value;
+			break;
+		case INCR:
+			pattr->at_val.at_char += value;
+			break;
+		case DECR:
+			pattr->at_val.at_char -= value;
+			break;
+		default:
+			return;
+	}
+
+	post_attr_set(pattr);
+}
+
+void
+set_attr_short(attribute *pattr, short value, enum batch_op op)
+{
+	if (pattr == NULL) {
+		log_err(-1, __func__, "Invalid pointer to attribute");
+		return;
+	}
+
+	switch (op) {
+		case SET:
+			pattr->at_val.at_short = value;
+			break;
+		case INCR:
+			pattr->at_val.at_short += value;
+			break;
+		case DECR:
+			pattr->at_val.at_short -= value;
+			break;
+		default:
+			return;
+	}
+
+	post_attr_set(pattr);
+}
+
+/**
+ * @brief	Attribute getter function for char type values
+ *
+ * @param[in]	pattr	-	pointer to the attribute
+ *
+ * @return	char
+ * @retval	char value of the attribute
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ */
+char
+get_attr_c(const attribute *pattr)
+{
+	return  pattr->at_val.at_char;
+}

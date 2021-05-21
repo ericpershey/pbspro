@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -96,7 +96,7 @@
  */
 
 int
-decode_str(struct attribute *patr, char *name, char *rescn, char *val)
+decode_str(attribute *patr, char *name, char *rescn, char *val)
 {
 	size_t len;
 
@@ -108,7 +108,7 @@ decode_str(struct attribute *patr, char *name, char *rescn, char *val)
 		if (patr->at_val.at_str == NULL)
 			return (PBSE_SYSTEM);
 		(void)strcpy(patr->at_val.at_str, val);
-		patr->at_flags |= ATR_SET_MOD_MCACHE;
+		post_attr_set(patr);
 	} else {
 		ATR_UNSET(patr);
 		patr->at_val.at_str = NULL;
@@ -184,7 +184,7 @@ encode_str(const attribute *attr, pbs_list_head *phead, char *atname, char *rsna
  */
 
 int
-set_str(struct attribute *attr, struct attribute *new, enum batch_op op)
+set_str(attribute *attr, attribute *new, enum batch_op op)
 {
 	char	*new_value;
 	char	*p;
@@ -240,7 +240,7 @@ set_str(struct attribute *attr, struct attribute *new, enum batch_op op)
 		default:	return (PBSE_INTERNAL);
 	}
 	if ((attr->at_val.at_str != NULL) && (*attr->at_val.at_str !='\0'))
-		attr->at_flags |= ATR_SET_MOD_MCACHE;
+		post_attr_set(attr);
 	else
 		attr->at_flags &= ~ATR_VFLAG_SET;
 
@@ -261,7 +261,7 @@ set_str(struct attribute *attr, struct attribute *new, enum batch_op op)
  */
 
 int
-comp_str(struct attribute *attr, struct attribute *with)
+comp_str(attribute *attr, attribute *with)
 {
 	if (!attr || !attr->at_val.at_str)
 		return (-1);
@@ -279,7 +279,7 @@ comp_str(struct attribute *attr, struct attribute *with)
  */
 
 void
-free_str(struct attribute *attr)
+free_str(attribute *attr)
 {
 	if ((attr->at_flags & ATR_VFLAG_SET) && (attr->at_val.at_str)) {
 		(void)free(attr->at_val.at_str);
@@ -313,4 +313,28 @@ decode_jobname(attribute *patr, char *name, char *rescn, char *val)
 			return (PBSE_BADATVAL);
 	}
 	return (decode_str(patr, name, rescn, val));
+}
+
+/**
+ * set_attr_str: use set_attr_generic() instead
+ */
+
+/**
+ * @brief	Attribute getter function for string type values
+ *
+ * @param[in]	pattr	-	pointer to the attribute
+ *
+ * @return	char *
+ * @retval	string value of the attribute
+ * @retval	NULL if attribute is NULL
+ *
+ * @par MT-Safe: No
+ * @par Side Effects: None
+ */
+char *
+get_attr_str(const attribute *pattr)
+{
+	if (pattr != NULL)
+		return pattr->at_val.at_str;
+	return NULL;
 }

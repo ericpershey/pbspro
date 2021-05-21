@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -38,6 +38,7 @@
 # subject to Altair's trademark licensing policies.
 
 
+import collections
 import copy
 import logging
 import math
@@ -49,7 +50,7 @@ from datetime import datetime, timedelta, tzinfo
 from subprocess import PIPE, Popen
 
 from ptl.lib.pbs_testlib import (EQ, JOB, NODE, SET, BatchUtils, ResourceResv,
-                                 Server)
+                                 Server, PbsAttribute)
 from ptl.utils.pbs_dshutils import DshUtils
 
 """
@@ -302,7 +303,7 @@ class PBSLogUtils(object):
                 self.logger.debug('running ' + " ".join(cmd))
                 p = Popen(cmd, stdout=PIPE)
                 f = p.stdout
-        except:
+        except Exception:
             self.logger.error(traceback.print_exc())
             self.logger.error('Problem processing file ' + log)
             f = None
@@ -391,7 +392,7 @@ class PBSLogUtils(object):
         """
         try:
             t = time.strptime(date_time, "%a %b %d %H:%M:%S %Y")
-        except:
+        except Exception:
             t = time.localtime()
         return int(time.mktime(t))
 
@@ -406,16 +407,16 @@ class PBSLogUtils(object):
         hms = tm.split(':')
         return int(int(hms[0]) * 3600 + int(hms[1]) * 60 + int(hms[2]))
 
-    def get_rate(self, l=[]):
+    def get_rate(self, in_list=[]):
         """
         :returns: The frequency of occurrences of array l
                   The array is expected to be sorted
         """
-        if len(l) > 0:
-            duration = l[len(l) - 1] - l[0]
+        if len(in_list) > 0:
+            duration = in_list[len(in_list) - 1] - in_list[0]
             if duration > 0:
                 tm_factor = [1, 60, 60, 24]
-                _rate = float(len(l)) / float(duration)
+                _rate = float(len(in_list)) / float(duration)
                 index = 0
                 while _rate < 1 and index < len(tm_factor):
                     index += 1
@@ -430,7 +431,7 @@ class PBSLogUtils(object):
                 else:
                     _rate = str(_rate) + '/day'
             else:
-                _rate = str(len(l)) + '/s'
+                _rate = str(len(in_list)) + '/s'
             return _rate
         return 0
 
@@ -927,7 +928,7 @@ class PBSServerLog(PBSLogAnalyzer):
     server_run_tag = re.compile(tm_re + ".*" + job_re + ".*;Job Run at.*")
     server_nodeup_tag = re.compile(tm_re + ".*Node;.*;node up.*")
     server_enquejob_tag = re.compile(tm_re + ".*" + job_re +
-                                     ".*enqueuing into.*state 1 .*")
+                                     ".*enqueuing into.*state Q .*")
     server_endjob_tag = re.compile(tm_re + ".*" + job_re +
                                    ".*;Exit_status.*")
 
@@ -1335,7 +1336,7 @@ class PBSSchedulerLog(PBSLogAnalyzer):
             try:
                 tm = self.logutils.convert_date_time(m.group('est_tm'),
                                                      "%a %b %d %H:%M:%S %Y")
-            except:
+            except Exception:
                 logging.error('error converting time: ' +
                               str(m.group('est_tm')))
                 return PARSER_ERROR_STOP
@@ -1911,11 +1912,11 @@ class PBSAccountingLog(PBSLogAnalyzer):
                     try:
                         msg = r.group('msg').split()
                         attrs = dict([l.split('=', 1) for l in msg])
-                    except:
+                    except Exception:
                         self.parser_errors += 1
                         return PARSER_OK_CONTINUE
                     for k in attrs.keys():
-                        attrs[k] = self.utils.decode_value(attrs[k])
+                        attrs[k] = PbsAttribute.decode_value(attrs[k])
                     running_time = (int(attrs['end']) - int(attrs['start']))
                     attrs['running_time'] = str(running_time)
                     attrs['schedselect'] = attrs['Resource_List.select']
@@ -1953,7 +1954,7 @@ class PBSAccountingLog(PBSLogAnalyzer):
                                 walltime = self.logutils.convert_hhmmss_time(
                                     m.group('walltime').strip())
                                 self.run_time.append(walltime)
-                            except:
+                            except Exception:
                                 pass
                         else:
                             walltime = tm - starttime

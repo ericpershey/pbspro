@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -78,8 +78,16 @@
 void *conn = NULL;
 #endif
 
+#ifdef PRINTJOBSVR
+/* just to make jattr_get_set.c happy */
+attribute_def job_attr_def[1] = {{0}};
+#endif
+
 #define BUF_SIZE 512
 int display_script = 0;	 /* to track if job-script is required or not */
+
+svrattrl *read_all_attrs_from_jbfile(int fd, char **state, char **substate, char **errbuf);
+
 /**
  * @brief
  *		Print usage text to stderr and exit.
@@ -100,19 +108,23 @@ print_usage()
  *
  * @param[in]	pjob	-	pointer to the job struct.
  */
-void
-prt_job_struct(job *pjob)
+static void
+prt_job_struct(job *pjob, char *state, char *substate)
 {
+	unsigned int ss_num;
+	unsigned int s_num;
+	char *endp = NULL;
+
+	ss_num = strtol(substate, &endp, 10);
+	s_num = state_char2int(state[0]);
+
 	printf("---------------------------------------------------\n");
 	printf("jobid:\t%s\n", pjob->ji_qs.ji_jobid);
 	printf("---------------------------------------------------\n");
-	printf("state:\t\t0x%x\n", pjob->ji_qs.ji_state);
-	printf("substate:\t0x%x (%d)\n", pjob->ji_qs.ji_substate,
-		pjob->ji_qs.ji_substate);
+	printf("state:\t\t0x%x\n", s_num);
+	printf("substate:\t0x%x (%d)\n", ss_num, ss_num);
 	printf("svrflgs:\t0x%x (%d)\n", pjob->ji_qs.ji_svrflags,
 		pjob->ji_qs.ji_svrflags);
-	printf("ordering:\t%d\n", pjob->ji_qs.ji_ordering);
-	printf("inter prior:\t%d\n", pjob->ji_qs.ji_priority);
 	printf("stime:\t\t%ld\n", (long)pjob->ji_qs.ji_stime);
 	printf("file base:\t%s\n", pjob->ji_qs.ji_fileprefix);
 	printf("queue:\t\t%s\n", pjob->ji_qs.ji_queue);
@@ -125,8 +137,6 @@ prt_job_struct(job *pjob)
 			break;
 		case JOB_UNION_TYPE_EXEC:
 			printf("union type exec:\n");
-			printf("\tmomaddr\t%lu\n",
-				pjob->ji_qs.ji_un.ji_exect.ji_momaddr);
 			printf("\texits\t%d\n",
 				pjob->ji_qs.ji_un.ji_exect.ji_exitstat);
 			break;
@@ -193,57 +203,17 @@ prt_task_struct(pbs_task *ptask)
 }
 
 #define ENDATTRIBUTES -711
+
 /**
- * @brief
- * 		read attributes from file descriptor.
+ * @brief	Print an attribute
  *
- * @param[in]	fd	-	file descriptor.
+ * @param[in]	pal  - pointer to attribute
  *
- * @return	int
- * @return	1	: success
- * @return	0	: failure
+ * @return	void
  */
-int
-read_attr(int fd)
+static void
+print_attr(svrattrl *pal)
 {
-	int	  amt;
-	int       i;
-	svrattrl *pal;
-	svrattrl  tempal;
-
-	i = read(fd, (char *)&tempal, sizeof(tempal));
-	if (i != sizeof(tempal)) {
-		fprintf(stderr, "bad read of attribute\n");
-		return 0;
-	}
-	if (tempal.al_tsize == ENDATTRIBUTES)
-		return 0;
-
-	pal = (svrattrl *)malloc(tempal.al_tsize);
-	if (pal == NULL) {
-		fprintf(stderr, "malloc failed\n");
-		exit(1);
-	}
-	*pal = tempal;
-
-	/* read in the actual attribute data */
-
-	amt = pal->al_tsize - sizeof(svrattrl);
-	i = read(fd, (char *)pal + sizeof(svrattrl), amt);
-	if (i != amt) {
-		fprintf(stderr, "short read of attribute\n");
-		exit(2);
-	}
-	pal->al_name = (char *)pal + sizeof(svrattrl);
-	if (pal->al_rescln)
-		pal->al_resc = pal->al_name + pal->al_nameln;
-	else
-		pal->al_resc = NULL;
-	if (pal->al_valln)
-		pal->al_value = pal->al_name + pal->al_nameln + pal->al_rescln;
-	else
-		pal->al_value = NULL;
-
 	printf("%s", pal->al_name);
 	if (pal->al_resc)
 		printf(".%s", pal->al_resc);
@@ -251,10 +221,8 @@ read_attr(int fd)
 	if (pal->al_value)
 		printf("%s", show_nonprint_chars(pal->al_value));
 	printf("\n");
-
-	free(pal);
-	return 1;
 }
+
 /**
  * @brief
  * 		save the db info into job structure
@@ -266,15 +234,16 @@ read_attr(int fd)
 static void
 db_2_job(job *pjob,  pbs_db_job_info_t *pdjob)
 {
+	char statec;
+
 	strcpy(pjob->ji_qs.ji_jobid, pdjob->ji_jobid);
-	pjob->ji_qs.ji_state = pdjob->ji_state;
-	pjob->ji_qs.ji_substate = pdjob->ji_substate;
+	statec = state_int2char(pdjob->ji_state);
+	if (statec != '0')
+		set_job_state(pjob, statec);
+
+	set_job_substate(pjob, pdjob->ji_substate);
 	pjob->ji_qs.ji_svrflags = pdjob->ji_svrflags;
-	pjob->ji_qs.ji_numattr = pdjob->ji_numattr ;
-	pjob->ji_qs.ji_ordering = pdjob->ji_ordering;
-	pjob->ji_qs.ji_priority = pdjob->ji_priority;
 	pjob->ji_qs.ji_stime = pdjob->ji_stime;
-	pjob->ji_qs.ji_endtBdry = pdjob->ji_endtBdry;
 	pjob->ji_qs.ji_fileprefix[0] = 0;
 	strcpy(pjob->ji_qs.ji_queue, pdjob->ji_queue);
 	strcpy(pjob->ji_qs.ji_destin, pdjob->ji_destin);
@@ -282,18 +251,15 @@ db_2_job(job *pjob,  pbs_db_job_info_t *pdjob)
 	if (pjob->ji_qs.ji_un_type == JOB_UNION_TYPE_NEW) {
 		pjob->ji_qs.ji_un.ji_newt.ji_fromsock = pdjob->ji_fromsock;
 		pjob->ji_qs.ji_un.ji_newt.ji_fromaddr = pdjob->ji_fromaddr;
-	} else if (pjob->ji_qs.ji_un_type == JOB_UNION_TYPE_EXEC) {
-		pjob->ji_qs.ji_un.ji_exect.ji_momaddr = pdjob->ji_momaddr;
-		pjob->ji_qs.ji_un.ji_exect.ji_momport = pdjob->ji_momport;
+	} else if (pjob->ji_qs.ji_un_type == JOB_UNION_TYPE_EXEC)
 		pjob->ji_qs.ji_un.ji_exect.ji_exitstat = pdjob->ji_exitstat;
-	} else if (pjob->ji_qs.ji_un_type == JOB_UNION_TYPE_ROUTE) {
+	else if (pjob->ji_qs.ji_un_type == JOB_UNION_TYPE_ROUTE) {
 		pjob->ji_qs.ji_un.ji_routet.ji_quetime = pdjob->ji_quetime;
 		pjob->ji_qs.ji_un.ji_routet.ji_rteretry = pdjob->ji_rteretry;
 	}
 
 	/* extended portion */
-	strcpy(pjob->ji_extended.ji_ext.ji_4jid, pdjob->ji_4jid);
-	strcpy(pjob->ji_extended.ji_ext.ji_4ash, pdjob->ji_4ash);
+	strcpy(pjob->ji_extended.ji_ext.ji_jid, pdjob->ji_jid);
 	pjob->ji_extended.ji_ext.ji_credtype = pdjob->ji_credtype;
 }
 
@@ -368,6 +334,8 @@ print_db_job(char *id, int no_attributes)
 	 * retrieve the job info from database.
 	 */
 	else {
+		char state[2];
+		char substate[4];
 		obj.pbs_db_obj_type = PBS_DB_JOB;
 		obj.pbs_db_un.pbs_db_job = &dbjob;
 		strcpy(dbjob.ji_jobid, id);
@@ -381,7 +349,9 @@ print_db_job(char *id, int no_attributes)
 			return (1);
 		}
 		db_2_job(&xjob, &dbjob);
-		prt_job_struct(&xjob);
+		snprintf(state, sizeof(state), "%c", get_job_state(&xjob));
+		snprintf(substate, sizeof(substate), "%ld", get_job_substate(&xjob));
+		prt_job_struct(&xjob, state, substate);
 
 		if (no_attributes == 0) {
 			svrattrl *pal;
@@ -560,13 +530,21 @@ char *argv[];
 
 		/* If not asked for displaying of script, execute below code */
 		if (!display_script) {
+			svrattrl *pal, *pali;
+			char *state = "";
+			char *substate = "";
+			char *errbuf = malloc(1024);
+
+			if (errbuf == NULL) {
+				fprintf(stderr, "Malloc error\n");
+				exit(1);
+			}
+
 			amt = read(fp, &xjob.ji_qs, sizeof(xjob.ji_qs));
 			if (amt != sizeof(xjob.ji_qs)) {
 				fprintf(stderr, "Short read of %d bytes, file %s\n",
 					amt, jobfile);
 			}
-			/* print out job structure */
-			prt_job_struct(&xjob);
 
 			/* if present, skip over extended area */
 			if (xjob.ji_qs.ji_jsversion > 500) {
@@ -580,10 +558,10 @@ char *argv[];
 			/* if array job, skip over sub job table */
 			if (xjob.ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) {
 				size_t xs;
-				struct ajtrkhd *ajtrk;
+				ajinfo_t *ajtrk;
 
 				if (read(fp, (char *)&xs, sizeof(xs)) != sizeof(xs)) {
-					if ((ajtrk = (struct ajtrkhd *)malloc(xs)) == NULL) {
+					if ((ajtrk = (ajinfo_t *)malloc(xs)) == NULL) {
 						(void)close(fp);
 						return 1;
 					}
@@ -592,10 +570,27 @@ char *argv[];
 				}
 			}
 
+			pal = read_all_attrs_from_jbfile(fp, &state, &substate, &errbuf);
+			if (pal == NULL && errbuf[0] != '\0') {
+				fprintf(stderr, "%s\n", errbuf);
+				exit(1);
+			}
+
+			/* Print the summary first */
+			prt_job_struct(&xjob, state, substate);
+
 			/* now do attributes, one at a time */
-			if (no_attributes == 0) {
+			if (no_attributes == 0 && pal != NULL) {
+				/* Now print all attributes */
 				printf("--attributes--\n");
-				while (read_attr(fp)) ;
+
+				pali = GET_NEXT(pal->al_link);
+				while (pali != NULL) {
+					print_attr(pali);
+					if (pali->al_link.ll_next == NULL)
+						break;
+					pali = GET_NEXT(pali->al_link);
+				}
 			}
 
 			(void)close(fp);
@@ -669,9 +664,11 @@ char *argv[];
 				print_usage();
 				exit(1);
 			}
-			printf("----------------------------------------------------------------\n");
-			printf("jobscript for %s\n", job_id);
-			printf("----------------------------------------------------------------\n");
+			if (job_id) {
+				printf("--------------------------------------------------\n");
+				printf("jobscript for %s\n", job_id);
+				printf("--------------------------------------------------\n");
+			}
 			while ((fgets(job_script, BUF_SIZE-1, fp_script)) != NULL) {
 				if (fputs(job_script, stdout) < 0) {
 					fprintf(stderr, "Error reading job-script file\n");

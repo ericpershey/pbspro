@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -105,18 +105,18 @@ compare_obj_hash(void *qs, int len, void *oldhash)
  * @retval    0 - Success
  *
  */
-int 
-encode_single_attr_db(struct attribute_def *padef, struct attribute *pattr, pbs_db_attr_list_t *db_attr_list)
+int
+encode_single_attr_db(attribute_def *padef, attribute *pattr, pbs_db_attr_list_t *db_attr_list)
 {
 	pbs_list_head *lhead;
 	int rc = 0;
-	
+
 	lhead = &db_attr_list->attrs;
 
 	rc = padef->at_encode(pattr, lhead, padef->at_name, NULL, ATR_ENCODE_DB, NULL);
 	if (rc < 0)
 		return -1;
-	
+
 	db_attr_list->attr_count += rc;
 
 	return 0;
@@ -137,7 +137,7 @@ encode_single_attr_db(struct attribute_def *padef, struct attribute *pattr, pbs_
  *
  */
 int
-encode_attr_db(struct attribute_def *padef, struct attribute *pattr, int numattr, pbs_db_attr_list_t *db_attr_list, int all)
+encode_attr_db(attribute_def *padef, attribute *pattr, int numattr, pbs_db_attr_list_t *db_attr_list, int all)
 {
 	int i;
 
@@ -152,7 +152,7 @@ encode_attr_db(struct attribute_def *padef, struct attribute *pattr, int numattr
 		if ((((padef + i)->at_flags & ATR_DFLAG_NOSAVM) == 0) || all) {
 			if (encode_single_attr_db((padef + i), (pattr + i), db_attr_list) != 0)
 				return -1;
-			
+
 			(pattr+i)->at_flags &= ~ATR_VFLAG_MODIFY;
 		}
 	}
@@ -164,10 +164,10 @@ encode_attr_db(struct attribute_def *padef, struct attribute *pattr, int numattr
  *	Decode the list of attributes from the database to the regular attribute structure
  *
  * @param[in]	  parent - pointer to parent object
- * @param[in]	  db_attr_list - Information about the database attributes
+ * @param[in]	  attr_list - recovered/to be decoded attribute list
  * @param[in]     padef_idx - Search index of this attribute array
  * @param[in]	  padef - Address of parent's attribute definition array
- * @param[in/out] pattr - Address of the parent objects attribute array
+ * @param[in,out] pattr - Address of the parent objects attribute array
  * @param[in]	  limit - Number of attributes in the list
  * @param[in]	  unknown	- The index of the unknown attribute if any
  *
@@ -178,13 +178,12 @@ encode_attr_db(struct attribute_def *padef, struct attribute *pattr, int numattr
  *
  */
 int
-decode_attr_db(void *parent, pbs_db_attr_list_t *db_attr_list, void *padef_idx, struct attribute_def *padef, struct attribute *pattr, int limit, int unknown)
+decode_attr_db(void *parent, pbs_list_head *attr_list, void *padef_idx, struct attribute_def *padef, struct attribute *pattr, int limit, int unknown)
 {
 	int index;
 	svrattrl *pal = (svrattrl *)0;
 	svrattrl *tmp_pal = (svrattrl *)0;
 	void **palarray = NULL;
-	pbs_list_head *attr_list;
 
 	if ((palarray = calloc(limit, sizeof(void *))) == NULL) {
 		log_err(-1, __func__, "Out of memory");
@@ -196,8 +195,6 @@ decode_attr_db(void *parent, pbs_db_attr_list_t *db_attr_list, void *padef_idx, 
 	/* decode_resc() in lib/Libattr/attr_fn_resc.c			*/
 
 	resc_access_perm = ATR_DFLAG_ACCESS;
-
-	attr_list = &db_attr_list->attrs;
 
 	for (pal = (svrattrl *) GET_NEXT(*attr_list); pal != NULL; pal = (svrattrl *) GET_NEXT(pal->al_link)) {
 		/* find the attribute definition based on the name */
@@ -217,7 +214,6 @@ decode_attr_db(void *parent, pbs_db_attr_list_t *db_attr_list, void *padef_idx, 
 			} else {
 				snprintf(log_buffer,LOG_BUF_SIZE, "unknown attribute \"%s\" discarded", pal->al_name);
 				log_err(-1, __func__, log_buffer);
-				(void)free(pal);
 				continue;
 			}
 		}
@@ -256,38 +252,30 @@ decode_attr_db(void *parent, pbs_db_attr_list_t *db_attr_list, void *padef_idx, 
 		 */
 		pal = palarray[index];
 		while (pal) {
-			if ((padef[index].at_type == ATR_TYPE_ENTITY) && (pattr[index].at_flags & ATR_VFLAG_SET)) {
-				attribute tmpa;
-				memset(&tmpa, 0, sizeof(attribute));
+			if ((padef[index].at_type == ATR_TYPE_ENTITY) && is_attr_set(&pattr[index])) {
 				/* for INCR case of entity limit, decode locally */
-				if (padef[index].at_decode) {
-					padef[index].at_decode(&tmpa, pal->al_name, pal->al_resc, pal->al_value);
-					padef[index].at_set(&pattr[index], &tmpa, INCR);
-					padef[index].at_free(&tmpa);
-				}
+				set_attr_generic(&pattr[index], &padef[index], pal->al_value, pal->al_resc, INCR);
 			} else {
-				if (padef[index].at_decode) {
-					int act_rc = 0;
-					padef[index].at_decode(&pattr[index], pal->al_name, pal->al_resc, pal->al_value);
-					if (padef[index].at_action)
-						if ((act_rc = (padef[index].at_action(&pattr[index], parent, ATR_ACTION_RECOV)))) {
-							log_errf(act_rc, __func__, "Action function failed for %s attr, errn %d", (padef+index)->at_name, act_rc);
-							for ( index++; index <= limit; index++) {
-								while (pal) {
-									tmp_pal = pal->al_sister;
-									free(pal);
-									pal = tmp_pal;
-								}
-								if (index < limit)
-									pal = palarray[index];
+				set_attr_generic(&pattr[index], &padef[index], pal->al_value, pal->al_resc, INTERNAL);
+				int act_rc = 0;
+				if (padef[index].at_action)
+					if ((act_rc = (padef[index].at_action(&pattr[index], parent, ATR_ACTION_RECOV)))) {
+						log_errf(act_rc, __func__, "Action function failed for %s attr, errn %d", (padef+index)->at_name, act_rc);
+						for ( index++; index <= limit; index++) {
+							while (pal) {
+								tmp_pal = pal->al_sister;
+								free(pal);
+								pal = tmp_pal;
 							}
-							free(palarray);
-							/* bailing out from this function */
-							/* any previously allocated attrs will be */
-							/* freed by caller (parent obj recov function) */
-							return -1;
+							if (index < limit)
+								pal = palarray[index];
 						}
-				}
+						free(palarray);
+						/* bailing out from this function */
+						/* any previously allocated attrs will be */
+						/* freed by caller (parent obj recov function) */
+						return -1;
+					}
 			}
 			(pattr+index)->at_flags = (pal->al_flags & ~ATR_VFLAG_MODIFY) | ATR_VFLAG_MODCACHE;
 

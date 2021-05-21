@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -81,11 +81,8 @@ main(int argc, char **argv, char **envp) /* qrls */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 	hold_type[0]='\0';
 
@@ -123,7 +120,7 @@ main(int argc, char **argv, char **envp) /* qrls */
 					errflg++;
 					break;
 				}
-				strcpy(hold_type, optarg);
+				pbs_strncpy(hold_type, optarg, sizeof(hold_type));
 				break;
 			default :
 				errflg++;
@@ -149,7 +146,7 @@ main(int argc, char **argv, char **envp) /* qrls */
 		int stat=0;
 		int located = FALSE;
 
-		strcpy(job_id, argv[optind]);
+		pbs_strncpy(job_id, argv[optind], sizeof(job_id));
 		if (get_server(job_id, job_id_out, server_out)) {
 			fprintf(stderr, "qrls: illegally formed job identifier: %s\n", job_id);
 			any_failed = 1;
@@ -162,7 +159,8 @@ cnt:
 				pbs_server, pbs_errno);
 			any_failed = pbs_errno;
 			continue;
-		}
+		} else if (pbs_errno)
+			show_svr_inst_fail(connect, argv[0]);
 
 		stat = pbs_rlsjob(connect, job_id_out, hold_type, NULL);
 		if (stat && (pbs_errno != PBSE_UNKJOBID)) {

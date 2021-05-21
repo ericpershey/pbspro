@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -75,11 +75,8 @@ main(int argc, char **argv, char **envp) /* qmove */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 	if (argc < 3) {
 		static char usage[]="usage: qmove destination job_identifier...\n";
@@ -89,7 +86,7 @@ main(int argc, char **argv, char **envp) /* qmove */
 		exit(2);
 	}
 
-	strcpy(destination, argv[1]);
+	pbs_strncpy(destination, argv[1], sizeof(destination));
 	if (parse_destination_id(destination, &q_n_out, &s_n_out)) {
 		fprintf(stderr, "qmove: illegally formed destination: %s\n", destination);
 		exit(2);
@@ -107,7 +104,7 @@ main(int argc, char **argv, char **envp) /* qmove */
 		int stat=0;
 		int located = FALSE;
 
-		strcpy(job_id, argv[optind]);
+		pbs_strncpy(job_id, argv[optind], sizeof(job_id));
 		if (get_server(job_id, job_id_out, server_out)) {
 			fprintf(stderr, "qmove: illegally formed job identifier: %s\n", job_id);
 			any_failed = 1;
@@ -120,7 +117,9 @@ cnt:
 				pbs_server, pbs_errno);
 			any_failed = pbs_errno;
 			continue;
-		}
+		} else if (pbs_errno)
+			show_svr_inst_fail(connect, argv[0]);
+		
 
 		stat = pbs_movejob(connect, job_id_out, destination, NULL);
 		if (stat && (pbs_errno != PBSE_UNKJOBID)) {
@@ -134,7 +133,7 @@ cnt:
 			located = TRUE;
 			if (locate_job(job_id_out, server_out, rmt_server)) {
 				pbs_disconnect(connect);
-				strcpy(server_out, rmt_server);
+				pbs_strncpy(server_out, rmt_server, sizeof(server_out));
 				goto cnt;
 			}
 			prt_job_err("qmove", connect, job_id_out);

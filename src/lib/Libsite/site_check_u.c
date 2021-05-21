@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -103,12 +103,12 @@ site_check_user_map(void *pobj, int objtype, char *luser)
 
 	/* set pointer variables etc based on object's type */
 	if (objtype == JOB_OBJECT) {
-		p1 = ((job *)pobj)->ji_wattr[JOB_ATR_job_owner].at_val.at_str;
+		p1 = get_jattr_str(pobj, JOB_ATR_job_owner);
 		objid = ((job *)pobj)->ji_qs.ji_jobid;
 		event_type = PBSEVENT_JOB;
 		event_class = PBS_EVENTCLASS_JOB;
 	} else {
-		p1 = ((resc_resv *)pobj)->ri_wattr[RESV_ATR_resv_owner].at_val.at_str;
+		p1 = get_rattr_str(pobj, RESV_ATR_resv_owner);
 		objid = ((resc_resv *)pobj)->ri_qs.ri_resvID;
 		event_type = PBSEVENT_JOB;
 		event_class = PBS_EVENTCLASS_JOB;

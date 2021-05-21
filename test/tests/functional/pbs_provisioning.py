@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -89,21 +89,12 @@ class TestProvisioningJob(TestFunctional):
     def setUp(self):
         TestFunctional.setUp(self)
         self.momA = self.moms.values()[0]
-        serverA = (self.servers.values()[0]).shortname
         self.hostA = self.momA.shortname
-        msg = ("Server and Mom can't be on the same host. "
-               "Provide a mom not present on server host "
-               "while invoking the test: -p moms=<m1>")
-        if serverA == self.hostA:
+        msg = ("We cannot provision on cpuset mom, host has vnodes")
+        if self.momA.is_cpuset_mom():
             self.skipTest(msg)
         self.momA.delete_vnode_defs()
         self.logger.info(self.momA.shortname)
-
-        self.server.manager(
-            MGR_CMD_DELETE, NODE, None, "", runas=ROOT_USER)
-
-        self.server.manager(MGR_CMD_CREATE, NODE, id=self.hostA)
-
         a = {'provision_enable': 'true'}
         self.server.manager(MGR_CMD_SET, NODE, a, id=self.hostA)
 
@@ -120,7 +111,6 @@ class TestProvisioningJob(TestFunctional):
             self.hook_list[1], a, hook_provision, overwrite=True)
         self.assertTrue(rv)
 
-    @skipOnCpuSet
     def test_execjob_begin_hook_on_os_provisioned_job(self):
         """
         Test the execjob_begin hook is seen by OS provisioned job.
@@ -161,7 +151,6 @@ class TestProvisioningJob(TestFunctional):
                                 interval=1)
         self.assertTrue(rv)
 
-    @skipOnCpuSet
     def test_app_provisioning(self):
         """
         Test application provisioning
@@ -170,7 +159,6 @@ class TestProvisioningJob(TestFunctional):
         self.server.manager(MGR_CMD_SET, NODE, a, id=self.hostA)
 
         job = Job(TEST_USER1, attrs={ATTR_l: 'aoe=App1'})
-        job.set_sleep_time(1)
         jid = self.server.submit(job)
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
         self.server.log_match(
@@ -178,7 +166,6 @@ class TestProvisioningJob(TestFunctional):
             max_attempts=20,
             interval=1)
 
-    @skipOnCpuSet
     def test_os_provisioning_pending_hook_copy(self):
         """
         Test that job still runs after:
@@ -189,13 +176,13 @@ class TestProvisioningJob(TestFunctional):
         if len(self.moms) < 2:
             cmt = "need 2 non-server mom hosts: -p moms=<m1>:<m2>"
             self.skip_test(reason=cmt)
-
-        a = {'resources_available.aoe': 'osimage1'}
-        self.server.manager(MGR_CMD_SET, NODE, a, id=self.hostA)
-
         self.momB = self.moms.values()[1]
         self.hostB = self.momB.shortname
-        self.server.manager(MGR_CMD_CREATE, NODE, id=self.hostB)
+        msg = ("We cannot provision on cpuset mom, host has vnodes")
+        if self.momA.is_cpuset_mom() or self.momB.is_cpuset_mom():
+            self.skipTest(msg)
+        a = {'resources_available.aoe': 'osimage1'}
+        self.server.manager(MGR_CMD_SET, NODE, a, id=self.hostA)
         self.server.expect(NODE, {'state': 'free'}, id=self.hostB)
         self.server.expect(NODE, {'state': 'free'}, id=self.hostA)
 

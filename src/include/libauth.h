@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -43,13 +43,7 @@ extern "C" {
 #endif
 
 #include "log.h"
-
-#undef DLLEXPORT
-#ifdef WIN32
-#define DLLEXPORT __declspec(dllexport)
-#else
-#define DLLEXPORT
-#endif
+#include "portability.h"
 
 /* Max length of auth method name */
 #define MAXAUTHNAME 100

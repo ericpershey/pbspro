@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -136,7 +136,7 @@ static struct resource_cost *add_cost_entry(attribute *patr, resource_def *prdef
  */
 
 int
-decode_rcost(struct attribute *patr, char *name, char *rescn, char *val)
+decode_rcost(attribute *patr, char *name, char *rescn, char *val)
 {
 	resource_def *prdef;
 	struct resource_cost *pcost;
@@ -147,9 +147,8 @@ decode_rcost(struct attribute *patr, char *name, char *rescn, char *val)
 		ATR_UNSET(patr);
 		return (0);
 	}
-	if (patr->at_flags & ATR_VFLAG_SET) {
+	if (is_attr_set(patr))
 		free_rcost(patr);
-	}
 
 	prdef = find_resc_def(svr_resc_def, rescn);
 	if (prdef == NULL)
@@ -165,7 +164,7 @@ decode_rcost(struct attribute *patr, char *name, char *rescn, char *val)
 			return (PBSE_SYSTEM);
 	}
 	pcost->rc_cost = atol(val);
-	patr->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(patr);
 	return (0);
 }
 
@@ -198,7 +197,7 @@ encode_rcost(const attribute *attr, pbs_list_head *phead, char *atname, char *rs
 
 	if (!attr)
 		return (-1);
-	if (!(attr->at_flags & ATR_VFLAG_SET))
+	if (!(is_attr_set(attr)))
 		return (0);
 
 	pcost = (struct resource_cost *)GET_NEXT(attr->at_val.at_list);
@@ -240,12 +239,12 @@ encode_rcost(const attribute *attr, pbs_list_head *phead, char *atname, char *rs
  */
 
 int
-set_rcost(struct attribute *old, struct attribute *new, enum batch_op op)
+set_rcost(attribute *old, attribute *new, enum batch_op op)
 {
 	struct resource_cost *pcnew;
 	struct resource_cost *pcold;
 
-	assert(old && new && (new->at_flags & ATR_VFLAG_SET));
+	assert(old && new && (is_attr_set(new)));
 
 	pcnew = (struct resource_cost *)GET_NEXT(new->at_val.at_list);
 	while (pcnew) {
@@ -273,7 +272,7 @@ set_rcost(struct attribute *old, struct attribute *new, enum batch_op op)
 		}
 		pcnew = (struct resource_cost *)GET_NEXT(pcnew->rc_link);
 	}
-	old->at_flags |= ATR_SET_MOD_MCACHE;
+	post_attr_set(old);
 	return (0);
 }
 
@@ -295,5 +294,5 @@ free_rcost(attribute *pattr)
 		delete_link(&pcost->rc_link);
 		(void)free(pcost);
 	}
-	pattr->at_flags &= ~ATR_VFLAG_SET;
+	mark_attr_not_set(pattr);
 }

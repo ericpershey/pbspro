@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -87,6 +87,7 @@ ATTR_N = 'Job_Name'
 ATTR_S = 'Shell_Path_List'
 ATTR_W = 'Additional_Attributes'  # Not in pbs_ifl.h
 ATTR_array_indices_submitted = ATTR_J
+ATTR_max_run_subjobs = 'max_run_subjobs'
 ATTR_depend = 'depend'
 ATTR_inter = 'interactive'
 ATTR_sandbox = 'sandbox'
@@ -96,6 +97,7 @@ ATTR_resvTag = 'reserve_Tag'
 ATTR_resv_start = 'reserve_start'
 ATTR_resv_end = 'reserve_end'
 ATTR_resv_duration = 'reserve_duration'
+ATTR_resv_alter_revert = 'reserve_alter_revert'
 ATTR_resv_state = 'reserve_state'
 ATTR_resv_substate = 'reserve_substate'
 ATTR_del_idle_time = 'delete_idle_time'
@@ -167,7 +169,6 @@ ATTR_ReqCredEnable = 'require_cred_enable'
 ATTR_ReqCred = 'require_cred'
 ATTR_runcount = 'run_count'
 ATTR_stime = 'stime'
-ATTR_pset = 'pset'
 ATTR_executable = 'executable'
 ATTR_Arglist = 'argument_list'
 ATTR_version = 'pbs_version'
@@ -286,10 +287,19 @@ ATTR_released = 'resources_released'
 ATTR_restrict_res_to_release_on_suspend = 'restrict_res_to_release_on_suspend'
 ATTR_sched_preempt_enforce_resumption = 'sched_preempt_enforce_resumption'
 ATTR_tolerate_node_failures = 'tolerate_node_failures'
+ATTR_HOOK_type = 'type'
+ATTR_HOOK_enable = 'enable'
+ATTR_HOOK_event = 'event'
+ATTR_HOOK_alarm = 'alarm'
+ATTR_HOOK_order = 'order'
+ATTR_HOOK_debug = 'debug'
+ATTR_HOOK_fail_action = 'fail_action'
+ATTR_HOOK_user = 'user'
 ATTR_NODE_Host = 'Host'
 ATTR_NODE_Mom = 'Mom'
 ATTR_NODE_Port = 'Port'
 ATTR_NODE_state = 'state'
+ATTR_NODE_svr_inst_id = "server_instance_id"
 ATTR_NODE_ntype = 'ntype'
 ATTR_NODE_jobs = 'jobs'
 ATTR_NODE_resvs = 'resv'

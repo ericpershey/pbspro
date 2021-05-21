@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -97,10 +97,7 @@ diswl_(int stream, dis_long_double_t value, unsigned ndigs)
 	/* Make zero a special case.  If we don't it will blow exponent		*/
 	/* calculation.								*/
 	if (value == 0.0L) {
-		retval = dis_puts(stream, "+0+0", 4) < 0 ?
-			DIS_PROTO : DIS_SUCCESS;
-		return ((disw_commit(stream, retval == DIS_SUCCESS) < 0) ?
-			DIS_NOCOMMIT : retval);
+		return (dis_puts(stream, "+0+0", 4) < 0 ? DIS_PROTO : DIS_SUCCESS);
 	}
 	/* Extract the sign from the coefficient.				*/
 	ldval = (negate = value < 0.0L) ? -value : value;
@@ -164,5 +161,5 @@ diswl_(int stream, dis_long_double_t value, unsigned ndigs)
 	if (retval == DIS_SUCCESS)
 		return (diswsi(stream, expon));
 	/* If coefficient didn't work, negative commit and return the error.	*/
-	return ((disw_commit(stream, FALSE) < 0)  ? DIS_NOCOMMIT : retval);
+	return retval;
 }

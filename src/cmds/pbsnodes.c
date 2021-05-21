@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -882,6 +882,7 @@ marknode(int con, char *name,
 	}
 	return (rc);
 }
+
 /**
  * @brief
  *	The main function in C - entry point
@@ -896,45 +897,36 @@ marknode(int con, char *name,
 int
 main(int argc, char *argv[])
 {
-	time_t		     timenow;
-	struct attrl	    *pattr = NULL;
-	int		     con;
-	char		    *def_server;
-	int		     errflg = 0;
-	char		    *errmsg;
-	int		     i;
-	int		     rc = 0;
-	extern	char	    *optarg;
-	extern	int	     optind;
-	char		   **pa;
-	char		    *comment = NULL;
+	time_t timenow;
+	struct attrl *pattr = NULL;
+	int con;
+	char *def_server = NULL;
+	int errflg = 0;
+	char *errmsg;
+	int i;
+	int rc = 0;
+	extern char *optarg;
+	extern int optind;
+	char **pa;
+	char *comment = NULL;
 	struct batch_status *bstat = NULL;
 	struct batch_status *bstat_head = NULL;
 	struct batch_status *next_bstat = NULL;
-	int		     do_vnodes = 0;
-	mgr_operation_t      oper = LISTSP;
-	int		     ret = 0;
-	int		     job_summary  = 0;
-	int		     long_summary = 0;
-	int		     format = 0;
-	int		     prt_summary = 0;
+	int do_vnodes = 0;
+	mgr_operation_t oper = LISTSP;
+	int ret = 0;
+	int job_summary = 0;
+	int long_summary = 0;
+	int format = 0;
+	int prt_summary = 0;
 
 
 	/*test for real deal or just version and exit*/
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
-
-	/* get default server, may be changed by -s option */
-
-	def_server = pbs_default();
-	if (def_server == NULL)
-		def_server = "";
 
 	if (argc == 1)
 		errflg = 1;
@@ -1082,6 +1074,12 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (def_server == NULL) {
+		def_server = pbs_default();
+		if (def_server == NULL)
+			def_server = "";
+	}
+
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "pbsnodes: unable to initialize security library.\n");
 		exit(1);
@@ -1094,7 +1092,9 @@ main(int argc, char *argv[])
 				argv[0], def_server, pbs_errno);
 		CS_close_app();
 		exit(1);
-	}
+	} else if (!quiet && pbs_errno)
+		show_svr_inst_fail(con, argv[0]);
+	
 
 	/* if do_vnodes is set, get status of all virtual nodes (vnodes) */
 	/* else if oper is ALL then get status of all hosts              */

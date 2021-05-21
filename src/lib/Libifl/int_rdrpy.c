@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1994-2020 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
  * This file is part of both the OpenPBS software ("OpenPBS")
@@ -57,6 +57,7 @@
 #include <time.h>
 #include "libpbs.h"
 #include "dis.h"
+#include "tpp.h"
 
 
 /**
@@ -64,6 +65,7 @@
  *
  * @param[in] sock - The socket fd to read from
  * @param[out] rc  - Return DIS error code
+ * @param[in] prot - protocol type
  *
  * @return Batch reply structure
  * @retval  !NULL - Success
@@ -71,38 +73,42 @@
  *
  */
 struct batch_reply *
-PBSD_rdrpy_sock(int sock, int *rc)
+PBSD_rdrpy_sock(int sock, int *rc, int prot)
 {
 	struct batch_reply *reply;
 	time_t old_timeout;
 
 	*rc = DIS_SUCCESS;
 	/* clear any prior error message */
-	if ((reply = (struct batch_reply *)malloc(sizeof(struct batch_reply))) == 0) {
+	if ((reply = (struct batch_reply *) calloc(1, sizeof(struct batch_reply))) == 0) {
 		pbs_errno = PBSE_SYSTEM;
 		return NULL;
 	}
-	(void)memset(reply, 0, sizeof(struct batch_reply));
 
-	DIS_tcp_funcs();
-	old_timeout = pbs_tcp_timeout;
-	if (pbs_tcp_timeout < PBS_DIS_TCP_TIMEOUT_LONG)
-		pbs_tcp_timeout = PBS_DIS_TCP_TIMEOUT_LONG;
+	if (prot == PROT_TCP) {
+		DIS_tcp_funcs();
+		old_timeout = pbs_tcp_timeout;
+		if (pbs_tcp_timeout < PBS_DIS_TCP_TIMEOUT_LONG)
+			pbs_tcp_timeout = PBS_DIS_TCP_TIMEOUT_LONG;
+	} else
+		DIS_tpp_funcs();
 
-	if ((*rc = decode_DIS_replyCmd(sock, reply)) != 0) {
+	if ((*rc = decode_DIS_replyCmd(sock, reply, prot)) != 0) {
 		(void)free(reply);
 		pbs_errno = PBSE_PROTOCOL;
 		return NULL;
 	}
+
 	dis_reset_buf(sock, DIS_READ_BUF);
-	pbs_tcp_timeout = old_timeout;
+	if (prot == PROT_TCP)
+		pbs_tcp_timeout = old_timeout;
 
 	pbs_errno = reply->brp_code;
 	return reply;
 }
 
 /**
- * @brief read a batch reply from the given connecction index
+ * @brief read a batch reply from the given connection index
  *
  * @param[in] c - The connection index to read from
  *
@@ -122,7 +128,8 @@ PBSD_rdrpy(int c)
 		pbs_errno = PBSE_SYSTEM;
 		return NULL;
 	}
-	reply = PBSD_rdrpy_sock(c, &rc);
+	/* PBSD_rdrpy() only handles TCP, hence passing PROT_TCP as prot */
+	reply = PBSD_rdrpy_sock(c, &rc, PROT_TCP);
 	if (reply == NULL) {
 		if (set_conn_errno(c, PBSE_PROTOCOL) != 0) {
 			pbs_errno = PBSE_SYSTEM;
@@ -159,21 +166,16 @@ PBSD_rdrpy(int c)
  */
 
 void
-PBSD_FreeReply(reply)
-struct batch_reply *reply;
+PBSD_FreeReply(struct batch_reply *reply)
 {
-	struct brp_select   *psel;
-	struct brp_select   *pselx;
-	struct brp_cmdstat  *pstc;
-	struct brp_cmdstat  *pstcx;
-	struct attrl        *pattrl;
-	struct attrl	    *pattrx;
+	struct brp_select *psel;
+	struct brp_select *pselx;
 
 	if (reply == 0)
 		return;
 	if (reply->brp_choice == BATCH_REPLY_CHOICE_Text) {
 		if (reply->brp_un.brp_txt.brp_str) {
-			(void)free(reply->brp_un.brp_txt.brp_str);
+			free(reply->brp_un.brp_txt.brp_str);
 			reply->brp_un.brp_txt.brp_str = NULL;
 			reply->brp_un.brp_txt.brp_txtlen = 0;
 		}
@@ -182,37 +184,26 @@ struct batch_reply *reply;
 		psel = reply->brp_un.brp_select;
 		while (psel) {
 			pselx = psel->brp_next;
-			(void)free(psel);
+			free(psel);
 			psel = pselx;
 		}
 
 	} else if (reply->brp_choice == BATCH_REPLY_CHOICE_Status) {
-		pstc = reply->brp_un.brp_statc;
-		while (pstc) {
-			pstcx = pstc->brp_stlink;
-			pattrl = pstc->brp_attrl;
-			while (pattrl) {
-				pattrx = pattrl->next;
-				if (pattrl->name)
-					(void)free(pattrl->name);
-				if (pattrl->resource)
-					(void)free(pattrl->resource);
-				if (pattrl->value)
-					(void)free(pattrl->value);
-				(void)free(pattrl);
-				pattrl = pattrx;
-			}
-			(void)free(pstc);
-			pstc = pstcx;
-		}
+		if (reply->brp_un.brp_statc)
+			pbs_statfree(reply->brp_un.brp_statc);
+	
+	} else if (reply->brp_choice == BATCH_REPLY_CHOICE_Delete) {
+		if (reply->brp_un.brp_deletejoblist.brp_delstatc)
+			pbs_delstatfree(reply->brp_un.brp_deletejoblist.brp_delstatc);
+	
 	} else if (reply->brp_choice == BATCH_REPLY_CHOICE_RescQuery) {
-		(void)free(reply->brp_un.brp_rescq.brq_avail);
-		(void)free(reply->brp_un.brp_rescq.brq_alloc);
-		(void)free(reply->brp_un.brp_rescq.brq_resvd);
-		(void)free(reply->brp_un.brp_rescq.brq_down);
+		free(reply->brp_un.brp_rescq.brq_avail);
+		free(reply->brp_un.brp_rescq.brq_alloc);
+		free(reply->brp_un.brp_rescq.brq_resvd);
+		free(reply->brp_un.brp_rescq.brq_down);
 	} else if (reply->brp_choice == BATCH_REPLY_CHOICE_PreemptJobs) {
-		(void)free(reply->brp_un.brp_preempt_jobs.ppj_list);
+		free(reply->brp_un.brp_preempt_jobs.ppj_list);
 	}
 
-	(void)free(reply);
+	free(reply);
 }

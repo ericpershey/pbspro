@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2020 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
 # This file is part of both the OpenPBS software ("OpenPBS")
@@ -5155,7 +5155,7 @@ pbs_tmrsh %s hostname
         with open(job_output_file, 'r') as fd:
             job_out = fd.read()
 
-        self.assertEqual(job_out, expected_out)
+        self.assertIn(expected_out, job_out, "job output is not present")
 
         # Re-check vnode_list[] parameter in execjob_launch hook
         vnode_list = [self.nAv0, self.nAv1, self.nAv2,
@@ -5241,7 +5241,7 @@ pbs_tmrsh %s hostname
         with open(job_output_file, 'r') as fd:
             job_out = fd.read()
 
-        self.assertEqual(job_out, expected_out)
+        self.assertIn(expected_out, job_out, "job output is not present")
 
     def test_t19(self):
         """
