@@ -69,7 +69,6 @@ int force_alter = FALSE;
 int
 process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 {
-	perf_timing *perf_t = start_perf_timing("process_opts");
 	int	c = 0;
 
 	int	errflg = 0;
@@ -87,7 +86,6 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 				t = cvtdate(optarg);
 				if (t >= 0) {
 					(void)sprintf(time_buf, "%ld", (long)t);
-					end_perf_timing(perf_t, __LINE__ - 22, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_resv_end, time_buf);
 					dtend = t;
 				} else {
@@ -99,7 +97,6 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 			case 'I':
 				temp = strtol(optarg, &endptr, 0);
 				if (*endptr == '\0' && temp > 0) {
-					end_perf_timing(perf_t, __LINE__ - 34, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_inter, optarg);
 				} else {
 					fprintf(stderr, "pbs_ralter: illegal -I time value\n");
@@ -108,7 +105,6 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 				break;
 
 			case 'm':
-				end_perf_timing(perf_t, __LINE__ - 43, __FILE__);
 				set_attr_error_exit(&attrib, ATTR_m, optarg);
 				break;
 
@@ -183,7 +179,6 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 		errflg++;
 	}
 	*attrp = attrib;
-	end_perf_timing(perf_t, __LINE__ - 118, __FILE__);
 	return (errflg);
 }
 
@@ -194,7 +189,6 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 static void
 print_usage()
 {
-	perf_timing *perf_t = start_perf_timing("print_usage");
 	static char usag2[]="       pbs_ralter --version\n";
 	static char usage[]=
 		"usage: pbs_ralter [-I seconds] [-m mail_points] [-M mail_list]\n"
@@ -206,7 +200,6 @@ print_usage()
 	"                resv_id\n";
 	fprintf(stderr, "%s", usage);
 	fprintf(stderr, "%s", usag2);
-	end_perf_timing(perf_t, __LINE__ - 17, __FILE__);
 }
 
 
@@ -260,8 +253,6 @@ handle_attribute_errors(struct ecl_attribute_errors *err_list)
 int
 main(int argc, char *argv[], char *envp[])		/* pbs_ralter */
 {
-	init_perf_timing("/tmp/pbs_ralter.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int		errflg = 0;			/* command line option error */
 	int		connect = -1;			/* return from pbs_connect */
 	char		*errmsg = NULL;			/* return from pbs_geterrmsg */
@@ -278,17 +269,14 @@ main(int argc, char *argv[], char *envp[])		/* pbs_ralter */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 23, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	destbuf[0] = '\0';
 	errflg = process_opts(argc, argv, &attrib, destbuf); /* get cmdline options */
 
 	if (errflg || ((optind+1) != argc) || argc == 1) {
 		print_usage();
-		end_perf_timing(perf_t, __LINE__ - 32, __FILE__);
 		exit(2);
 	}
 
@@ -296,7 +284,6 @@ main(int argc, char *argv[], char *envp[])		/* pbs_ralter */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "pbs_ralter: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 40, __FILE__);
 		exit(1);
 	}
 
@@ -306,7 +293,6 @@ main(int argc, char *argv[], char *envp[])		/* pbs_ralter */
 		fprintf(stderr, "pbs_ralter: cannot connect to server %s (errno=%d)\n",
 			pbs_server, pbs_errno);
 		CS_close_app();
-		end_perf_timing(perf_t, __LINE__ - 50, __FILE__);
 		exit(pbs_errno);
 	} else if (pbs_errno)
 		show_svr_inst_fail(connect, argv[0]);
@@ -314,7 +300,6 @@ main(int argc, char *argv[], char *envp[])		/* pbs_ralter */
 	pbs_strncpy(resv_id, argv[optind], sizeof(resv_id));
 	if (get_server(resv_id, resv_id_out, server_out)) {
 		fprintf(stderr, "pbs_ralter: illegally formed reservation identifier: %s\n", resv_id);
-		end_perf_timing(perf_t, __LINE__ - 58, __FILE__);
 		exit(2);
 	}
 
@@ -332,7 +317,6 @@ main(int argc, char *argv[], char *envp[])		/* pbs_ralter */
 		} else
 			fprintf(stderr, "pbs_ralter: Error (%d) modifying reservation\n", pbs_errno);
 		CS_close_app();
-		end_perf_timing(perf_t, __LINE__ - 76, __FILE__);
 		exit(pbs_errno);
 	} else {
 		printf("pbs_ralter: %s\n", stat);
@@ -342,6 +326,5 @@ main(int argc, char *argv[], char *envp[])		/* pbs_ralter */
 	pbs_disconnect(connect);
 
 	CS_close_app();
-	end_perf_timing(perf_t, __LINE__ - 86, __FILE__);
 	exit(0);
 }

@@ -61,8 +61,6 @@
 int
 main(int argc, char **argv, char **envp) /* qmsg */
 {
-	init_perf_timing("/tmp/qmsg.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int to_file;
 	int errflg=0;
@@ -83,10 +81,8 @@ main(int argc, char **argv, char **envp) /* qmsg */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 27, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	msg_string[0]='\0';
 	to_file = 0;
@@ -111,7 +107,6 @@ main(int argc, char **argv, char **envp) /* qmsg */
 				"       qmsg --version\n";
 			fprintf(stderr, "%s", usage);
 			fprintf(stderr, "%s", usag2);
-			end_perf_timing(perf_t, __LINE__ - 54, __FILE__);
 			exit(2);
 		}
 
@@ -121,7 +116,6 @@ main(int argc, char **argv, char **envp) /* qmsg */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qmsg: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 64, __FILE__);
 		exit(2);
 	}
 
@@ -168,6 +162,5 @@ cnt:
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
-	end_perf_timing(perf_t, __LINE__ - 111, __FILE__);
 	exit(any_failed);
 }

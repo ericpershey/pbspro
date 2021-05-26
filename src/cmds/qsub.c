@@ -626,7 +626,6 @@ refresh_dfltqsubargs(void)
 void
 exit_qsub(int exitstatus)
 {
-	perf_timing *perf_t = start_perf_timing("exit_qsub");
 /* A thread that makes qsub exit, should try and acquire the Critical Section. */
 	critical_section();
 
@@ -654,7 +653,6 @@ exit_qsub(int exitstatus)
 	}
 #endif
 
-	end_perf_timing(perf_t, __LINE__ - 32, __FILE__);
 	exit(exitstatus);
 }
 
@@ -704,12 +702,10 @@ strdup_esc_commas(char *str_to_dup)
 static void
 print_usage(void)
 {
-	perf_timing *perf_t = start_perf_timing("print_usage");
 	static char usage2[]="       qsub --version\n";
 	extern char usage[];
 	fprintf(stderr, "%s", usage);
 	fprintf(stderr, "%s", usage2);
-	end_perf_timing(perf_t, __LINE__ - 10, __FILE__);
 }
 
 /* End of "Utility" functions. */
@@ -1027,7 +1023,6 @@ err:
 static int
 process_opts(int argc, char **argv, int passet)
 {
-	perf_timing *perf_t = start_perf_timing("process_opts");
 	int i;
 	int c;
 	char *erp;
@@ -1111,7 +1106,6 @@ extern char GETOPT_ARGS[];
 							break;
 						}
 					}
-					end_perf_timing(perf_t, __LINE__ - 88, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_c, optarg);
 				}
 				break;
@@ -1124,14 +1118,12 @@ extern char GETOPT_ARGS[];
 			case 'e':
 				if_cmd_line(e_opt) {
 					e_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 101, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_e, optarg);
 				}
 				break;
 			case 'h':
 				if_cmd_line(h_opt) {
 					h_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 108, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_h, "u");
 				}
 				break;
@@ -1154,7 +1146,6 @@ extern char GETOPT_ARGS[];
 					if (roptarg_inter == TRUE) {
 						fprintf(stderr, "%s", INTER_RERUN_WARN);
 					}
-					end_perf_timing(perf_t, __LINE__ - 131, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_inter, interactive_port());
 				}
 				break;
@@ -1162,7 +1153,6 @@ extern char GETOPT_ARGS[];
 			case 'j':
 				if_cmd_line(j_opt) {
 					j_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 139, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_j, optarg);
 				}
 				break;
@@ -1183,7 +1173,6 @@ extern char GETOPT_ARGS[];
 					p = strpbrk(optarg, "%");
 					if (p != NULL)
 						*p = '\0';
-					end_perf_timing(perf_t, __LINE__ - 160, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_J, optarg);
 					if (p != NULL) {
 						if (max_run_opt == FALSE) {
@@ -1200,7 +1189,6 @@ extern char GETOPT_ARGS[];
 			case 'k':
 				if_cmd_line(k_opt) {
 					k_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 177, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_k, optarg);
 				}
 				break;
@@ -1219,14 +1207,12 @@ extern char GETOPT_ARGS[];
 				if_cmd_line(m_opt) {
 					m_opt = passet;
 					while (isspace((int)*optarg)) optarg++;
-					end_perf_timing(perf_t, __LINE__ - 196, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_m, optarg);
 				}
 				break;
 			case 'M':
 				if_cmd_line(M_opt) {
 					M_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 203, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_M, optarg);
 				}
 				break;
@@ -1235,7 +1221,6 @@ extern char GETOPT_ARGS[];
 					N_opt = passet;
 					/* If ATTR_N is not set previously */
 					if (get_attr(attrib, ATTR_N, NULL) == NULL) {
-						end_perf_timing(perf_t, __LINE__ - 212, __FILE__);
 						set_attr_error_exit(&attrib, ATTR_N, optarg);
 					}
 					/* If N_opt is not set previously but if ATTR_N is set
@@ -1253,7 +1238,6 @@ extern char GETOPT_ARGS[];
 									pattr->value = (char *) realloc(pattr->value, N_len + 1);
 									if (pattr->value == NULL) {
 										fprintf(stderr, "Out of memory\n");
-										end_perf_timing(perf_t, __LINE__ - 230, __FILE__);
 										exit(2);
 									}
 								}
@@ -1266,7 +1250,6 @@ extern char GETOPT_ARGS[];
 			case 'o':
 				if_cmd_line(o_opt) {
 					o_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 243, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_o, optarg);
 				}
 				break;
@@ -1274,7 +1257,6 @@ extern char GETOPT_ARGS[];
 				if_cmd_line(p_opt) {
 					p_opt = passet;
 					while (isspace((int)*optarg)) optarg++;
-					end_perf_timing(perf_t, __LINE__ - 251, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_p, optarg);
 				}
 				break;
@@ -1308,28 +1290,24 @@ extern char GETOPT_ARGS[];
 							fprintf(stderr, "%s", INTER_RERUN_WARN);
 					}
 					roptarg = *optarg;
-					end_perf_timing(perf_t, __LINE__ - 285, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_r, optarg);
 				}
 				break;
 			case 'R':
 				if_cmd_line(R_opt) {
 					R_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 292, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_R, optarg);
 				}
 				break;
 			case 'S':
 				if_cmd_line(S_opt) {
 					S_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 299, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_S, optarg);
 				}
 				break;
 			case 'u':
 				if_cmd_line(u_opt) {
 					u_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 306, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_u, optarg);
 				}
 				break;
@@ -1344,10 +1322,8 @@ extern char GETOPT_ARGS[];
 					 */
 					fix_path(optarg, 1);
 					v_value = expand_varlist(optarg);
-					if (v_value == NULL) {
-						end_perf_timing(perf_t, __LINE__ - 322, __FILE__);
+					if (v_value == NULL)
 						exit(1);
-					}
 				}
 				break;
 			case 'V':
@@ -1374,31 +1350,26 @@ extern char GETOPT_ARGS[];
 					if (strcmp(keyword, ATTR_depend) == 0) {
 						if_cmd_line(Depend_opt) {
 							Depend_opt = passet;
-							end_perf_timing(perf_t, __LINE__ - 351, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_depend, valuewd);
 						}
 					} else if (strcmp(keyword, ATTR_stagein) == 0) {
 						if_cmd_line(Stagein_opt) {
 							Stagein_opt = passet;
-							end_perf_timing(perf_t, __LINE__ - 357, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_stagein, valuewd);
 						}
 					} else if (strcmp(keyword, ATTR_stageout) == 0) {
 						if_cmd_line(Stageout_opt) {
 							Stageout_opt = passet;
-							end_perf_timing(perf_t, __LINE__ - 363, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_stageout, valuewd);
 						}
 					} else if (strcmp(keyword, ATTR_sandbox) == 0) {
 						if_cmd_line(Sandbox_opt) {
 							Sandbox_opt = passet;
-							end_perf_timing(perf_t, __LINE__ - 369, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_sandbox, valuewd);
 						}
 					} else if (strcmp(keyword, ATTR_g) == 0) {
 						if_cmd_line(Grouplist_opt) {
 							Grouplist_opt = passet;
-							end_perf_timing(perf_t, __LINE__ - 375, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_g, valuewd);
 						}
 					} else if (strcmp(keyword, ATTR_inter) == 0) {
@@ -1420,7 +1391,6 @@ extern char GETOPT_ARGS[];
 							 */
 							if (!(strcasecmp(valuewd, "true"))) {
 								Interact_opt = passet;
-								end_perf_timing(perf_t, __LINE__ - 397, __FILE__);
 								set_attr_error_exit(&attrib, ATTR_inter, interactive_port());
 							} else if (!(strcasecmp(valuewd, "false"))) {
 								/* Do Nothing, let it run as a non-interactive job */
@@ -1467,7 +1437,6 @@ extern char GETOPT_ARGS[];
 								break;
 							}
 							sprintf(a_value, "%ld", (long)after);
-							end_perf_timing(perf_t, __LINE__ - 444, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_resv_start, a_value);
 						}
 					} else if (strcmp(keyword, ATTR_resv_end) == 0) {
@@ -1479,26 +1448,22 @@ extern char GETOPT_ARGS[];
 								break;
 							}
 							sprintf(a_value, "%ld", (long)after);
-							end_perf_timing(perf_t, __LINE__ - 456, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_resv_end, a_value);
 						}
 					} else if (strcmp(keyword, ATTR_cred) == 0) {
 						if_cmd_line(cred_opt) {
 							cred_opt = passet;
 							snprintf(cred_name, sizeof(cred_name), "%s", valuewd);
-							end_perf_timing(perf_t, __LINE__ - 463, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_cred, valuewd);
 						}
 					} else if (strcmp(keyword, ATTR_tolerate_node_failures) == 0) {
 						if_cmd_line(tolerate_node_failures_opt) {
 							tolerate_node_failures_opt = passet;
-							end_perf_timing(perf_t, __LINE__ - 469, __FILE__);
 							set_attr_error_exit(&attrib, ATTR_tolerate_node_failures, valuewd);
 						}
 					} else if (strcmp(keyword, ATTR_max_run_subjobs) == 0) {
 						if (max_run_opt == FALSE) {
 							max_run_opt = TRUE;
-							end_perf_timing(perf_t, __LINE__ - 475, __FILE__);
 							set_attr_error_exit(&attrib, keyword, valuewd);
 						} else {
 							fprintf(stderr, "%s", MULTIPLE_MAX_RUN);
@@ -1506,7 +1471,6 @@ extern char GETOPT_ARGS[];
 							break;
 						}
 					}else {
-						end_perf_timing(perf_t, __LINE__ - 483, __FILE__);
 						set_attr_error_exit(&attrib, keyword, valuewd);
 					}
 					i = parse_equal_string(NULL, &keyword, &valuewd);
@@ -1531,7 +1495,6 @@ extern char GETOPT_ARGS[];
 			case 'G':
 				if_cmd_line(gui_opt) {
 					gui_opt = passet;
-					end_perf_timing(perf_t, __LINE__ - 508, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_GUI, "TRUE");
 				}
 				break;
@@ -1543,28 +1506,23 @@ extern char GETOPT_ARGS[];
 				errflg++;
 		}
 	}
-	if ((block_opt == passet) && (Interact_opt == FALSE)) {
-		end_perf_timing(perf_t, __LINE__ - 521, __FILE__);
+	if ((block_opt == passet) && (Interact_opt == FALSE))
 		set_attr_error_exit(&attrib, ATTR_block, block_port());
-	}
 	if ((Forwardx11_opt == CMDLINE) && (Interact_opt == FALSE)
 		&& (errflg == 0)) {
 		fprintf(stderr, "qsub: X11 Forwarding possible only for "
 			"interactive jobs\n");
-		end_perf_timing(perf_t, __LINE__ - 528, __FILE__);
 		exit_qsub(1);
 	}
 	if ((gui_opt == CMDLINE) && (Interact_opt == FALSE)) {
 		fprintf(stderr, INTER_GUI_WARN);
 		gui_opt = FALSE;
-		end_perf_timing(perf_t, __LINE__ - 534, __FILE__);
 		exit_qsub(1);
 	}
 
 	if (errflg == 0 && J_opt == 0 && get_attr(attrib, ATTR_m, NULL) != NULL &&
 		strchr(get_attr(attrib, ATTR_m, NULL), 'j') != NULL) {
 		fprintf(stderr, "qsub: mail option 'j' can not be used without array job\n");
-		end_perf_timing(perf_t, __LINE__ - 541, __FILE__);
 		exit_qsub(1);
 	}
 
@@ -1604,17 +1562,14 @@ extern char GETOPT_ARGS[];
 	/* use PBS_SHELL if specified only if -S was not specified */
 	if (S_opt == FALSE) {
 		char* c = getenv("PBS_SHELL");
-		if (c) {
-			end_perf_timing(perf_t, __LINE__ - 582, __FILE__);
+		if (c)
 			set_attr_error_exit(&attrib, ATTR_S, c);
-		}
 	}
 
 	if (u_opt && cred_name[0]) {
 		fprintf(stderr, "qsub: credential incompatable with -u\n");
 		errflg++;
 	}
-	end_perf_timing(perf_t, __LINE__ - 591, __FILE__);
 	return (errflg);
 }
 
@@ -1633,14 +1588,12 @@ extern char GETOPT_ARGS[];
 static int
 process_special_args(int argc, char **argv, char *script)
 {
-	perf_timing *perf_t = start_perf_timing("process_special_args");
 	int command_flag = 0;
 	char *arg_list = NULL;
 	if (optind < argc) {
 		if (strcmp(argv[optind], "--") == 0) {
 			command_flag = 1;
 			/* set executable */
-			end_perf_timing(perf_t, __LINE__ - 11, __FILE__);
 			set_attr_error_exit(&attrib, ATTR_executable, argv[optind + 1]);
 			if (argc > (optind + 2)) {
 				/* user has specified arguments to executable as well. */
@@ -1666,7 +1619,6 @@ process_special_args(int argc, char **argv, char *script)
 			snprintf(script, MAXPATHLEN, "%s", argv[optind]);
 		}
 	}
-	end_perf_timing(perf_t, __LINE__ - 37, __FILE__);
 	return command_flag;
 }
 
@@ -1819,36 +1771,20 @@ do_dir(char *opts, int opt_pass, char *retmsg, size_t ret_size)
 static void
 set_opt_defaults(void)
 {
-	perf_timing *perf_t = start_perf_timing("set_opt_defaults");
-	if (c_opt == FALSE) {
-		end_perf_timing(perf_t, __LINE__ - 6, __FILE__);
+	if (c_opt == FALSE)
 		set_attr_error_exit(&attrib, ATTR_c, CHECKPOINT_UNSPECIFIED);
-	}
-	if (h_opt == FALSE) {
-		end_perf_timing(perf_t, __LINE__ - 10, __FILE__);
+	if (h_opt == FALSE)
 		set_attr_error_exit(&attrib, ATTR_h, NO_HOLD);
-	}
-	if (j_opt == FALSE) {
-		end_perf_timing(perf_t, __LINE__ - 14, __FILE__);
+	if (j_opt == FALSE)
 		set_attr_error_exit(&attrib, ATTR_j, NO_JOIN);
-	}
-	if (k_opt == FALSE) {
-		end_perf_timing(perf_t, __LINE__ - 18, __FILE__);
+	if (k_opt == FALSE)
 		set_attr_error_exit(&attrib, ATTR_k, NO_KEEP);
-	}
-	if (m_opt == FALSE) {
-		end_perf_timing(perf_t, __LINE__ - 22, __FILE__);
+	if (m_opt == FALSE)
 		set_attr_error_exit(&attrib, ATTR_m, MAIL_AT_ABORT);
-	}
-	if (p_opt == FALSE) {
-		end_perf_timing(perf_t, __LINE__ - 26, __FILE__);
+	if (p_opt == FALSE)
 		set_attr_error_exit(&attrib, ATTR_p, "0");
-	}
-	if (r_opt == FALSE) {
-		end_perf_timing(perf_t, __LINE__ - 30, __FILE__);
+	if (r_opt == FALSE)
 		set_attr_error_exit(&attrib, ATTR_r, "TRUE");
-	}
-	end_perf_timing(perf_t, __LINE__ - 34, __FILE__);
 }
 
 /* End of "Options Processing" functions. */
@@ -1893,7 +1829,6 @@ set_dir_prefix(char *prefix, int diropt)
 static void
 read_job_script(char *script)
 {
-	perf_timing *perf_t = start_perf_timing("read_job_script");
 	extern char read_script_msg[];
 	int errflg; /* error code from get_script() */
 	struct stat statbuf;
@@ -1908,15 +1843,12 @@ read_job_script(char *script)
 			printf("%s", read_script_msg);
 		}
 
-		if (!N_opt) {
-			end_perf_timing(perf_t, __LINE__ - 20, __FILE__);
+		if (!N_opt)
 			set_attr_error_exit(&attrib, ATTR_N, "STDIN");
-		}
 		if (Interact_opt == FALSE) {
 			errflg = get_script(stdin, script_tmp, set_dir_prefix(dir_prefix, C_opt));
 			if (errflg > 0) {
 				(void)unlink(script_tmp);
-				end_perf_timing(perf_t, __LINE__ - 27, __FILE__);
 				exit_qsub(1);
 			} else if (errflg < 0) {
 				exit_qsub(1);
@@ -1925,12 +1857,10 @@ read_job_script(char *script)
 	} else { /* non-empty script, read it for directives */
 		if (stat(script, &statbuf) < 0) {
 			perror("qsub: script file:");
-			end_perf_timing(perf_t, __LINE__ - 36, __FILE__);
 			exit_qsub(1);
 		}
 		if (!S_ISREG(statbuf.st_mode)) {
 			fprintf(stderr, "qsub: script not a file\n");
-			end_perf_timing(perf_t, __LINE__ - 41, __FILE__);
 			exit_qsub(1);
 		}
 		if ((f = fopen(script, "r")) != NULL) {
@@ -1945,13 +1875,11 @@ read_job_script(char *script)
 				 * set ATTR_N directly - verification would be done
 				 * by IFL later
 				 */
-				end_perf_timing(perf_t, __LINE__ - 56, __FILE__);
 				set_attr_error_exit(&attrib, ATTR_N, basename);
 			}
 			errflg = get_script(f, script_tmp, set_dir_prefix(dir_prefix, C_opt));
 			if (errflg > 0) {
 				(void)unlink(script_tmp);
-				end_perf_timing(perf_t, __LINE__ - 62, __FILE__);
 				exit_qsub(1);
 			} else if (errflg < 0) {
 				exit_qsub(1);
@@ -1960,11 +1888,9 @@ read_job_script(char *script)
 			f = NULL;
 		} else {
 			perror("qsub: opening script file:");
-			end_perf_timing(perf_t, __LINE__ - 71, __FILE__);
 			exit_qsub(8);
 		}
 	}
-	end_perf_timing(perf_t, __LINE__ - 76, __FILE__);
 }
 
 /* End of "Job Script" functions. */
@@ -1984,7 +1910,6 @@ read_job_script(char *script)
 static char *
 job_env_basic(void)
 {
-	perf_timing *perf_t = start_perf_timing("job_env_basic");
 	char *job_env = NULL;
 	char *s = NULL;
 	char *c = NULL;
@@ -2041,7 +1966,6 @@ job_env_basic(void)
 
 	if ((job_env = (char *)malloc(len)) == NULL) {
 		fprintf(stderr, "malloc failure (errno %d)\n", errno);
-		end_perf_timing(perf_t, __LINE__ - 61, __FILE__);
 		return NULL;
 	}
 	memset(job_env, '\0', len);
@@ -2123,7 +2047,6 @@ job_env_basic(void)
 			if (stat(".", &statbuf) < 0) {
 				perror("qsub: cannot stat current directory: ");
 				free(job_env);
-				end_perf_timing(perf_t, __LINE__ - 143, __FILE__);
 				return NULL;
 			}
 			/* compare against "." */
@@ -2182,11 +2105,9 @@ job_env_basic(void)
 	else {
 		perror("qsub: cannot get uname info:");
 		free(job_env);
-		end_perf_timing(perf_t, __LINE__ - 202, __FILE__);
 		return NULL;
 	}
 
-	end_perf_timing(perf_t, __LINE__ - 206, __FILE__);
 	return (job_env);
 }
 
@@ -2210,7 +2131,6 @@ job_env_basic(void)
 static char *
 env_array_to_varlist(char **envp)
 {
-	perf_timing *perf_t = start_perf_timing("env_array_to_varlist");
 	char **evp;
 	int len;
 	char *job_env = NULL;
@@ -2218,7 +2138,6 @@ env_array_to_varlist(char **envp)
 
 	if (envp == NULL) {
 		fprintf(stderr, "env_array_to_varlist: no envp array!\n");
-		end_perf_timing(perf_t, __LINE__ - 12, __FILE__);
 		return NULL;
 	}
 
@@ -2232,7 +2151,6 @@ env_array_to_varlist(char **envp)
 
 	if ((job_env = (char *) malloc(len)) == NULL) {
 		fprintf(stderr, "env_array_to_varlist: malloc failure errno=%d", errno);
-		end_perf_timing(perf_t, __LINE__ - 26, __FILE__);
 		return NULL;
 	}
 
@@ -2256,7 +2174,6 @@ env_array_to_varlist(char **envp)
 		evp++;
 	}
 
-	end_perf_timing(perf_t, __LINE__ - 50, __FILE__);
 	return (job_env);
 }
 
@@ -3267,7 +3184,6 @@ do_submit2(char *rmsg)
 static int
 regular_submit(int daemon_up)
 {
-	perf_timing *perf_t = start_perf_timing("regular_submit");
 	int rc = 0;
 	rc = do_connect(server_out, retmsg);
 	if (rc == 0) {
@@ -3279,7 +3195,6 @@ regular_submit(int daemon_up)
 	}
 	if ((rc == 0) && !(Interact_opt != FALSE || block_opt) && (daemon_up == 0) && (no_background == 0) && !V_opt)
 		do_daemon_stuff();
-	end_perf_timing(perf_t, __LINE__ - 16, __FILE__);
 	return rc;
 }
 
@@ -3288,8 +3203,6 @@ regular_submit(int daemon_up)
 int
 main(int argc, char **argv, char **envp) /* qsub */
 {
-	init_perf_timing("/tmp/qsub.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int errflg; /* option error */
 	static char script[MAXPATHLEN + 1] = ""; /* name of script file */
 	char *q_n_out; /* queue part of destination */
@@ -3319,7 +3232,6 @@ main(int argc, char **argv, char **envp) /* qsub */
 	tmpdir = pbs_get_tmpdir();
 	if (tmpdir == NULL) {
 		fprintf(stderr, "qsub: Failed to load configuration parameters!\n");
-		end_perf_timing(perf_t, __LINE__ - 35, __FILE__);
 		exit_qsub(2);
 	}
 
@@ -3330,7 +3242,6 @@ main(int argc, char **argv, char **envp) /* qsub */
 	 * "Submit_arguments" job attribute.
 	 */
 	if ((argc >= 2) && (cmdargs = encode_xml_arg_list(1, argc, argv))) {
-		end_perf_timing(perf_t, __LINE__ - 46, __FILE__);
 		set_attr_error_exit(&attrib, ATTR_submit_arguments, cmdargs);
 		free(cmdargs);
 		cmdargs = NULL;
@@ -3340,7 +3251,6 @@ main(int argc, char **argv, char **envp) /* qsub */
 	argv_cpy = calloc(argc + 1, sizeof(char *));
 	if (argv_cpy == NULL) {
 		fprintf(stderr, "qsub: out of memory\n");
-		end_perf_timing(perf_t, __LINE__ - 56, __FILE__);
 		exit_qsub(2);
 	}
 	for (i = 0; i < argc; i++) {
@@ -3358,7 +3268,6 @@ main(int argc, char **argv, char **envp) /* qsub */
 		 * should exit.
 		 */
 		print_usage();
-		end_perf_timing(perf_t, __LINE__ - 74, __FILE__);
 		exit_qsub(2);
 	}
 	free(argv_cpy);
@@ -3381,7 +3290,6 @@ main(int argc, char **argv, char **envp) /* qsub */
 	if (parse_destination_id(destination, &q_n_out, &s_n_out)) {
 		fprintf(stderr, "qsub: illegally formed destination: %s\n", destination);
 		(void)unlink(script_tmp);
-		end_perf_timing(perf_t, __LINE__ - 97, __FILE__);
 		exit_qsub(2);
 	} else if (notNULL(s_n_out)) {
 		snprintf(server_out, sizeof(server_out), "%s", s_n_out);
@@ -3393,10 +3301,8 @@ main(int argc, char **argv, char **envp) /* qsub */
 	 * be sent to the qsub daemon if needed.
 	 */
 	basic_envlist = job_env_basic();
-	if (basic_envlist == NULL) {
-		end_perf_timing(perf_t, __LINE__ - 110, __FILE__);
+	if (basic_envlist == NULL)
 		exit_qsub(3);
-	}
 	if (V_opt)
 		qsub_envlist = env_array_to_varlist(envp);
 
@@ -3435,7 +3341,6 @@ main(int argc, char **argv, char **envp) /* qsub */
 		/* check if the retmsg has "qsub: illegal -" string, if so print usage */
 		if (strstr(retmsg, "qsub: illegal -"))
 			print_usage();
-		end_perf_timing(perf_t, __LINE__ - 151, __FILE__);
 		exit_qsub(rc);
 	}
 
@@ -3447,7 +3352,6 @@ main(int argc, char **argv, char **envp) /* qsub */
 		block();
 	}
 
-	end_perf_timing(perf_t, __LINE__ - 163, __FILE__);
 	exit_qsub(0);
 	return (0);
 } /* end of main() */

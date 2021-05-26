@@ -61,8 +61,6 @@
 int
 main(int argc, char **argv, char **envp) /* qmove */
 {
-	init_perf_timing("/tmp/qmove.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int any_failed=0;
 
 	char job_id[PBS_MAXCLTJOBID];		/* from the command line */
@@ -77,24 +75,20 @@ main(int argc, char **argv, char **envp) /* qmove */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 21, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	if (argc < 3) {
 		static char usage[]="usage: qmove destination job_identifier...\n";
 		static char usag2[]="       qmove --version\n";
 		fprintf(stderr, "%s", usage);
 		fprintf(stderr, "%s", usag2);
-		end_perf_timing(perf_t, __LINE__ - 30, __FILE__);
 		exit(2);
 	}
 
 	pbs_strncpy(destination, argv[1], sizeof(destination));
 	if (parse_destination_id(destination, &q_n_out, &s_n_out)) {
 		fprintf(stderr, "qmove: illegally formed destination: %s\n", destination);
-		end_perf_timing(perf_t, __LINE__ - 37, __FILE__);
 		exit(2);
 	}
 
@@ -102,7 +96,6 @@ main(int argc, char **argv, char **envp) /* qmove */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qmove: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 45, __FILE__);
 		exit(2);
 	}
 
@@ -153,6 +146,5 @@ cnt:
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
-	end_perf_timing(perf_t, __LINE__ - 96, __FILE__);
 	exit(any_failed);
 }

@@ -69,7 +69,6 @@
 static void
 print_usage()
 {
-	perf_timing *perf_t = start_perf_timing("print_usage");
 	static char usag2[]="       qalter --version\n";
 	static char usage[]=
 		"usage: qalter [-a date_time] [-A account_string] [-c interval] [-e path]\n"
@@ -79,7 +78,6 @@ print_usage()
 	"\t[-P project_name] job_identifier...\n";
 	fprintf(stderr, "%s", usage);
 	fprintf(stderr, "%s", usag2);
-	end_perf_timing(perf_t, __LINE__ - 15, __FILE__);
 }
 
 /**
@@ -171,8 +169,6 @@ handle_attribute_errors(int connect,
 int
 main(int argc, char **argv, char **envp) /* qalter */
 {
-	init_perf_timing("/tmp/qalter.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int errflg=0;
 	int any_failed=0;
@@ -198,10 +194,8 @@ main(int argc, char **argv, char **envp) /* qalter */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 32, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	while ((c = getopt(argc, argv, GETOPT_ARGS)) != EOF)
 		switch (c) {
@@ -212,7 +206,6 @@ main(int argc, char **argv, char **envp) /* qalter */
 					break;
 				}
 				sprintf(a_value, "%ld", (long)after);
-				end_perf_timing(perf_t, __LINE__ - 45, __FILE__);
 				set_attr_error_exit(&attrib, ATTR_a, a_value);
 				break;
 			case 'A':
@@ -320,7 +313,6 @@ main(int argc, char **argv, char **envp) /* qalter */
 
 	if (errflg || optind == argc) {
 		print_usage();
-		end_perf_timing(perf_t, __LINE__ - 153, __FILE__);
 		exit(2);
 	}
 
@@ -328,7 +320,6 @@ main(int argc, char **argv, char **envp) /* qalter */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qalter: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 161, __FILE__);
 		exit(1);
 	}
 
@@ -374,6 +365,5 @@ cnt:
 		pbs_disconnect(connect);
 	}
 	CS_close_app();
-	end_perf_timing(perf_t, __LINE__ - 207, __FILE__);
 	exit(any_failed);
 }

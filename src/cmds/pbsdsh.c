@@ -187,8 +187,6 @@ wait_for_task(int first, int *nspawned)
 int
 main(int argc, char *argv[], char *envp[])
 {
-	init_perf_timing("/tmp/pbsdsh.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int                     c = 0;
 	int                     err = 0;
 	int                     max_events;
@@ -213,10 +211,8 @@ main(int argc, char *argv[], char *envp[])
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 31, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	while ((c = getopt(argc, argv, "c:n:svo")) != EOF) {
 		switch (c) {
@@ -261,14 +257,12 @@ main(int argc, char *argv[], char *envp[])
 		fprintf(stderr, "      -v = forces verbose output.\n");
 		fprintf(stderr, "      -o = no obits are waited for.\n");
 
-		end_perf_timing(perf_t, __LINE__ - 78, __FILE__);
 		exit(1);
 	}
 
 	id = argv[0];
 	if ((pbs_environ = getenv("PBS_ENVIRONMENT")) == 0) {
 		fprintf(stderr, "%s: not executing under PBS\n", id);
-		end_perf_timing(perf_t, __LINE__ - 85, __FILE__);
 		return 1;
 	}
 
@@ -278,7 +272,6 @@ main(int argc, char *argv[], char *envp[])
 	if ((rc = tm_init(0, &rootrot)) != TM_SUCCESS) {
 		fprintf(stderr, "%s: tm_init failed, rc = %s (%d)\n", id,
 			get_ecname(rc), rc);
-		end_perf_timing(perf_t, __LINE__ - 95, __FILE__);
 		return 1;
 	}
 
@@ -317,7 +310,6 @@ main(int argc, char *argv[], char *envp[])
 	if ((rc = tm_nodeinfo(&nodelist, &numnodes)) != TM_SUCCESS) {
 		fprintf(stderr, "%s: tm_nodeinfo failed, rc = %s (%d)\n", id,
 			get_ecname(rc), rc);
-		end_perf_timing(perf_t, __LINE__ - 134, __FILE__);
 		return 1;
 	}
 
@@ -328,25 +320,21 @@ main(int argc, char *argv[], char *envp[])
 	tid = (tm_task_id *)calloc(max_events, sizeof(tm_task_id));
 	if (tid == NULL) {
 		fprintf(stderr, "%s: malloc of task ids failed\n", id);
-		end_perf_timing(perf_t, __LINE__ - 145, __FILE__);
 		return 1;
 	}
 	events_spawn = (tm_event_t *)calloc(max_events, sizeof(tm_event_t));
 	if (events_spawn == NULL) {
 		fprintf(stderr, "%s: out of memory\n", id);
-		end_perf_timing(perf_t, __LINE__ - 151, __FILE__);
 		return 1;
 	}
 	events_obit  = (tm_event_t *)calloc(max_events, sizeof(tm_event_t));
 	if (events_obit == NULL) {
 		fprintf(stderr, "%s: out of memory\n", id);
-		end_perf_timing(perf_t, __LINE__ - 157, __FILE__);
 		return 1;
 	}
 	ev = (int *)calloc(max_events, sizeof(int));
 	if (ev == NULL) {
 		fprintf(stderr, "%s: out of memory\n", id);
-		end_perf_timing(perf_t, __LINE__ - 163, __FILE__);
 		return 1;
 	}
 	for (c = 0; c < max_events; c++) {
@@ -420,6 +408,5 @@ main(int argc, char *argv[], char *envp[])
 	 */
 	tm_finalize();
 
-	end_perf_timing(perf_t, __LINE__ - 237, __FILE__);
 	return 0;
 }

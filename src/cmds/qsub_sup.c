@@ -338,17 +338,14 @@ blockint(int sig)
 void
 enable_gui(void)
 {
-	perf_timing *perf_t = start_perf_timing("enable_gui");
 	char *x11authstr = NULL;
 	if (Forwardx11_opt) {
 		if (!Interact_opt) {
 			fprintf(stderr, "qsub: X11 Forwarding possible only for interactive jobs\n");
-			end_perf_timing(perf_t, __LINE__ - 9, __FILE__);
 			exit_qsub(1);
 		}
 		/* get the DISPLAY's auth protocol, hexdata, and screen number */
 		if ((x11authstr = X11_get_authstring()) != NULL) {
-			end_perf_timing(perf_t, __LINE__ - 14, __FILE__);
 			set_attr_error_exit(&attrib, ATTR_X11_cookie, x11authstr);
 			set_attr_error_exit(&attrib, ATTR_X11_port, port_X11());
 #ifdef DEBUG
@@ -358,7 +355,6 @@ enable_gui(void)
 			exit_qsub(1);
 		}
 	}
-	end_perf_timing(perf_t, __LINE__ - 25, __FILE__);
 }
 
 
@@ -625,7 +621,6 @@ exit_on_sigpipe(int sig)
 void
 set_sig_handlers(void)
 {
-	perf_timing *perf_t = start_perf_timing("set_sig_handlers");
 	/* Catch SIGPIPE on write() failures. */
 	struct sigaction act;
 	sigemptyset(&act.sa_mask);
@@ -633,10 +628,8 @@ set_sig_handlers(void)
 	act.sa_flags = 0;
 	if (sigaction(SIGPIPE, &act, NULL) < 0) {
 		perror("qsub: unable to catch SIGPIPE");
-		end_perf_timing(perf_t, __LINE__ - 12, __FILE__);
 		exit_qsub(1);
 	}
-	end_perf_timing(perf_t, __LINE__ - 16, __FILE__);
 }
 
 /**
@@ -1727,7 +1720,6 @@ error:
 int
 daemon_submit(int *daemon_up, int *do_regular_submit)
 {
-	perf_timing *perf_t = start_perf_timing("daemon_submit");
 	int sock; /* UNIX domain socket for talking to daemon */
 	struct sockaddr_un s_un;
 	sigset_t newsigmask;
@@ -1749,10 +1741,8 @@ again:
 	if (*daemon_up == 1) {
 		/* pass information to daemon */
 		/* wait for job-id or error string */
-		if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-			end_perf_timing(perf_t, __LINE__ - 27, __FILE__);
+		if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
 			return rc;
-		}
 
 		s_un.sun_family = AF_UNIX;
 		snprintf(s_un.sun_path, sizeof(s_un.sun_path), "%s", fl);
@@ -1763,14 +1753,11 @@ again:
 			close(sock);
 			if (refused) {
 				/* daemon unavailable, del temp file, restart */
-				if (unlink(fl) != 0) {
-					end_perf_timing(perf_t, __LINE__ - 41, __FILE__);
+				if (unlink(fl) != 0)
 					return rc;
-				}
 
 				goto again;
 			}
-			end_perf_timing(perf_t, __LINE__ - 47, __FILE__);
 			return rc;
 		}
 
@@ -1824,6 +1811,5 @@ again:
 		close(sock);
 	}
 
-	end_perf_timing(perf_t, __LINE__ - 101, __FILE__);
 	return rc;
 }

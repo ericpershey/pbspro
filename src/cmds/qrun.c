@@ -75,8 +75,6 @@ static void execute(char *, char *, char *);
 int
 main(int argc, char **argv)
 {
-	init_perf_timing("/tmp/qrun.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	/*
 	 *  This routine sends a Run Job request to the batch server.  If the
 	 * batch request is accepted, the server will have started the execution
@@ -98,10 +96,8 @@ main(int argc, char **argv)
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 28, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	/* Command line options */
 	while ((s = getopt(argc, argv, opts)) != EOF)
@@ -128,7 +124,6 @@ main(int argc, char **argv)
 
 	if (errflg || (optind >= argc)) {
 		fprintf(stderr, "%s", usage);
-		end_perf_timing(perf_t, __LINE__ - 57, __FILE__);
 		exit(1);
 	}
 
@@ -136,7 +131,6 @@ main(int argc, char **argv)
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qrun: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 65, __FILE__);
 		exit(2);
 	}
 
@@ -153,7 +147,6 @@ main(int argc, char **argv)
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
-	end_perf_timing(perf_t, __LINE__ - 82, __FILE__);
 	exit(exitstatus);
 }
 

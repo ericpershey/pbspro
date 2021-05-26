@@ -89,8 +89,6 @@ static void execute(int, char *);
 int
 main(int argc, char **argv)
 {
-	init_perf_timing("/tmp/qterm.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	/*
 	 *  This routine sends a Server Shutdown request to the batch server.  If the
 	 * batch request is accepted, and the type is IMMEDIATE, then no more jobs
@@ -115,10 +113,8 @@ main(int argc, char **argv)
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 31, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	/* Command line options */
 	while ((s = getopt(argc, argv, opts)) != EOF)
@@ -157,7 +153,6 @@ main(int argc, char **argv)
 	if (errflg) {
 		fprintf(stderr, "%s", usage);
 		fprintf(stderr, "%s", usag2);
-		end_perf_timing(perf_t, __LINE__ - 72, __FILE__);
 		exit(1);
 	} else if (type != NULL) {
 		if (strcmp(type, "delay") == 0)
@@ -189,7 +184,6 @@ main(int argc, char **argv)
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qterm: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 104, __FILE__);
 		exit(1);
 	}
 
@@ -202,7 +196,6 @@ main(int argc, char **argv)
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
-	end_perf_timing(perf_t, __LINE__ - 117, __FILE__);
 	exit(exitstatus);
 }
 

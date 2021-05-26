@@ -61,8 +61,6 @@
 int
 main(int argc, char **argv, char **envp) /* qrerun */
 {
-	init_perf_timing("/tmp/qrerun.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int any_failed=0;
 
 	char job_id[PBS_MAXCLTJOBID];       /* from the command line */
@@ -80,10 +78,8 @@ main(int argc, char **argv, char **envp) /* qrerun */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 24, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	while ((i = getopt(argc, argv, "W:")) != EOF) {
 		switch (i) {
@@ -93,14 +89,12 @@ main(int argc, char **argv, char **envp) /* qrerun */
 				else {
 					fprintf(stderr, "%s", usage);
 					fprintf(stderr, "%s", usag2);
-					end_perf_timing(perf_t, __LINE__ - 36, __FILE__);
 					exit(2);
 				}
 				break;
 			default:
 				fprintf(stderr, "%s", usage);
 				fprintf(stderr, "%s", usag2);
-				end_perf_timing(perf_t, __LINE__ - 43, __FILE__);
 				exit(2);
 		}
 	}
@@ -109,7 +103,6 @@ main(int argc, char **argv, char **envp) /* qrerun */
 	if (optind == argc) {
 		fprintf(stderr, "%s", usage);
 		fprintf(stderr, "%s", usag2);
-		end_perf_timing(perf_t, __LINE__ - 52, __FILE__);
 		exit(2);
 	}
 
@@ -117,7 +110,6 @@ main(int argc, char **argv, char **envp) /* qrerun */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qrerun: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 60, __FILE__);
 		exit(1);
 	}
 
@@ -164,6 +156,5 @@ cnt:
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
-	end_perf_timing(perf_t, __LINE__ - 107, __FILE__);
 	exit(any_failed);
 }

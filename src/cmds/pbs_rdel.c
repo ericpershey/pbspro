@@ -64,8 +64,6 @@
 int
 main(int argc, char **argv, char **envp)
 {
-	init_perf_timing("/tmp/pbs_rdel.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int errflg = 0;
 	int any_failed = 0;
@@ -83,10 +81,8 @@ main(int argc, char **argv, char **envp)
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 24, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	while ((c = getopt(argc, argv, "q:")) != EOF)
 		switch (c) {
@@ -105,14 +101,12 @@ main(int argc, char **argv, char **envp)
 	if (errflg || optind >= argc) {
 		fprintf(stderr, "usage:\tpbs_rdel [-q dest] resv_identifier...\n");
 		fprintf(stderr, "      \tpbs_rdel --version\n");
-		end_perf_timing(perf_t, __LINE__ - 45, __FILE__);
 		exit(2);
 	}
 
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "pbs_rdel: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 52, __FILE__);
 		exit(1);
 	}
 
@@ -144,6 +138,5 @@ main(int argc, char **argv, char **envp)
 		pbs_disconnect(connect);
 	}
 	CS_close_app();
-	end_perf_timing(perf_t, __LINE__ - 84, __FILE__);
 	exit(any_failed);
 }

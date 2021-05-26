@@ -69,8 +69,6 @@
 int
 main(int argc, char *argv[])
 {
-	init_perf_timing("/tmp/pbs_dataservice.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int rc;
 	int i;
 	int errflg = 0;
@@ -93,20 +91,17 @@ main(int argc, char *argv[])
 	}
 	if (errflg) {
 		fprintf(stderr, "\nusage: %s -s [start|stop|status]\n", prog);
-		end_perf_timing(perf_t, __LINE__ - 28, __FILE__);
 		return (-1);
 	}
 	/* read configuration file */
 	if (pbs_loadconf(0) == 0) {
 		fprintf(stderr, "%s: Could not load pbs configuration\n", prog);
-		end_perf_timing(perf_t, __LINE__ - 34, __FILE__);
 		return (-1);
 	}
 
 	/* check admin privileges */
 	if (getuid() != 0 || geteuid() != 0) {
 		fprintf(stderr, "%s: Must be run by root\n", prog);
-		end_perf_timing(perf_t, __LINE__ - 41, __FILE__);
 		return (1);
 	}
 
@@ -132,9 +127,7 @@ main(int argc, char *argv[])
 		}
 	} else {
 		fprintf(stderr, "\nusage: %s -s [start|stop|status]\n", prog);
-		end_perf_timing(perf_t, __LINE__ - 67, __FILE__);
 		return -1;
 	}
-	end_perf_timing(perf_t, __LINE__ - 70, __FILE__);
 	return (rc);
 }

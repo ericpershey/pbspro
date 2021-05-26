@@ -61,8 +61,6 @@
 int
 main(int argc, char **argv, char **envp) /* qsig */
 {
-	init_perf_timing("/tmp/qsig.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int errflg=0;
 	int any_failed=0;
@@ -82,10 +80,8 @@ main(int argc, char **argv, char **envp) /* qsig */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 26, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	while ((c = getopt(argc, argv, GETOPT_ARGS)) != EOF)
 		switch (c) {
@@ -101,7 +97,6 @@ main(int argc, char **argv, char **envp) /* qsig */
 		static char usag2[]="       qsig --version\n";
 		fprintf(stderr, "%s", usage);
 		fprintf(stderr, "%s", usag2);
-		end_perf_timing(perf_t, __LINE__ - 44, __FILE__);
 		exit(2);
 	}
 
@@ -109,7 +104,6 @@ main(int argc, char **argv, char **envp) /* qsig */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qsig: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 52, __FILE__);
 		exit(2);
 	}
 
@@ -155,6 +149,5 @@ cnt:
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
-	end_perf_timing(perf_t, __LINE__ - 98, __FILE__);
 	exit(any_failed);
 }

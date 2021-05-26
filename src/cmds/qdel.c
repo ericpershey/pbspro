@@ -305,8 +305,6 @@ int argc;
 char **argv;
 char **envp;
 {
-	init_perf_timing("/tmp/qdel.log");
-	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int errflg = 0;
 	int any_failed = 0;
@@ -328,10 +326,8 @@ char **envp;
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib()) {
-		end_perf_timing(perf_t, __LINE__ - 34, __FILE__);
+	if (initsocketlib())
 		return 1;
-	}
 
 	warg[0] = '\0';
 	while ((c = getopt(argc, argv, GETOPT_ARGS)) != EOF) {
@@ -377,7 +373,6 @@ char **envp;
 		"\tqdel [-W force|suppress_email=X] [-x] job_identifier...\n"
 		"\tqdel --version\n";
 		fprintf(stderr, "%s", usage);
-		end_perf_timing(perf_t, __LINE__ - 82, __FILE__);
 		exit(2);
 	}
 
@@ -392,7 +387,6 @@ char **envp;
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qdel: unable to initialize security library.\n");
-		end_perf_timing(perf_t, __LINE__ - 97, __FILE__);
 		exit(1);
 	}
 
@@ -400,14 +394,12 @@ char **envp;
 	numids = argc - optind;
 	if (jobids == NULL || numids <= 0) {
 		/* No jobs to delete */
-		end_perf_timing(perf_t, __LINE__ - 105, __FILE__);
 		return 0;
 	}
 
 	/* Send delete job list request by each cluster */
 	jobsbycluster = group_jobs_by_cluster(jobids, numids, &any_failed);
 	if (jobsbycluster == NULL) {
-		end_perf_timing(perf_t, __LINE__ - 112, __FILE__);
 		exit(1);
 	}
 	for (iter_list = jobsbycluster; iter_list != NULL; iter_list = iter_list->next) {
@@ -424,6 +416,5 @@ char **envp;
 	if (any_failed == 0 && pbs_errno != PBSE_NONE)
 		any_failed = PBSE_NONE;
 
-	end_perf_timing(perf_t, __LINE__ - 129, __FILE__);
 	exit(any_failed);
 }
