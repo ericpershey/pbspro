@@ -70,7 +70,6 @@
 
 /* External Data */
 
-extern char server_host[];
 
 /**
  * @brief

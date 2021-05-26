@@ -75,7 +75,6 @@
 #include "libutil.h"
 
 extern struct server server;
-extern char server_host[];
 
 /* Functions */
 #ifdef PYTHON
