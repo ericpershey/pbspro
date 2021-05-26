@@ -2344,6 +2344,8 @@ tcl_run(int f_opt)
 int
 main(int argc, char **argv, char **envp) /* qstat */
 {
+	init_perf_timing("/tmp/qstat.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	int added_queue;
 	int c;
 	int errflg=0;
@@ -2408,8 +2410,10 @@ main(int argc, char **argv, char **envp) /* qstat */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 	delay_query();
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 71, __FILE__);
 		return 1;
+	}
 
 	mode = JOBS; /* default */
 	alt_opt = 0;
@@ -2747,6 +2751,7 @@ qstat -q [-G|-M] [ destination... ]\n\
 qstat -B [-f] [-F format] [-D delim] [ server_name... ]\n";
 		fprintf(stderr, "%s", usage);
 		fprintf(stderr, "%s", usag2);
+		end_perf_timing(perf_t, __LINE__ - 411, __FILE__);
 		exit(2);
 	}
 
@@ -2756,8 +2761,10 @@ qstat -B [-f] [-F format] [-D delim] [ server_name... ]\n";
 
 	/*perform needed security library initializations (including none)*/
 
-	if (CS_client_init() != CS_SUCCESS)
+	if (CS_client_init() != CS_SUCCESS) {
+		end_perf_timing(perf_t, __LINE__ - 422, __FILE__);
 		exit_qstat("unable to initialize security library.");
+	}
 
 	/* keep original list for reuse with next operand */
 	/* in case a queue_name is added to front of list */
@@ -2770,12 +2777,18 @@ qstat -B [-f] [-F format] [-D delim] [ server_name... ]\n";
 		delimiter = "";
 		/* adding prologue to json output. */
 		timenow = time(0);
-		if (add_json_node(JSON_VALUE, JSON_INT, JSON_FULLESCAPE, "timestamp", &timenow) == NULL)
+		if (add_json_node(JSON_VALUE, JSON_INT, JSON_FULLESCAPE, "timestamp", &timenow) == NULL) {
+			end_perf_timing(perf_t, __LINE__ - 438, __FILE__);
 			exit_qstat("out of memory");
-		if (add_json_node(JSON_VALUE, JSON_STRING, JSON_FULLESCAPE, "pbs_version", PBS_VERSION) == NULL)
+		}
+		if (add_json_node(JSON_VALUE, JSON_STRING, JSON_FULLESCAPE, "pbs_version", PBS_VERSION) == NULL) {
+			end_perf_timing(perf_t, __LINE__ - 442, __FILE__);
 			exit_qstat("out of memory");
-		if (add_json_node(JSON_VALUE, JSON_STRING, JSON_FULLESCAPE, "pbs_server", def_server) == NULL)
+		}
+		if (add_json_node(JSON_VALUE, JSON_STRING, JSON_FULLESCAPE, "pbs_server", def_server) == NULL) {
+			end_perf_timing(perf_t, __LINE__ - 446, __FILE__);
 			exit_qstat("out of memory");
+		}
 	}
 
 	if (optind >= argc) { /* If no arguments, then set defaults */
@@ -2808,8 +2821,10 @@ qstat -B [-f] [-F format] [-D delim] [ server_name... ]\n";
 		/* allocate enough memory to store list of job ids */
 		job_list_size = ((argc - 1) * (PBS_MAXCLTJOBID + 1));
 		job_list = calloc(argc - 1, PBS_MAXCLTJOBID + 1);
-		if (job_list == NULL)
+		if (job_list == NULL) {
+			end_perf_timing(perf_t, __LINE__ - 482, __FILE__);
 			exit_qstat("out of memory");
+		}
 		/* sort all jobs */
 		qsort(&argv[optind], (argc - optind), sizeof(char *), cmp_jobs);
 	}
@@ -2881,6 +2896,7 @@ qstat -B [-f] [-F format] [-D delim] [ server_name... ]\n";
 				} else {  /* must be a destination-id */
 					if (E_opt == 1) {
 						fprintf(stderr, "qstat: Express option can only be used with job ids\n");
+						end_perf_timing(perf_t, __LINE__ - 556, __FILE__);
 						return 1;
 					}
 					stat_single_job = 0;
@@ -3038,16 +3054,20 @@ job_no_args:
 						if (alt_opt != 0) {
 							altdsp_statjob(p_status, p_server, alt_opt, wide, how_opt);
 						} else
-							if (display_statjob(p_status, p_server, f_opt, how_opt))
+							if (display_statjob(p_status, p_server, f_opt, how_opt)) {
+								end_perf_timing(perf_t, __LINE__ - 715, __FILE__);
 								exit_qstat("out of memory");
+							}
 					}
 #else
 
 					if ((alt_opt & ~ALT_DISPLAY_w) != 0 && !(wide && f_opt)) {
 						altdsp_statjob(p_status, p_server, alt_opt, wide, how_opt);
 					} else if (f_opt == 0 || tcl_stat("job", p_status, f_opt))
-						if (display_statjob(p_status, p_server, f_opt, how_opt, alt_opt, wide))
+						if (display_statjob(p_status, p_server, f_opt, how_opt, alt_opt, wide)) {
+							end_perf_timing(perf_t, __LINE__ - 725, __FILE__);
 							exit_qstat("out of memory");
+						}
 #endif /* localmod 071 */
 					p_header = FALSE;
 					pbs_statfree(p_status);
@@ -3141,8 +3161,10 @@ que_no_args:
 #else
 					} else if (tcl_stat("queue", p_status, f_opt)) {
 #endif /* localmod 071 */
-						if(display_statque(p_status, p_header, f_opt, alt_opt))
+						if(display_statque(p_status, p_header, f_opt, alt_opt)) {
+							end_perf_timing(perf_t, __LINE__ - 822, __FILE__);
 							exit_qstat("out of memory");
+						}
 					}
 					p_header = FALSE;
 					pbs_statfree(p_status);
@@ -3189,8 +3211,10 @@ svr_no_args:
 #else
 					if (tcl_stat("server", p_status, f_opt))
 #endif /* localmod 071 */
-						if(display_statserver(p_status, p_header, f_opt, alt_opt))
+						if(display_statserver(p_status, p_header, f_opt, alt_opt)) {
+							end_perf_timing(perf_t, __LINE__ - 872, __FILE__);
 							exit_qstat("out of memory");
+						}
 					p_header = FALSE;
 					pbs_statfree(p_status);
 				}
@@ -3203,8 +3227,10 @@ svr_no_args:
 			break;
 	}
 	if(output_format == FORMAT_JSON) {
-		if (add_json_node(JSON_OBJECT_END, JSON_NULL, JSON_NOVALUE, NULL, NULL) == NULL)
+		if (add_json_node(JSON_OBJECT_END, JSON_NULL, JSON_NOVALUE, NULL, NULL) == NULL) {
+			end_perf_timing(perf_t, __LINE__ - 888, __FILE__);
 			exit_qstat("out of memory");
+		}
 		generate_json(stdout);
 		free_json_node_list();
 	}
@@ -3230,6 +3256,7 @@ svr_no_args:
 	 */
 	if (any_failed == PBSE_JOBHISTNOTSET)
 		any_failed = 0;
+	end_perf_timing(perf_t, __LINE__ - 916, __FILE__);
 	exit(any_failed);
 }
 

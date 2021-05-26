@@ -76,6 +76,8 @@ static void execute(char *, char *);
 int
 main(int argc, char **argv)
 {
+	init_perf_timing("/tmp/qstart.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	/*
 	 *  This routine sends a Manage request to the batch server specified by
 	 * the destination.  The STARTED queue attribute is set to {True}.  If the
@@ -91,12 +93,15 @@ main(int argc, char **argv)
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 22, __FILE__);
 		return 1;
+	}
 
 	if (argc == 1) {
 		fprintf(stderr, "Usage: qstart [queue][@server] ...\n");
 		fprintf(stderr, "       qstart --version\n");
+		end_perf_timing(perf_t, __LINE__ - 29, __FILE__);
 		exit(1);
 	}
 
@@ -104,6 +109,7 @@ main(int argc, char **argv)
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qstart: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 37, __FILE__);
 		exit(1);
 	}
 
@@ -119,6 +125,7 @@ main(int argc, char **argv)
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
+	end_perf_timing(perf_t, __LINE__ - 53, __FILE__);
 	exit(exitstatus);
 }
 

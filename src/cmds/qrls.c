@@ -60,6 +60,8 @@
 int
 main(int argc, char **argv, char **envp) /* qrls */
 {
+	init_perf_timing("/tmp/qrls.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int errflg=0;
 	int any_failed=0;
@@ -81,8 +83,10 @@ main(int argc, char **argv, char **envp) /* qrls */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 28, __FILE__);
 		return 1;
+	}
 
 	hold_type[0]='\0';
 
@@ -131,6 +135,7 @@ main(int argc, char **argv, char **envp) /* qrls */
 		static char usag2[]="       qrls --version\n";
 		fprintf(stderr, "%s", usage);
 		fprintf(stderr, "%s", usag2);
+		end_perf_timing(perf_t, __LINE__ - 79, __FILE__);
 		exit(2);
 	}
 
@@ -138,6 +143,7 @@ main(int argc, char **argv, char **envp) /* qrls */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qrls: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 87, __FILE__);
 		exit(1);
 	}
 
@@ -183,5 +189,6 @@ cnt:
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
+	end_perf_timing(perf_t, __LINE__ - 133, __FILE__);
 	exit(any_failed);
 }

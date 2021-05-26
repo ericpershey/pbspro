@@ -89,6 +89,7 @@ char rrule[67];
 int
 process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 {
+	perf_timing *perf_t = start_perf_timing("process_opts");
 	int c, i;
 	char *erp;
 	int errflg = 0;
@@ -120,6 +121,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 				t = cvtdate(optarg);
 				if (t >= 0) {
 					(void)sprintf(time_buf, "%ld", (long)t);
+					end_perf_timing(perf_t, __LINE__ - 36, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_resv_end, time_buf);
 					dtend = t;
 				}
@@ -131,12 +133,15 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 
 			case 'I':
 				opt_inter_flg = TRUE;
-				if ((optarg == NULL) || (*optarg == '\0'))
+				if ((optarg == NULL) || (*optarg == '\0')) {
+					end_perf_timing(perf_t, __LINE__ - 49, __FILE__);
 					set_attr_error_exit(&attrib, ATTR_inter, "0");
+				}
 				else {
 					char* endptr;
 					(void)strtol(optarg, &endptr, 0);
 					if (*endptr == '\0') {
+						end_perf_timing(perf_t, __LINE__ - 56, __FILE__);
 						set_attr_error_exit(&attrib, ATTR_inter, optarg);
 					}
 					else {
@@ -161,6 +166,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 			case 'm':
 				while (isspace((int)*optarg))
 					optarg++;
+				end_perf_timing(perf_t, __LINE__ - 81, __FILE__);
 				set_attr_error_exit(&attrib, ATTR_m, optarg);
 				break;
 
@@ -306,6 +312,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 			maintenance_hosts = malloc(sizeof(char *) * (num_hosts + 1));
 			if (maintenance_hosts == NULL) {
 				fprintf(stderr, "pbs_rsub: Out of memory\n");
+				end_perf_timing(perf_t, __LINE__ - 227, __FILE__);
 				return (++errflg);
 			}
 
@@ -316,6 +323,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 				for (; *hostp; hostp++) {
 					if (strcmp(*hostp, argv[optind]) == 0) {
 						fprintf(stderr, "pbs_rsub: Duplicate host: %s\n", argv[optind]);
+						end_perf_timing(perf_t, __LINE__ - 238, __FILE__);
 						return (++errflg);
 					}
 				}
@@ -329,6 +337,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 				maintenance_hosts[i] = strdup(argv[optind]);
 				if (maintenance_hosts[i] == NULL) {
 					fprintf(stderr, "pbs_rsub: Out of memory\n");
+					end_perf_timing(perf_t, __LINE__ - 252, __FILE__);
 					return (++errflg);
 				}
 			}
@@ -336,6 +345,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 
 		if (maintenance_hosts == NULL) {
 			fprintf(stderr, "pbs_rsub: missing host(s)\n");
+			end_perf_timing(perf_t, __LINE__ - 260, __FILE__);
 			return (++errflg);
 		}
 	}
@@ -343,6 +353,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 	if (is_job_resv && ((dtstart != 0) || (dtend != 0))) {
 		fprintf(stderr, "pbs_rsub: Start/End time cannot be used with --job option");
 		fprintf(stderr, "\n");
+		end_perf_timing(perf_t, __LINE__ - 268, __FILE__);
 		return (++errflg);
 	}
 
@@ -351,6 +362,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 		time_t skew = 60*60*24;
 		dtend += skew;
 		sprintf(time_buf, "%ld", (long)dtend);
+		end_perf_timing(perf_t, __LINE__ - 277, __FILE__);
 		set_attr_error_exit(&attrib, ATTR_resv_end, time_buf);
 	}
 
@@ -365,6 +377,7 @@ process_opts(int argc, char **argv, struct attrl **attrp, char *dest)
 	}
 
 	*attrp = attrib;
+	end_perf_timing(perf_t, __LINE__ - 292, __FILE__);
 	return (errflg);
 }
 
@@ -619,6 +632,7 @@ cnvrt_proc_attrib(int connect, struct attrl **attrp, char *dest)
 static void
 print_usage()
 {
+	perf_timing *perf_t = start_perf_timing("print_usage");
 	static char usag2[]="       pbs_rsub --version\n";
 	static char usage[]=
 		"usage: pbs_rsub [-I seconds] [-m mail_points] [-M mail_list]\n"
@@ -630,6 +644,7 @@ print_usage()
 
 	fprintf(stderr, "%s", usage);
 	fprintf(stderr, "%s", usag2);
+	end_perf_timing(perf_t, __LINE__ - 17, __FILE__);
 }
 
 /**
@@ -712,6 +727,8 @@ handle_attribute_errors(struct ecl_attribute_errors *err_list)
 int
 main(int argc, char *argv[], char *envp[])
 {
+	init_perf_timing("/tmp/pbs_rsub.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	int errflg;			/* command line option error */
 	int connect;			/* return from pbs_connect */
 	char *errmsg;			/* return from pbs_geterrmsg */
@@ -739,8 +756,10 @@ main(int argc, char *argv[], char *envp[])
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 34, __FILE__);
 		return 1;
+	}
 
 	destbuf[0] = '\0';
 	extend[0] = '\0';
@@ -748,6 +767,7 @@ main(int argc, char *argv[], char *envp[])
 
 	if (errflg || ((optind+1) < argc) || argc == 1) {
 		print_usage();
+		end_perf_timing(perf_t, __LINE__ - 44, __FILE__);
 		exit(2);
 	}
 
@@ -758,12 +778,14 @@ main(int argc, char *argv[], char *envp[])
 				(strcasecmp(pal->resource, "select") == 0)){
 				fprintf(stderr, "pbs_rsub: can't use -l select with --hosts\n");
 				print_usage();
+				end_perf_timing(perf_t, __LINE__ - 55, __FILE__);
 				exit(2);
 			}
 			if ((strcasecmp(pal->name, ATTR_l) == 0) &&
 				(strcasecmp(pal->resource, "place") == 0)) {
 				fprintf(stderr, "pbs_rsub: can't use -l place with --hosts\n");
 				print_usage();
+				end_perf_timing(perf_t, __LINE__ - 62, __FILE__);
 				exit(2);
 			}
 			pal = pal->next;
@@ -773,6 +795,7 @@ main(int argc, char *argv[], char *envp[])
 	/* Get any required environment variables needing to be sent. */
 	if (! set_resv_env(envp)) {
 		fprintf(stderr, "pbs_rsub: can't send environment with the reservation\n");
+		end_perf_timing(perf_t, __LINE__ - 72, __FILE__);
 		exit(3);
 	}
 
@@ -780,6 +803,7 @@ main(int argc, char *argv[], char *envp[])
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "pbs_rsub: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 80, __FILE__);
 		exit(1);
 	}
 
@@ -789,12 +813,14 @@ main(int argc, char *argv[], char *envp[])
 		fprintf(stderr, "pbs_rsub: cannot connect to server %s (errno=%d)\n",
 			pbs_server, pbs_errno);
 		CS_close_app();
+		end_perf_timing(perf_t, __LINE__ - 90, __FILE__);
 		exit(pbs_errno);
 	}
 
 	if (pbs_errno != PBSE_NONE) {
 		if (pbs_errno == PBSE_NOSERVER || pbs_errno == ECONNREFUSED)
 			show_svr_inst_fail(connect, "pbs_rsub");
+		end_perf_timing(perf_t, __LINE__ - 97, __FILE__);
 		return pbs_errno;
     	}    
 
@@ -803,6 +829,7 @@ main(int argc, char *argv[], char *envp[])
 		qmoveflg = FALSE;
 		interactive = get_attr(attrib, ATTR_inter, NULL);
 		if (interactive == NULL) {
+			end_perf_timing(perf_t, __LINE__ - 106, __FILE__);
 			set_attr_error_exit(&attrib, ATTR_inter, DEFAULT_INTERACTIVE);
 		} else {
 			if (atoi(interactive) > -1) {
@@ -815,6 +842,7 @@ main(int argc, char *argv[], char *envp[])
 		if (errflg) {
 			fprintf(stderr, "pbs_rsub: can't make a reservation with the qmove option\n");
 			CS_close_app();
+			end_perf_timing(perf_t, __LINE__ - 119, __FILE__);
 			exit(2);
 		}
 	}
@@ -839,6 +867,7 @@ main(int argc, char *argv[], char *envp[])
 			}
 
 			CS_close_app();
+			end_perf_timing(perf_t, __LINE__ - 144, __FILE__);
 			exit(pbs_errno);
 		}
 
@@ -863,6 +892,7 @@ main(int argc, char *argv[], char *envp[])
 				if (*endp != '\0') {
 					fprintf(stderr, "pbs_rsub: Attribute value error\n");
 					CS_close_app();
+					end_perf_timing(perf_t, __LINE__ - 169, __FILE__);
 					exit(2);
 				}
 
@@ -878,6 +908,7 @@ main(int argc, char *argv[], char *envp[])
 						if (execvnodes_str == NULL) {
 							fprintf(stderr, "pbs_rsub: Out of memory\n");
 							CS_close_app();
+							end_perf_timing(perf_t, __LINE__ - 185, __FILE__);
 							exit(2);
 						}
 						execvnodes_str_size = BUF_SIZE;
@@ -889,6 +920,7 @@ main(int argc, char *argv[], char *envp[])
 						if (pbs_strcat(&execvnodes_str, &execvnodes_str_size, tmp_str) == NULL) {
 							fprintf(stderr, "pbs_rsub: Out of memory\n");
 							CS_close_app();
+							end_perf_timing(perf_t, __LINE__ - 197, __FILE__);
 							exit(2);
 						}
 					}
@@ -899,6 +931,7 @@ main(int argc, char *argv[], char *envp[])
 			if (host_ncpus == 0) {
 				fprintf(stderr, "pbs_rsub: Host with resources not found: %s\n", *hostp);
 				CS_close_app();
+				end_perf_timing(perf_t, __LINE__ - 208, __FILE__);
 				exit(2);
 			}
 
@@ -909,6 +942,7 @@ main(int argc, char *argv[], char *envp[])
 					if (select_str == NULL) {
 						fprintf(stderr, "pbs_rsub: Out of memory\n");
 						CS_close_app();
+						end_perf_timing(perf_t, __LINE__ - 219, __FILE__);
 						exit(2);
 					}
 					select_str_size = BUF_SIZE;
@@ -920,6 +954,7 @@ main(int argc, char *argv[], char *envp[])
 					if (pbs_strcat(&select_str, &select_str_size, tmp_str) == NULL) {
 						fprintf(stderr, "pbs_rsub: Out of memory\n");
 						CS_close_app();
+						end_perf_timing(perf_t, __LINE__ - 231, __FILE__);
 						exit(2);
 					}
 				}
@@ -933,6 +968,7 @@ main(int argc, char *argv[], char *envp[])
 			print_usage();
 
 			CS_close_app();
+			end_perf_timing(perf_t, __LINE__ - 245, __FILE__);
 			exit(2);
 		}
 
@@ -946,6 +982,7 @@ main(int argc, char *argv[], char *envp[])
 			}
 
 			CS_close_app();
+			end_perf_timing(perf_t, __LINE__ - 259, __FILE__);
 			exit(pbs_errno);
 		}
 
@@ -954,6 +991,7 @@ main(int argc, char *argv[], char *envp[])
 			fprintf(stderr, "pbs_rsub: illegal -l value\n");
 
 			CS_close_app();
+			end_perf_timing(perf_t, __LINE__ - 268, __FILE__);
 			exit(pbs_errno);
 		}
 
@@ -973,6 +1011,7 @@ main(int argc, char *argv[], char *envp[])
 		else
 			fprintf(stderr, "pbs_rsub: Error (%d) submitting reservation\n", pbs_errno);
 		CS_close_app();
+		end_perf_timing(perf_t, __LINE__ - 288, __FILE__);
 		exit(pbs_errno);
 	}
 
@@ -996,6 +1035,7 @@ main(int argc, char *argv[], char *envp[])
 			fprintf(stderr, "pbs_rsub: PBS Failed to confirm resv: %s (%d)\n", errmsg, pbs_errno);
 
 			CS_close_app();
+			end_perf_timing(perf_t, __LINE__ - 312, __FILE__);
 			exit(pbs_errno);
 		}
 
@@ -1017,5 +1057,6 @@ main(int argc, char *argv[], char *envp[])
 	pbs_disconnect(connect);
 
 	CS_close_app();
+	end_perf_timing(perf_t, __LINE__ - 334, __FILE__);
 	exit(0);
 }

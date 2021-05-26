@@ -366,6 +366,8 @@ change_ownership(char *path, char *userid)
 int
 main(int argc, char *argv[])
 {
+	init_perf_timing("/tmp/pbs_ds_password.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	int i, rc;
 	char passwd[MAX_PASSWORD_LEN + 1] = {'\0'};
 	char passwd2[MAX_PASSWORD_LEN + 1];
@@ -393,6 +395,7 @@ main(int argc, char *argv[])
 	/* read configuration file */
 	if (pbs_loadconf(0) == 0) {
 		fprintf(stderr, "%s: Could not load pbs configuration\n", prog);
+		end_perf_timing(perf_t, __LINE__ - 33, __FILE__);
 		return (-1);
 	}
 
@@ -401,6 +404,7 @@ main(int argc, char *argv[])
 		fprintf(stderr, "%s: Could not retrieve current data service user\n", prog);
 		if (strlen(errmsg) > 0)
 			fprintf(stderr, "%s\n", errmsg);
+		end_perf_timing(perf_t, __LINE__ - 42, __FILE__);
 		return (-1);
 	}
 
@@ -643,5 +647,6 @@ main(int argc, char *argv[])
 
 exit:
 	free(olduser);
+	end_perf_timing(perf_t, __LINE__ - 285, __FILE__);
 	return ret;
 }

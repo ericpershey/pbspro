@@ -62,6 +62,8 @@
 int
 main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 {
+	init_perf_timing("/tmp/pbs_release_nodes.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int errflg=0;
 	int any_failed=0;
@@ -83,8 +85,10 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 	/*test for real deal or just version and exit*/
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 28, __FILE__);
 		return 1;
+	}
 
 	job_id[0] = '\0';
 	while ((c = getopt(argc, argv, GETOPT_ARGS)) != EOF) {
@@ -122,11 +126,13 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 		((optind == argc) && !(all_opt || keep_opt)) ||
 		((optind != argc) && all_opt) ) {
 		fprintf(stderr, "%s", USAGE);
+		end_perf_timing(perf_t, __LINE__ - 68, __FILE__);
 		exit(2);
 	}
 
 	if (job_id[0] == '\0') {
 		fprintf(stderr, "pbs_release_nodes: No jobid given\n");
+		end_perf_timing(perf_t, __LINE__ - 74, __FILE__);
 		exit(2);
 	}
 
@@ -134,6 +140,7 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "pbs_release_nodes: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 82, __FILE__);
 		exit(2);
 	}
 
@@ -145,6 +152,7 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 	node_list = (char *)malloc(len + 1);
 	if (node_list == NULL) {
 		fprintf(stderr, "failed to malloc to store data (error %d)", errno);
+		end_perf_timing(perf_t, __LINE__ - 94, __FILE__);
 		exit(2);
 	}
 	node_list[0] = '\0';
@@ -157,6 +165,7 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 	if (get_server(job_id, job_id_out, server_out)) {
 		fprintf(stderr, "pbs_release_nodes: illegally formed job identifier: %s\n", job_id);
 		free(node_list);
+		end_perf_timing(perf_t, __LINE__ - 107, __FILE__);
 		exit(2);
 	}
 
@@ -205,5 +214,6 @@ main(int argc, char **argv, char **envp) /* pbs_release_nodes */
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
+	end_perf_timing(perf_t, __LINE__ - 156, __FILE__);
 	exit(any_failed);
 }

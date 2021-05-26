@@ -56,6 +56,8 @@ extern void attach(int use_cmd, int newsid, int port, int doparent, pid_t pid, c
 int
 main(int argc, char *argv[])
 {
+	init_perf_timing("/tmp/pbs_attach.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	char		*jobid = NULL;
 	char		*host = NULL;
 	int		c;
@@ -73,8 +75,10 @@ main(int argc, char *argv[])
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 24, __FILE__);
 		return 1;
+	}
 
 	while ((c = getopt(argc, argv, getoptargstr)) != EOF) {
 		switch (c) {
@@ -149,5 +153,6 @@ main(int argc, char *argv[])
 
 	attach(use_cmd, newsid, port, doparent, pid, jobid, host, argc, argv);
 
+	end_perf_timing(perf_t, __LINE__ - 101, __FILE__);
 	return 0;
 }

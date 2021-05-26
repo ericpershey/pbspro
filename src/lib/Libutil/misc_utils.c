@@ -88,8 +88,8 @@
 #include <grp.h>
 #include <time.h>
 #include <sys/time.h>
-/* #include <sddl.h>  */
 #include <sys/resource.h>
+
 #include "pbs_error.h"
 #include "job.h"
 
@@ -1900,8 +1900,14 @@ init_perf_timing(char *file_name) {
 	mode_t old_mask;
 	old_mask = umask(0);
 	fd = fopen(perf_file, "a");
-	umask(old_mask);
-	fclose(fd);
+	if (fd > 0) {
+		umask(old_mask);
+		fclose(fd);
+	} else {
+		/* Fixme: logging? */
+		perror("perf_file");
+		fprintf(stderr, "init_perf_timing: could not create/open tmp file %s\n", perf_file);
+	}
 }
 
 perf_timing * 
@@ -1934,12 +1940,18 @@ end_perf_timing(perf_timing* perf_t, int lineno, char *file_name) {
 	time_t now;
  	time(&now);
 	fd = fopen(perf_file, "a");
-	if (ftell(fd) == 0) {
-		fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+	if (fd > 0){
+		if (ftell(fd) == 0) {
+			fprintf(fd, "file,func_name,lineno,time_start,time_start_cputime,time_end,time_end_cputime,pid\n");
+		}
+		fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", file_name, perf_t->func_name, lineno, perf_t->time_start,
+			perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
+		fclose(fd);
+	} else {
+		/* Fixme: logging? */
+		perror("perf_file");
+		fprintf(stderr, "end_perf_timing: could not create/open tmp file %s\n", perf_file);
 	}
-	fprintf(fd,"%s,%s,%d,%f,%f,%f,%f,%u\n", file_name, perf_t->func_name, lineno, perf_t->time_start,
-		perf_t->time_start_cputime, perf_t->time_end, perf_t->time_end_cputime, perf_t->pid);
-	fclose(fd);
 	free(perf_t);
 }
 

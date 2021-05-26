@@ -4245,6 +4245,7 @@ if (site_job_setup(pjob) != 0) {
 	hook_output.progname = &progname;
 	CLEAR_HEAD(argv_list);
 	hook_output.argv = &argv_list;
+
 	switch (mom_process_hooks(HOOK_EVENT_EXECJOB_LAUNCH,
 			PBS_MOM_SERVICE_NAME,
 			mom_host, &hook_input, &hook_output,
@@ -6133,6 +6134,7 @@ start_exec(job *pjob)
 			hook_output.reject_errcode = &hook_errcode;
 			hook_output.last_phook = &last_phook;
 			hook_output.fail_action = &hook_fail_action;
+
 			switch ((hook_rc = mom_process_hooks(HOOK_EVENT_EXECJOB_BEGIN,
 					PBS_MOM_SERVICE_NAME, mom_host,
 					&hook_input, &hook_output,

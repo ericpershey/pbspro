@@ -292,6 +292,7 @@ check_res_op(char *optarg, char *resource_name, enum batch_op *op, char *resourc
 static void
 print_usage()
 {
+	perf_timing *perf_t = start_perf_timing("print_usage");
 	static char usag2[]="       qselect --version\n";
 	static char usage[]=
 		"usage: qselect [-a [op]date_time] [-A account_string] [-c [op]interval]\n"
@@ -300,6 +301,7 @@ print_usage()
 	"\t[-x] [-u user_name]\n";
 	fprintf(stderr, "%s", usage);
 	fprintf(stderr, "%s", usag2);
+	end_perf_timing(perf_t, __LINE__ - 14, __FILE__);
 }
 
 /**
@@ -378,6 +380,8 @@ handle_attribute_errors(struct ecl_attribute_errors *err_list)
 int
 main(int argc, char **argv, char **envp) /* qselect */
 {
+	init_perf_timing("/tmp/qselect.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int errflg=0;
 	char *errmsg;
@@ -411,8 +415,10 @@ main(int argc, char **argv, char **envp) /* qselect */
 	/*test for real deal or just version and exit*/
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 40, __FILE__);
 		return 1;
+	}
 
 	while ((c = getopt(argc, argv, GETOPT_ARGS)) != EOF)
 		switch (c) {
@@ -536,12 +542,14 @@ main(int argc, char **argv, char **envp) /* qselect */
 
 	if (errflg || (optind < argc)) {
 		print_usage();
+		end_perf_timing(perf_t, __LINE__ - 166, __FILE__);
 		exit(2);
 	}
 
 	if (notNULL(destination)) {
 		if (parse_destination_id(destination, &queue_name_out, &server_name_out)) {
 			fprintf(stderr, "qselect: illegally formed destination: %s\n", destination);
+			end_perf_timing(perf_t, __LINE__ - 173, __FILE__);
 			exit(2);
 		}
 		if (notNULL(server_name_out))
@@ -552,6 +560,7 @@ main(int argc, char **argv, char **envp) /* qselect */
 	/*perform needed security library initializations (including none)*/
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qselect: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 184, __FILE__);
 		exit(2);
 	}
 
@@ -563,6 +572,7 @@ main(int argc, char **argv, char **envp) /* qselect */
 		/*cleanup security library initializations before exiting*/
 		CS_close_app();
 
+		end_perf_timing(perf_t, __LINE__ - 196, __FILE__);
 		exit(pbs_errno);
 	} else if (pbs_errno)
 		show_svr_inst_fail(connect, argv[0]);
@@ -596,6 +606,7 @@ main(int argc, char **argv, char **envp) /* qselect */
 
 			/*cleanup security library initializations before exiting*/
 			CS_close_app();
+			end_perf_timing(perf_t, __LINE__ - 230, __FILE__);
 			exit(pbs_errno);
 		}
 	} else {   /* got some jobs ids */
@@ -610,5 +621,6 @@ main(int argc, char **argv, char **envp) /* qselect */
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
+	end_perf_timing(perf_t, __LINE__ - 245, __FILE__);
 	exit(0);
 }

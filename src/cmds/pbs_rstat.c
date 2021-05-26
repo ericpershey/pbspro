@@ -232,6 +232,8 @@ display(struct batch_status *resv, int how)
 int
 main(int argc, char *argv[])
 {
+	init_perf_timing("/tmp/pbs_rstat.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	int c;			/* for getopts() */
 	int how = DISP_RESV_DEFAULT; /* how the reservation should be display, default to short listing */
 	int errflg = 0;
@@ -243,8 +245,10 @@ main(int argc, char *argv[])
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 18, __FILE__);
 		return 1;
+	}
 
 	while ((c = getopt(argc, argv, "fFBS")) != EOF) {
 		switch (c) {
@@ -269,11 +273,13 @@ main(int argc, char *argv[])
 	if (errflg) {
 		fprintf(stderr, "Usage:\n\tpbs_rstat [-fFBS] [reservation-id]\n");
 		fprintf(stderr, "\tpbs_rstat --version\n");
+		end_perf_timing(perf_t, __LINE__ - 45, __FILE__);
 		exit(1);
 	}
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "pbs_rstat: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 51, __FILE__);
 		exit(1);
 	}
 

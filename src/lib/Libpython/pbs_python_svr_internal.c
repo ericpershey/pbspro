@@ -5238,27 +5238,21 @@ _pbs_python_event_set(unsigned int hook_event, char *req_user, char *req_host,
 
 	hook_counter++;
 	restart_python = 0;
-	if (hook_counter >= max_hooks) {
+	if (hook_counter >= max_hooks)
 		restart_python = 1;
-	}
-	if (object_counter >= max_objects) {
+	if (object_counter >= max_objects)
 		restart_python = 1;
-	}
-	if ((time(NULL) - previous_restart) < min_restart_interval) {
+	if ((time(NULL) - previous_restart) < min_restart_interval)
 		restart_python = 0;
-	}
 	if (restart_python) {
 		char *line;
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK, LOG_INFO, __func__,
 			"Restarting Python interpreter to reduce mem usage");
 		pbs_python_ext_shutdown_interpreter(&svr_interp_data);
-
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			log_err(PBSE_INTERNAL, __func__, "Failed to restart Python interpreter");
-			
 			goto event_set_exit;
 		}
-		
 		/* Reset counters for the next interpreter restart. */
 		hook_counter = 0;
 		object_counter = 0;

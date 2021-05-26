@@ -1296,7 +1296,7 @@ main(int argc, char **argv)
 		"%s", server_host);
 	if ((pc=strchr(svr_interp_data.local_host_name, '.')) != NULL)
 		*pc = '\0';
-	
+
 	if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 		log_err(-1, msg_daemonname, "Failed to start Python interpreter");
 		stop_db();
@@ -1318,6 +1318,7 @@ main(int argc, char **argv)
 		return (1);
 	}
 	process_hooks(periodic_req, hook_msg, sizeof(hook_msg), pbs_python_set_interrupt);
+
 	/*
 	 * main loop of server
 	 * stays in this loop until server's state is either
@@ -1504,7 +1505,7 @@ main(int argc, char **argv)
 
 	/* Shut down interpreter now before closing network connections */
 	pbs_python_ext_shutdown_interpreter(&svr_interp_data); /* stop python if started */
-		
+
 	shutdown_ack();
 	net_close(-1);		/* close all network connections */
 	tpp_shutdown();

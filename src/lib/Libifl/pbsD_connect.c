@@ -98,7 +98,9 @@ __pbs_default()
 	/* initialize the thread context data, if not already initialized */
 	if (pbs_client_thread_init_thread_context() != 0)
 		return NULL;
+
 	p =  pbs_client_thread_get_context_data();
+
 	if (pbs_loadconf(0) == 0)
 		return NULL;
 

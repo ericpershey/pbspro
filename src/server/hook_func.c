@@ -3900,7 +3900,6 @@ process_hooks(struct batch_request *preq, char *hook_msg, size_t msg_len,
 		rc = server_process_hooks(preq->rq_type, preq->rq_user, preq->rq_host, phook,
 				hook_event, pjob, &req_ptr, hook_msg, msg_len, pyinter_func,
 				&num_run, &event_initialized);
-
 		if ((rc == 0) || (rc == -1))
 			return (rc);
 	}
@@ -4311,11 +4310,8 @@ int server_process_hooks(int rq_type, char *rq_user, char *rq_host, hook *phook,
 	/* let rc pass through */
 	if (rc == 0) {
 		hook_perf_stat_start(perf_label, "run_code", 0);
-
 		rc = pbs_python_run_code_in_namespace(&svr_interp_data, phook->script, 0);
-
 		hook_perf_stat_stop(perf_label, "run_code", 0);
-
 	}
 
 	if (fp_debug != NULL) {
@@ -6936,7 +6932,6 @@ run_periodic_hook(struct work_task *ptask)
 		ret = server_process_hooks(PBS_BATCH_HookPeriodic, NULL, NULL, phook,
 					HOOK_EVENT_PERIODIC, NULL, &req_ptr, hook_msg,
 					sizeof(hook_msg), pbs_python_set_interrupt, &num_run, &event_initialized);
-
 		if (ret == 0)
 			log_event(PBSE_HOOKERROR, PBS_EVENTCLASS_HOOK, LOG_ERR, __func__, hook_msg);
 

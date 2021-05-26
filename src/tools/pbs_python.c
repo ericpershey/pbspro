@@ -1987,13 +1987,10 @@ main(int argc, char *argv[], char *envp[])
 			(struct python_script **) &py_script);
 
 		hook_perf_stat_start(perf_label, HOOK_PERF_START_PYTHON, 0);
-
 		if (pbs_python_ext_start_interpreter(&svr_interp_data) != 0) {
 			fprintf(stderr, "Failed to start Python interpreter");
-						
 			exit(1);
 		}
-
 		hook_perf_stat_stop(perf_label, HOOK_PERF_START_PYTHON, 0);
 		hook_input_param_init(&req_params);
 		switch (hook_event) {
@@ -2319,7 +2316,6 @@ main(int argc, char *argv[], char *envp[])
 			hook_perf_stat_start(perf_label, HOOK_PERF_RUN_CODE, 0);
 			rc=pbs_python_run_code_in_namespace(&svr_interp_data,
 				py_script, 0);
-
 			hook_perf_stat_stop(perf_label, HOOK_PERF_RUN_CODE, 0);
 		}
 		set_alarm(0, pbs_python_set_interrupt);

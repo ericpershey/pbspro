@@ -54,6 +54,8 @@
 int
 main(int argc, char **argv, char **envp)
 {
+	init_perf_timing("/tmp/qorder.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	char job_id1[PBS_MAXCLTJOBID+1];		/* from the command line */
 	char job_id2[PBS_MAXCLTJOBID+1];		/* from the command line */
 	char job_id1_out[PBS_MAXCLTJOBID+1];
@@ -72,14 +74,17 @@ main(int argc, char **argv, char **envp)
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 25, __FILE__);
 		return 1;
+	}
 
 	if (argc != 3) {
 		static char usage[]="usage: qorder job_identifier job_identifier\n";
 		static char usag2[]="       qorder --version\n";
 		fprintf(stderr, "%s", usage);
 		fprintf(stderr, "%s", usag2);
+		end_perf_timing(perf_t, __LINE__ - 34, __FILE__);
 		exit(2);
 	}
 
@@ -88,6 +93,7 @@ main(int argc, char **argv, char **envp)
 	svrtmp[0] = '\0';
 	if (get_server(job_id1, job_id1_out, svrtmp)) {
 		fprintf(stderr, "qorder: illegally formed job identifier: %s\n", job_id1);
+		end_perf_timing(perf_t, __LINE__ - 43, __FILE__);
 		exit(1);
 	}
 	if (*svrtmp == '\0') {
@@ -95,6 +101,7 @@ main(int argc, char **argv, char **envp)
 			pbs_strncpy(svrtmp, pn, sizeof(svrtmp));
 		} else {
 			fprintf(stderr, "qorder: could not get default server: %s\n", job_id1);
+			end_perf_timing(perf_t, __LINE__ - 51, __FILE__);
 			exit(1);
 		}
 	}
@@ -105,12 +112,14 @@ main(int argc, char **argv, char **envp)
 	}
 	if (get_fullhostname(svrtmp, server_out1, MAXSERVERNAME) != 0) {
 		fprintf(stderr, "qorder: invalid server name: %s\n", job_id1);
+		end_perf_timing(perf_t, __LINE__ - 62, __FILE__);
 		exit(1);
 	}
 
 	svrtmp[0] = '\0';
 	if (get_server(job_id2, job_id2_out, svrtmp)) {
 		fprintf(stderr, "qorder: illegally formed job identifier: %s\n", job_id2);
+		end_perf_timing(perf_t, __LINE__ - 69, __FILE__);
 		exit(1);
 	}
 	if (*svrtmp == '\0') {
@@ -118,6 +127,7 @@ main(int argc, char **argv, char **envp)
 			pbs_strncpy(svrtmp, pn, sizeof(svrtmp));
 		} else {
 			fprintf(stderr, "qorder: could not get default server: %s\n", job_id1);
+			end_perf_timing(perf_t, __LINE__ - 77, __FILE__);
 			exit(1);
 		}
 	}
@@ -127,10 +137,12 @@ main(int argc, char **argv, char **envp)
 	}
 	if (get_fullhostname(svrtmp, server_out2, MAXSERVERNAME) != 0) {
 		fprintf(stderr, "qorder: invalid server name: %s\n", job_id2);
+		end_perf_timing(perf_t, __LINE__ - 87, __FILE__);
 		exit(1);
 	}
 	if ((strcmp(server_out1, server_out2) != 0) || (port1 != port2)) {
 		fprintf(stderr, "qorder: both jobs ids must specify the same server\n");
+		end_perf_timing(perf_t, __LINE__ - 92, __FILE__);
 		exit(1);
 	}
 	if (pn)
@@ -140,6 +152,7 @@ main(int argc, char **argv, char **envp)
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qorder: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 102, __FILE__);
 		exit(1);
 	}
 
@@ -147,6 +160,7 @@ main(int argc, char **argv, char **envp)
 	if (connect <= 0) {
 		fprintf(stderr, "qorder: cannot connect to server %s (errno=%d)\n",
 			pbs_server, pbs_errno);
+		end_perf_timing(perf_t, __LINE__ - 110, __FILE__);
 		exit(1);;
 	} else if (pbs_errno)
 		show_svr_inst_fail(connect, argv[0]);
@@ -168,5 +182,6 @@ main(int argc, char **argv, char **envp)
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
+	end_perf_timing(perf_t, __LINE__ - 132, __FILE__);
 	exit(rc);
 }

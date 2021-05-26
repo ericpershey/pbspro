@@ -187,6 +187,8 @@ host_match(char *line)
 int
 main(int argc, char *argv[], char *envp[])
 {
+	init_perf_timing("/tmp/pbs_tmrsh.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	char		*id;
 	char		*jobid;
 	int		i, arg;
@@ -205,8 +207,10 @@ main(int argc, char *argv[], char *envp[])
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 25, __FILE__);
 		return 1;
+	}
 
 	id = argv[0];
 	if (argc < 3)
@@ -257,10 +261,12 @@ main(int argc, char *argv[], char *envp[])
 
 	if (getenv("PBS_ENVIRONMENT") == 0) {
 		fprintf(stderr, "%s: not executing under PBS\n", id);
+		end_perf_timing(perf_t, __LINE__ - 78, __FILE__);
 		return 255;
 	}
 	if ((jobid = getenv("PBS_JOBID")) == NULL) {
 		fprintf(stderr, "%s: PBS jobid not in environment\n", id);
+		end_perf_timing(perf_t, __LINE__ - 83, __FILE__);
 		return 255;
 	}
 
@@ -269,11 +275,13 @@ main(int argc, char *argv[], char *envp[])
 	 */
 	if ((rc = tm_init(NULL, &rootrot)) != TM_SUCCESS) {
 		fprintf(stderr, "%s: tm_init: %s\n", id, get_ecname(rc));
+		end_perf_timing(perf_t, __LINE__ - 92, __FILE__);
 		return 255;
 	}
 
 	if ((rc = tm_nodeinfo(&nodelist, &numnodes)) != TM_SUCCESS) {
 		fprintf(stderr, "%s: tm_nodeinfo: %s\n", id, get_ecname(rc));
+		end_perf_timing(perf_t, __LINE__ - 98, __FILE__);
 		return 255;
 	}
 
@@ -282,10 +290,12 @@ main(int argc, char *argv[], char *envp[])
 	 */
 	if ((nodefile = getenv("PBS_NODEFILE")) == NULL) {
 		fprintf(stderr, "%s: cannot find PBS_NODEFILE\n", id);
+		end_perf_timing(perf_t, __LINE__ - 107, __FILE__);
 		return 255;
 	}
 	if ((fp = fopen(nodefile, "r")) == NULL) {
 		perror(nodefile);
+		end_perf_timing(perf_t, __LINE__ - 112, __FILE__);
 		return 255;
 	}
 
@@ -297,11 +307,13 @@ main(int argc, char *argv[], char *envp[])
 	if (cp == NULL) {
 		fprintf(stderr, "%s: host \"%s\" is not a node in job <%s>\n",
 			id, host, jobid);
+		end_perf_timing(perf_t, __LINE__ - 124, __FILE__);
 		return 255;
 	}
 	if (i >= numnodes) {
 		fprintf(stderr, "%s: PBS_NODEFILE contains %d entries, "
 			"only %d nodes in job\n", id, i, numnodes);
+		end_perf_timing(perf_t, __LINE__ - 130, __FILE__);
 		return 255;
 	}
 
@@ -315,12 +327,14 @@ main(int argc, char *argv[], char *envp[])
 	if (rc != TM_SUCCESS || event == TM_ERROR_EVENT) {
 		fprintf(stderr, "%s: tm_poll(spawn): host \"%s\" err %s %d\n",
 			id, host, get_ecname(rc), err);
+		end_perf_timing(perf_t, __LINE__ - 144, __FILE__);
 		return 255;
 	}
 
 	if ((rc = tm_obit(tid, &exitval, &event)) != TM_SUCCESS) {
 		fprintf(stderr, "%s: obit: host \"%s\" err %s\n",
 			id, host, get_ecname(rc));
+		end_perf_timing(perf_t, __LINE__ - 151, __FILE__);
 		return 255;
 	}
 
@@ -328,10 +342,12 @@ main(int argc, char *argv[], char *envp[])
 	if (rc != TM_SUCCESS || event == TM_ERROR_EVENT) {
 		fprintf(stderr, "%s: tm_poll(obit): host \"%s\" err %s %d\n",
 			id, host, get_ecname(rc), err);
+		end_perf_timing(perf_t, __LINE__ - 159, __FILE__);
 		return 255;
 	}
 
 	tm_finalize();
 
+	end_perf_timing(perf_t, __LINE__ - 165, __FILE__);
 	return exitval;
 }

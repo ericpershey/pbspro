@@ -140,6 +140,8 @@ readit(int sock, struct routem *prm)
 int
 main(int argc, char *argv[])
 {
+	init_perf_timing("/tmp/pbs_demux.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	struct timeval timeout;
 	int	i;
 	int	maxfd;
@@ -161,6 +163,7 @@ main(int argc, char *argv[])
 	if (cookie == 0) {
 		fprintf(stderr, "%s: no PBS_JOBCOOKIE found in the env\n",
 			argv[0]);
+		end_perf_timing(perf_t, __LINE__ - 27, __FILE__);
 		exit(3);
 	}
 #ifdef DEBUG
@@ -171,6 +174,7 @@ main(int argc, char *argv[])
 	routem = (struct routem *)malloc(maxfd * sizeof(struct routem));
 	if (routem == NULL) {
 		fprintf(stderr, "%s: out of memory\n", argv[0]);
+		end_perf_timing(perf_t, __LINE__ - 38, __FILE__);
 		exit(2);
 	}
 	for (i = 0; i < maxfd; ++i) {
@@ -188,11 +192,13 @@ main(int argc, char *argv[])
 
 	if (listen(main_sock_out, 5) < 0) {
 		perror("listen on out");
+		end_perf_timing(perf_t, __LINE__ - 56, __FILE__);
 		exit(5);
 	}
 
 	if (listen(main_sock_err, 5) < 0) {
 		perror("listen on err");
+		end_perf_timing(perf_t, __LINE__ - 62, __FILE__);
 		exit(5);
 	}
 
@@ -208,6 +214,7 @@ main(int argc, char *argv[])
 				n = 0;
 			} else {
 				fprintf(stderr, "%s: select failed\n", argv[0]);
+				end_perf_timing(perf_t, __LINE__ - 78, __FILE__);
 				exit(1);
 			}
 		} else if (n == 0) {
@@ -237,11 +244,13 @@ main(int argc, char *argv[])
 						break;
 					default:
 						fprintf(stderr, "%s: internal error\n", argv[0]);
+						end_perf_timing(perf_t, __LINE__ - 108, __FILE__);
 						exit(2);
 				}
 			}
 		}
 	}
 	free(routem);
+	end_perf_timing(perf_t, __LINE__ - 115, __FILE__);
 	return 0;
 }

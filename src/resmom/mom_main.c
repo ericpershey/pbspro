@@ -5122,27 +5122,22 @@ do_tpp(int stream)
 		im_eof(stream, ret);
 		return;
 	}
+
 	switch (proto) {
 		case	RM_PROTOCOL:
 			DBPRT(("%s: got a resource monitor request\n", __func__))
-
 			if (rm_request(stream, version, PROT_TPP) == 0)
 				tpp_eom(stream);
-			
 			break;
 
 		case	IM_PROTOCOL:
 			DBPRT(("%s: got an internal task manager request\n", __func__))
-
 			im_request(stream, version);
-
 			break;
 
 		case	IS_PROTOCOL:
 			DBPRT(("%s: got an inter-server request\n", __func__))
-
 			is_request(stream, version);
-
 			break;
 
 		default:

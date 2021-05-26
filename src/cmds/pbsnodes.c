@@ -897,6 +897,8 @@ marknode(int con, char *name,
 int
 main(int argc, char *argv[])
 {
+	init_perf_timing("/tmp/pbsnodes.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	time_t timenow;
 	struct attrl *pattr = NULL;
 	int con;
@@ -925,8 +927,10 @@ main(int argc, char *argv[])
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 35, __FILE__);
 		return 1;
+	}
 
 	if (argc == 1)
 		errflg = 1;
@@ -1071,6 +1075,7 @@ main(int argc, char *argv[])
 				"\t%s -[H][S[j][L]][-F format][-D delim] host host ...\n"
 				"\t%s --version\n\n",
 				argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
+		end_perf_timing(perf_t, __LINE__ - 182, __FILE__);
 		exit(1);
 	}
 
@@ -1082,6 +1087,7 @@ main(int argc, char *argv[])
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "pbsnodes: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 194, __FILE__);
 		exit(1);
 	}
 
@@ -1091,6 +1097,7 @@ main(int argc, char *argv[])
 			fprintf(stderr, "%s: cannot connect to server %s, error=%d\n",
 				argv[0], def_server, pbs_errno);
 		CS_close_app();
+		end_perf_timing(perf_t, __LINE__ - 204, __FILE__);
 		exit(1);
 	} else if (!quiet && pbs_errno)
 		show_svr_inst_fail(con, argv[0]);
@@ -1114,6 +1121,7 @@ main(int argc, char *argv[])
 					else
 						fprintf(stderr, "%s: Error %d\n", argv[0], pbs_errno);
 				}
+				end_perf_timing(perf_t, __LINE__ - 228, __FILE__);
 				exit(1);
 			} else {
 				if (!quiet)
@@ -1127,18 +1135,22 @@ main(int argc, char *argv[])
 		timenow = time(0);
 		if (add_json_node(JSON_VALUE, JSON_INT, JSON_FULLESCAPE, "timestamp", &timenow) == NULL) {
 			fprintf(stderr, "pbsnodes: out of memory\n");
+			end_perf_timing(perf_t, __LINE__ - 242, __FILE__);
 			exit(1);
 		}
 		if (add_json_node(JSON_VALUE, JSON_STRING, JSON_FULLESCAPE, "pbs_version", PBS_VERSION) == NULL) {
 			fprintf(stderr, "pbsnodes: out of memory\n");
+			end_perf_timing(perf_t, __LINE__ - 247, __FILE__);
 			exit(1);
 		}
 		if (add_json_node(JSON_VALUE, JSON_STRING, JSON_FULLESCAPE, "pbs_server", def_server) == NULL) {
 			fprintf(stderr, "pbsnodes: out of memory\n");
+			end_perf_timing(perf_t, __LINE__ - 252, __FILE__);
 			exit(1);
 		}
 		if (add_json_node(JSON_OBJECT, JSON_NULL, JSON_NOVALUE, "nodes", NULL) == NULL) {
 			fprintf(stderr, "pbsnodes: out of memory\n");
+			end_perf_timing(perf_t, __LINE__ - 257, __FILE__);
 			exit(1);
 		}
 	}
@@ -1227,6 +1239,7 @@ main(int argc, char *argv[])
 			if (prt_summary) {
 				if (prt_node_summary(def_server, bstat_head, job_summary, long_summary)) {
 					fprintf(stderr, "pbsnodes: out of memory\n");
+					end_perf_timing(perf_t, __LINE__ - 346, __FILE__);
 					return 1;
 				}
 			} else {
@@ -1236,6 +1249,7 @@ main(int argc, char *argv[])
 			if (output_format == FORMAT_JSON) {
 				if (add_json_node(JSON_OBJECT_END, JSON_NULL, JSON_NOVALUE, NULL, NULL) == NULL) {
 					fprintf(stderr, "pbsnodes: out of memory\n");
+					end_perf_timing(perf_t, __LINE__ - 356, __FILE__);
 					return 1;
 				}
 				generate_json(stdout);
@@ -1279,6 +1293,7 @@ main(int argc, char *argv[])
 					if (prt_summary) {
 						if (prt_node_summary(def_server, bstat, job_summary, long_summary)) {
 							fprintf(stderr, "pbsnodes: out of memory\n");
+							end_perf_timing(perf_t, __LINE__ - 400, __FILE__);
 							exit(1);
 						}
 					} else {
@@ -1289,6 +1304,7 @@ main(int argc, char *argv[])
 			if (output_format == FORMAT_JSON) {
 				if (add_json_node(JSON_OBJECT_END, JSON_NULL, JSON_NOVALUE, NULL, NULL) == NULL) {
 					fprintf(stderr, "pbsnodes: out of memory\n");
+					end_perf_timing(perf_t, __LINE__ - 411, __FILE__);
 					exit(1);
 				}
 				generate_json(stdout);
@@ -1360,6 +1376,7 @@ main(int argc, char *argv[])
 			if (output_format == FORMAT_JSON) {
 				if (add_json_node(JSON_OBJECT_END, JSON_NULL, JSON_NOVALUE, NULL, NULL) == NULL) {
 					fprintf(stderr, "pbsnodes : out of memory");
+					end_perf_timing(perf_t, __LINE__ - 483, __FILE__);
 					exit(1);
 				}
 				generate_json(stdout);
@@ -1369,5 +1386,6 @@ main(int argc, char *argv[])
 			break;
 	}
 	(void)pbs_disconnect(con);
+	end_perf_timing(perf_t, __LINE__ - 493, __FILE__);
 	return (rc ? 1 : 0);
 }

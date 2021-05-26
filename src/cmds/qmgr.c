@@ -707,6 +707,8 @@ who()
 int
 main(int argc, char **argv)
 {
+	init_perf_timing("/tmp/qmgr.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	static char opts[] = "ac:enz"; /* See man getopt */
 	static char usage[] = "Usage: qmgr [-a] [-c command] [-e] [-n] [-z] [server...]\n";
 	static char usag2[] = "       qmgr --version\n";
@@ -730,8 +732,10 @@ main(int argc, char **argv)
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 30, __FILE__);
 		return 1;
+	}
 
 	/* Command line options */
 	while ((c = getopt(argc, argv, opts)) != EOF) {
@@ -761,6 +765,7 @@ main(int argc, char **argv)
 	if (errflg) {
 		pstderr(usage);
 		pstderr(usag2);
+		end_perf_timing(perf_t, __LINE__ - 62, __FILE__);
 		exit(1);
 	}
 
@@ -773,6 +778,7 @@ main(int argc, char **argv)
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qmgr: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 75, __FILE__);
 		exit(2);
 	}
 
@@ -782,6 +788,7 @@ main(int argc, char **argv)
 	/* obtain global information for hooks */
 	if (pbs_loadconf(0) == 0) {
 		fprintf(stderr, "Failed to load pbs.conf file\n");
+		end_perf_timing(perf_t, __LINE__ - 85, __FILE__);
 		exit(2);
 	}
 
@@ -841,12 +848,16 @@ main(int argc, char **argv)
 #endif /* Linux/Unix */
 
 	errflg = connect_servers(svrs, ALL_SERVERS);
-	if ((nservers==0) || (errflg))
+	if ((nservers==0) || (errflg)) {
+		end_perf_timing(perf_t, __LINE__ - 146, __FILE__);
 		clean_up_and_exit(3);
+	}
 
 	errflg = set_active(MGR_OBJ_SERVER, svrs);
-	if (errflg && aopt)
+	if (errflg && aopt) {
+		end_perf_timing(perf_t, __LINE__ - 152, __FILE__);
 		clean_up_and_exit(4);
+	}
 
 
 	/*
@@ -882,13 +893,17 @@ main(int argc, char **argv)
 			if (errflg == -1)		/* help */
 				continue;
 
-			if (aopt && errflg)
+			if (aopt && errflg) {
+				end_perf_timing(perf_t, __LINE__ - 191, __FILE__);
 				clean_up_and_exit(1);
+			}
 
 			if (! nopt && ! errflg) {
 				errflg = execute(aopt, oper, type, name, attribs);
-				if (aopt && errflg)
+				if (aopt && errflg) {
+					end_perf_timing(perf_t, __LINE__ - 198, __FILE__);
 					clean_up_and_exit(2);
+				}
 			}
 			if (request != NULL) {
 				free(request);
@@ -908,13 +923,17 @@ main(int argc, char **argv)
 			printf("%s\n", copt);
 
 		errflg = parse(copt, &oper, &type, &name, &attribs);
-		if (aopt && errflg)
+		if (aopt && errflg) {
+			end_perf_timing(perf_t, __LINE__ - 221, __FILE__);
 			clean_up_and_exit(1);
+		}
 
 		if (! nopt && ! errflg) {
 			errflg = execute(aopt, oper, type, name, attribs);
-			if (aopt && errflg)
+			if (aopt && errflg) {
+				end_perf_timing(perf_t, __LINE__ - 228, __FILE__);
 				clean_up_and_exit(2);
+			}
 		}
 		/*
 		 * Deallocate the memory for the variable name whose memory
@@ -926,9 +945,12 @@ main(int argc, char **argv)
 		}
 
 	}
-	if (errflg)
+	if (errflg) {
+		end_perf_timing(perf_t, __LINE__ - 243, __FILE__);
 		clean_up_and_exit(errflg);
+	}
 
+	end_perf_timing(perf_t, __LINE__ - 247, __FILE__);
 	clean_up_and_exit(0);
 
 	return 0;

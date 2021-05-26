@@ -68,12 +68,14 @@
 static void
 print_usage()
 {
+	perf_timing *perf_t = start_perf_timing("print_usage");
 	static char usag2[]="       qhold --version\n";
 	static char usage[]=
 		"usage: qhold [-h hold_list] job_identifier...\n";
 
 	fprintf(stderr, "%s", usage);
 	fprintf(stderr, "%s", usag2);
+	end_perf_timing(perf_t, __LINE__ - 12, __FILE__);
 }
 
 /**
@@ -114,6 +116,8 @@ handle_attribute_errors(int connect,
 int
 main(int argc, char **argv, char **envp) /* qhold */
 {
+	init_perf_timing("/tmp/qhold.log");
+	perf_timing *perf_t = start_perf_timing("main");
 	int c;
 	int errflg=0;
 	int any_failed=0;
@@ -133,8 +137,10 @@ main(int argc, char **argv, char **envp) /* qhold */
 
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-	if (initsocketlib())
+	if (initsocketlib()) {
+		end_perf_timing(perf_t, __LINE__ - 26, __FILE__);
 		return 1;
+	}
 
 	hold_type[0]='\0';
 
@@ -155,6 +161,7 @@ main(int argc, char **argv, char **envp) /* qhold */
 
 	if (errflg || optind >= argc) {
 		print_usage();
+		end_perf_timing(perf_t, __LINE__ - 49, __FILE__);
 		exit(2);
 	}
 
@@ -162,6 +169,7 @@ main(int argc, char **argv, char **envp) /* qhold */
 
 	if (CS_client_init() != CS_SUCCESS) {
 		fprintf(stderr, "qhold: unable to initialize security library.\n");
+		end_perf_timing(perf_t, __LINE__ - 57, __FILE__);
 		exit(2);
 	}
 
@@ -211,5 +219,6 @@ cnt:
 	/*cleanup security library initializations before exiting*/
 	CS_close_app();
 
+	end_perf_timing(perf_t, __LINE__ - 107, __FILE__);
 	exit(any_failed);
 }
