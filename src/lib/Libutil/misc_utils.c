@@ -1890,31 +1890,30 @@ perf_stat_stop(char *instance)
 	return (stat_summary);
 }
 
-static char *perf_file = "/tmp/pbsperf.log";
+static const char *perf_file = "/tmp/pbsperf.log";
 
 void
-init_perf_timing(char *file_name) {
-
-	perf_file = file_name;
+init_perf_timing(const char *file_name) {
+	perf_file = strdup(file_name);
 	FILE *fd;
 	mode_t old_mask;
 	old_mask = umask(0);
 	fd = fopen(perf_file, "a");
-	if (fd > 0) {
-		umask(old_mask);
+	umask(old_mask);
+	if (fd != NULL) {
 		fclose(fd);
 	} else {
-		/* Fixme: logging? */
 		perror("perf_file");
 		fprintf(stderr, "init_perf_timing: could not create/open tmp file %s\n", perf_file);
 	}
 }
 
 perf_timing * 
-alloc_perf_timing(char *func_name)
+alloc_perf_timing(const char *func_name)
 {
 	perf_timing *perf_t = malloc(sizeof(*perf_t));
 	strncpy(perf_t->func_name, func_name, 64-1);
+	perf_t->func_name[64-1] = '\0';
 	perf_t->time_start = 0;
 	perf_t->time_end = 0;
 	perf_t->time_start_cputime = 0;
@@ -1924,7 +1923,7 @@ alloc_perf_timing(char *func_name)
 }
 
 perf_timing *
-start_perf_timing(char *func_name)
+start_perf_timing(const char *func_name)
 {
 	perf_timing *perf_t = alloc_perf_timing(func_name);
 	perf_t->time_start = get_walltime();
@@ -1933,7 +1932,11 @@ start_perf_timing(char *func_name)
 }
 
 void
-end_perf_timing(perf_timing* perf_t, int lineno, char *file_name) {
+end_perf_timing(perf_timing** perf_t_ptr, int lineno, const char *file_name) {
+	perf_timing *perf_t = *perf_t_ptr;
+	if (perf_t == NULL){
+		return;
+	}
 	perf_t->time_end = get_walltime();
 	perf_t->time_end_cputime = get_cputime();
 	FILE *fd;
@@ -1953,6 +1956,7 @@ end_perf_timing(perf_timing* perf_t, int lineno, char *file_name) {
 		fprintf(stderr, "end_perf_timing: could not create/open tmp file %s\n", perf_file);
 	}
 	free(perf_t);
+	*perf_t_ptr = NULL;
 }
 
 /**
