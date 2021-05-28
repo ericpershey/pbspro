@@ -40,7 +40,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "libutil.h"
 #include "pbs_entlim.h"
 #include <pbs_config.h>
 

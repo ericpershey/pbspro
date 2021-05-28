@@ -241,7 +241,6 @@ pbs_python_event_set(unsigned int hook_event, char *req_user,
 	if (rc == -2) { /* _pbs_python_event_set got interrupted, retry */
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_SERVER, LOG_DEBUG,
 			"_pbs_python_event_set", "retrying call");
-			
 		rc = _pbs_python_event_set(hook_event, req_user, req_host,
 			req_params, perf_label);
 	}

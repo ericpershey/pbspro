@@ -42,7 +42,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pbs_array_list.h"
-#include "libutil.h"
 
 /**
  * @brief

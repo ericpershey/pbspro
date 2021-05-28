@@ -58,7 +58,6 @@
 #include <pbs_internal.h>
 #include "log.h"
 #include "undolr.h"
-#include "libutil.h"
 
 int sigusr1_flag;
 static char recording_file [MAXPATHLEN + 1];

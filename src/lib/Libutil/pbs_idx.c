@@ -42,7 +42,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "libutil.h"
 
 /* iteration context structure, opaque to application */
 typedef struct _iter_ctx {

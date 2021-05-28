@@ -44,7 +44,6 @@
 #include <fcntl.h>
 #include "server_limits.h"
 #include "pbs_ifl.h"
-#include "libutil.h"
 
 /**
  * @brief

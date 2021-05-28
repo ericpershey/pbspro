@@ -271,7 +271,6 @@ SUCCESS_EXIT:
 	return 0;
 ERROR_EXIT:
 	if (interp_data->interp_started) {
-
 		pbs_python_ext_shutdown_interpreter(interp_data);
 	}
 	return 1;
@@ -320,7 +319,6 @@ pbs_python_ext_shutdown_interpreter(struct python_interpreter_data *interp_data)
 			/* before finalize clear global python objects */
 			pbs_python_event_unset();  /* clear Python event object */
 			pbs_python_unload_python_types(interp_data);
-
 			Py_Finalize();
 		}
 		interp_data->destroy_interpreter_data(interp_data);
@@ -758,11 +756,11 @@ pbs_python_run_code_in_namespace(struct python_interpreter_data *interp_data,
 	}
 
 	/* make new namespace dictionary, NOTE new reference */
+
 	if (!(pdict = (PyObject *)pbs_python_ext_namespace_init(interp_data))) {
 		log_err(-1, __func__, "while calling pbs_python_ext_namespace_init");
 		return -1;
 	}
-		
 	if ((pbs_python_setup_namespace_dict(pdict) == -1)) {
 		Py_CLEAR(pdict);
 		return -1;

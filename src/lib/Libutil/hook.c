@@ -48,7 +48,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <assert.h>
-#include "libutil.h"
 
 #include <memory.h>
 #include <fcntl.h>
