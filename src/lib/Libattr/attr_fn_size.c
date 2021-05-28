@@ -51,7 +51,6 @@
 #include "attribute.h"
 #include "pbs_error.h"
 #include "pbs_share.h"
-#include "libutil.h"
 
 
 /**

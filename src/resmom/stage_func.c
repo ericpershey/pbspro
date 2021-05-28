@@ -61,7 +61,6 @@
 #include "batch_request.h"
 #include "pbs_nodes.h"
 #include "mom_func.h"
-#include "libutil.h"
 
 /**
  * @file	stage_func.c

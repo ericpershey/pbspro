@@ -71,7 +71,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "libutil.h"
 #include <pthread.h>
 #include <errno.h>
 #include <fcntl.h>

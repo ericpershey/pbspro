@@ -47,7 +47,6 @@
 #include "server_limits.h"
 #include "pbs_error.h"
 #include "job.h"
-#include "libutil.h"
 
 /**
  * @file	site_allow_u.c

@@ -58,7 +58,6 @@
 #include "queue.h"
 #include "log.h"
 #include "pbs_ifl.h"
-#include "libutil.h"
 #include "svrfunc.h"            /* to resolve cvrt_fqn_to_name */
 
 /**

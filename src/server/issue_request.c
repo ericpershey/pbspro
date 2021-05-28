@@ -79,7 +79,6 @@
 #include "server.h"
 #include <libutil.h>
 #include "tpp.h"
-#include "libutil.h"
 
 
 /* Global Data Items: */

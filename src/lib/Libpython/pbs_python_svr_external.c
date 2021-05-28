@@ -63,7 +63,6 @@
 #include "pbs_error.h"
 #include "pbs_sched.h"
 #include "server.h"
-#include "libutil.h"
 
 /* Functions */
 #ifdef PYTHON

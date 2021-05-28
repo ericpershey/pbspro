@@ -61,7 +61,6 @@
 #include "log.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
-#include "libutil.h"
 
 
 /* Global Variables */

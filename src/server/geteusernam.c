@@ -66,7 +66,6 @@
 #include "pbs_error.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
-#include "libutil.h"
 
 /* External Data */
 

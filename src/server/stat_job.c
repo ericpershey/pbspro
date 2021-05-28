@@ -71,7 +71,6 @@
 #include "pbs_nodes.h"
 #include "svrfunc.h"
 #include "pbs_ifl.h"
-#include "libutil.h"
 #include "ifl_internal.h"
 
 

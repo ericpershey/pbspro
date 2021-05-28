@@ -99,7 +99,6 @@
 #include "pbs_version.h"
 #include "pbs_ifl.h"
 #include "glob.h"
-#include "libutil.h"
 
 
 #ifndef	S_ISLNK

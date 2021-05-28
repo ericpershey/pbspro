@@ -85,7 +85,6 @@
 #include "limits_if.h"
 #include "pbs_internal.h"
 #include "fifo.h"
-#include "libutil.h"
 
 /**
  * @brief

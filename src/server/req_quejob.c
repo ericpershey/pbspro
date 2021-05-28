@@ -62,7 +62,6 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 
-#include "libutil.h"
 #include "libpbs.h"
 #include "server_limits.h"
 #include "list_link.h"

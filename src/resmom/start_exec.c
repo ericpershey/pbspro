@@ -95,7 +95,6 @@
 #include "placementsets.h"
 #include "pbs_internal.h"
 #include "pbs_reliable.h"
-#include "libutil.h"
 
 #include "renew_creds.h"
 

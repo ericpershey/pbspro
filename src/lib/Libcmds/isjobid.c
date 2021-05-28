@@ -42,7 +42,6 @@
 #include <string.h>
 #include "pbs_ifl.h"
 #include "pbs_internal.h"
-#include "libutil.h"
 
 /**
  * @file	isjobid.c

@@ -67,7 +67,6 @@
 #include <signal.h>
 #include <stddef.h>
 #include <stdarg.h>
-#include "libutil.h"
 
 #include "log.h"
 #include "pbs_ifl.h"

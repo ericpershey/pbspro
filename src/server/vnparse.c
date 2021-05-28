@@ -66,7 +66,6 @@
 #include	"server.h"
 #include	"queue.h"
 #include	"pbs_reliable.h"
-#include	"libutil.h"
 
 static vnal_t	*vnal_alloc(vnal_t **);
 static vnal_t	*id2vnrl(vnl_t *, char *);

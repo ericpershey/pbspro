@@ -89,7 +89,6 @@
 #include <netdb.h>
 #include <string.h>
 #include <sys/time.h>
-#include "libutil.h"
 #include <stdint.h>
 
 

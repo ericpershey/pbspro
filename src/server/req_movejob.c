@@ -70,7 +70,6 @@
 #include "hook.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
-#include "libutil.h"
 
 
 /* Global Data Items: */

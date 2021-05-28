@@ -144,7 +144,6 @@
 #include "pbs_sched.h"
 #include "dis.h"
 #include "acct.h"
-#include "libutil.h"
 
 /* External functions */
 extern void disable_svr_prov();

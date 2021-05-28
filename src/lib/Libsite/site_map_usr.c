@@ -66,7 +66,6 @@
 #include "batch_request.h"
 #include "svrfunc.h"
 #include <string.h>
-#include "libutil.h"
 
 
 /* ARGSUSED */

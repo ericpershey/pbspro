@@ -191,7 +191,7 @@ PBSD_FreeReply(struct batch_reply *reply)
 	} else if (reply->brp_choice == BATCH_REPLY_CHOICE_Status) {
 		if (reply->brp_un.brp_statc)
 			pbs_statfree(reply->brp_un.brp_statc);
-	
+ 
 	} else if (reply->brp_choice == BATCH_REPLY_CHOICE_Delete) {
 		if (reply->brp_un.brp_deletejoblist.brp_delstatc)
 			pbs_delstatfree(reply->brp_un.brp_deletejoblist.brp_delstatc);

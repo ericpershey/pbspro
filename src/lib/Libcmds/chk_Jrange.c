@@ -49,7 +49,6 @@
 #include <stdlib.h>
 #include "pbs_ifl.h"
 #include "pbs_internal.h"
-#include "libutil.h"
 
 /**
  * @brief

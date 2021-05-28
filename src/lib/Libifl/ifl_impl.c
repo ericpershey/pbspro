@@ -52,7 +52,6 @@
 #include "ifl_internal.h"
 #include "pbs_ifl.h"
 #include "pbs_share.h"
-#include "libutil.h"
 
 /**
  * @brief

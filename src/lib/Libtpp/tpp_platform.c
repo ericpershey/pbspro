@@ -57,7 +57,6 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "libutil.h"
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/resource.h>

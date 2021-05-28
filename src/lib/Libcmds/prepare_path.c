@@ -52,7 +52,6 @@
 #include "cmds.h"
 #include "pbs_ifl.h"
 #include "net_connect.h"
-#include "libutil.h"
 
 
 

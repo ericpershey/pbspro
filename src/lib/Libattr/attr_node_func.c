@@ -57,7 +57,6 @@
 #include "pbs_nodes.h"
 #include "pbs_error.h"
 #include "pbs_internal.h"
-#include "libutil.h"
 
 
 static struct node_state {

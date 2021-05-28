@@ -42,7 +42,6 @@
 #include <string.h>
 
 #include "pbs_ifl.h"
-#include "libutil.h"
 
 /**
  * @file	batch_status.c

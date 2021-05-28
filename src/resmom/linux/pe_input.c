@@ -41,7 +41,6 @@
 
 #include <fcntl.h>
 #include <sys/param.h>
-#include "libutil.h"
 
 /**
  * @file

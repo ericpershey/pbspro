@@ -65,7 +65,6 @@
 #include "libsec.h"
 #include "port_forwarding.h"
 #include "log.h"
-#include "libutil.h"
 
 
 static char cc_array[PBS_TERM_CCA];

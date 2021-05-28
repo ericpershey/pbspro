@@ -60,7 +60,6 @@
 #include "ticket.h"
 #include "log.h"
 #include "server_limits.h"
-#include "libutil.h"
 
 #define IPV4_STR_LEN 15
 

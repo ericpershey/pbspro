@@ -54,7 +54,6 @@
 #include "log.h"
 #include "pbs_nodes.h"
 #include "server.h"
-#include "libutil.h"
 
 #define	CRED_DATA_SIZE	4096
 

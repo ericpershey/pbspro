@@ -52,7 +52,6 @@
 #endif
 #include	"log.h"
 
-#include	"libutil.h"
 
 #ifdef NAS
 /* localmod 071 */

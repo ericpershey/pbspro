@@ -69,7 +69,6 @@
 #include "pbs_internal.h"
 #include "pbs_sched.h"
 #include "acct.h"
-#include "libutil.h"
 
 
 /* Global Data Items: */

@@ -49,7 +49,6 @@
 #include "pbs_db.h"
 #include <errno.h>
 #include "db_postgres.h"
-#include "libutil.h"
 
 extern char *errmsg_cache;
 static int pbs_db_truncate_all(void *conn);

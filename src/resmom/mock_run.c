@@ -54,7 +54,6 @@
 #include "mom_func.h"
 #include "pbs_error.h"
 #include "resource.h"
-#include "libutil.h"
 #include "mom_server.h"
 
 #if defined(PBS_SECURITY) && (PBS_SECURITY == KRB5)

@@ -61,7 +61,6 @@
 #include	"pbs_ifl.h"
 #include	"pbs_internal.h"
 #include	"log.h"
-#include	"libutil.h"
 
 
 extern	void	add_cmds(Tcl_Interp *interp);

@@ -48,7 +48,6 @@
 
 #include "cmds.h"
 #include "libpbs.h"
-#include "libutil.h"
 
 
 /**

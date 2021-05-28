@@ -57,7 +57,6 @@
 #include <errno.h>
 #include "cmds.h"
 #include "auth.h"
-#include "libutil.h"
 
 /**
  * @brief

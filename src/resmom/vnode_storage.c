@@ -51,7 +51,6 @@
 #include	"placementsets.h"
 #include	"resource.h"
 #include	"pbs_nodes.h"
-#include "libutil.h"
 
 #ifdef	DEBUG
 extern void	mom_CPUs_report();

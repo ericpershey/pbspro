@@ -109,7 +109,6 @@
 #include "globals.h"
 #include "check.h"
 #include "buckets.h"
-#include "libutil.h"
 #ifdef NAS /* localmod 030 */
 #include "site_code.h"
 #endif /* localmod 030 */

@@ -41,7 +41,6 @@
 #include "libpbs.h"
 #include "server.h"
 #include "svrfunc.h"
-#include "libutil.h"
 
 /* Global Data */
 

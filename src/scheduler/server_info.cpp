@@ -150,7 +150,6 @@
 #include "buckets.h"
 #include "parse.h"
 #include "hook.h"
-#include "libutil.h"
 #include "libpbs.h"
 #ifdef NAS
 #include "site_code.h"

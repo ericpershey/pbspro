@@ -67,7 +67,6 @@
 #include "misc.h"
 #include "dedtime.h"
 #include "globals.h"
-#include "libutil.h"
 
 
 /**

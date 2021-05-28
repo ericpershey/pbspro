@@ -80,7 +80,6 @@
 #include "pbs_nodes.h"
 #include "pbs_sched.h"
 #include "pbs_idx.h"
-#include "libutil.h"
 
 /* Global Data */
 

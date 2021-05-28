@@ -73,7 +73,6 @@
 #include "pbs_db.h"
 #include "pbs_sched.h"
 #include "pbs_share.h"
-#include "libutil.h"
 
 /* Global Data Items: */
 

@@ -89,7 +89,6 @@
 #include "net_connect.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
-#include "libutil.h"
 
 
 #define MIG_RETRY_LIMIT 3

@@ -93,8 +93,6 @@
 #include "constant.h"
 #include "server_info.h"
 #include "resource.h"
-#include "constant.h"
-#include "libutil.h"
 
 #ifdef NAS
 #include "site_code.h"

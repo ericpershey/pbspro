@@ -49,7 +49,6 @@
 #include "list_link.h"
 #include "attribute.h"
 #include "pbs_error.h"
-#include "libutil.h"
 
 
 /**

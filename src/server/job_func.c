@@ -67,7 +67,6 @@
 #include "queue.h"
 #include "sched_cmds.h"
 #include "pbs_sched.h"
-#include "libutil.h"
 
 #include "job.h"
 #include "reservation.h"

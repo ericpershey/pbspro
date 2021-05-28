@@ -106,7 +106,6 @@
 #include <pbs_python.h>  /* for python interpreter */
 #include "pbs_undolr.h"
 #include "auth.h"
-#include "libutil.h"
 
 #include "pbs_v1_module_common.i"
 

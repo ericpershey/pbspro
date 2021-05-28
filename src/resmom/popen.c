@@ -88,7 +88,6 @@
 #include <sys/param.h>
 #include <sys/wait.h>
 #include "log.h"
-#include "libutil.h"
 
 extern pid_t fork_me(int sock);
 extern int kill_session(pid_t pid, int sig, int dir);

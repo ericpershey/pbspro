@@ -55,7 +55,6 @@
 #include "sort.h"
 #include "node_partition.h"
 #include "check.h"
-#include "libutil.h"
 #include <log.h>
 #include "pbs_internal.h"
 

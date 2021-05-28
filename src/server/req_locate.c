@@ -63,7 +63,6 @@
 #include "tracking.h"
 #include "pbs_error.h"
 #include "log.h"
-#include "libutil.h"
 
 
 /* Global Data Items: */

@@ -91,7 +91,6 @@
 #include	"provision.h"
 #include 	"pbs_sched.h"
 #include	"svrfunc.h"
-#include 	"libutil.h"
 
 #if !defined(H_ERRNO_DECLARED)
 extern int h_errno;

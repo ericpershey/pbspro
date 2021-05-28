@@ -59,7 +59,6 @@
 #include "fifo.h"
 #include "resource_resv.h"
 #include "multi_threading.h"
-#include "libutil.h"
 
 /**
  * @brief	create the thread id key & set it for the main thread

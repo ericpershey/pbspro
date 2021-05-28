@@ -68,7 +68,6 @@
 #include "pbs_nodes.h"
 #include "svrfunc.h"
 #include "pbs_sched.h"
-#include "libutil.h"
 
 /* Private Data */
 

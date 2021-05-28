@@ -43,7 +43,6 @@
 #include "pbs_ifl.h"
 #include "pbs_error.h"
 #include "pbs_python.h"
-#include "libutil.h"
 %}
 
 /* functions to acquire values from thread specific variables */

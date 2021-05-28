@@ -98,7 +98,6 @@
 #include	"pbs_ifl.h"
 #include	"pbs_internal.h"
 #include	"pbs_json.h"
-#include 	"libutil.h"
 
 /* Field width for Single line summary */
 #define NODE_NAME	15
@@ -919,7 +918,6 @@ main(int argc, char *argv[])
 	int long_summary = 0;
 	int format = 0;
 	int prt_summary = 0;
-
 
 	/*test for real deal or just version and exit*/
 

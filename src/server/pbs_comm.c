@@ -77,7 +77,6 @@
 #include "pbs_version.h"
 #include "pbs_undolr.h"
 #include "auth.h"
-#include "libutil.h"
 
 char daemonname[PBS_MAXHOSTNAME+8];
 extern char	*msg_corelimit;

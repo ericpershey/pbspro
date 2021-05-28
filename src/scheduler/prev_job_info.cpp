@@ -59,7 +59,6 @@
 #include "job_info.h"
 #include "misc.h"
 #include "resource_resv.h"
-#include "libutil.h"
 #include "globals.h"
 
 

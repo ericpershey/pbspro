@@ -89,8 +89,6 @@
 #include "pbs_license.h"
 #include "resource.h"
 #include "pbs_sched.h"
-#include "libutil.h"
-
 #include "liblicense.h"
 #include "ifl_internal.h"
 

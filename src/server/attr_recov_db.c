@@ -54,7 +54,6 @@
 #include "resource.h"
 #include "pbs_db.h"
 #include <openssl/sha.h>
-#include "libutil.h"
 
 
 /* Global Variables */

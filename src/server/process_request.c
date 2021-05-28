@@ -110,7 +110,6 @@
 #include <libutil.h>
 #include "pbs_sched.h"
 #include "auth.h"
-#include "libutil.h"
 
 /* global data items */
 

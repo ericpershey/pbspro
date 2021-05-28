@@ -98,7 +98,6 @@
 #include "fifo.h"
 #include "resource_resv.h"
 #include "resource.h"
-#include "libutil.h"
 #ifdef NAS /* localmod 041 */
 #include "sort.h"
 #endif

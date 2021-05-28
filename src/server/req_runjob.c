@@ -104,7 +104,6 @@
 #include "provision.h"
 #include "pbs_share.h"
 #include "pbs_sched.h"
-#include "libutil.h"
 
 
 /* External Functions Called: */

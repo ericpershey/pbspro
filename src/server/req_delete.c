@@ -79,7 +79,6 @@
 #include "log.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
-#include "libutil.h"
 
 #define QDEL_BREAKER_SECS 5
 

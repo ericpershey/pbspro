@@ -242,7 +242,7 @@ get_job_svr_inst_id(int c, char *job_id)
 			NULL,
 			"",
 			SET
-		}	
+		} 
 	};
 
 	if (job_id == NULL)

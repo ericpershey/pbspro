@@ -53,7 +53,6 @@
 #include "pbs_error.h"
 #include "libpbs.h"
 #include "pbs_idx.h"
-#include "libutil.h"
 #include "pbs_entlim.h"
 #include "job.h"
 

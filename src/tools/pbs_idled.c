@@ -69,7 +69,6 @@
 #include <fcntl.h>
 #include <utime.h>
 #include <errno.h>
-#include "libutil.h"
 
 #define EVER 1
 

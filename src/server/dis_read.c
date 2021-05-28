@@ -69,7 +69,6 @@
 #include "credential.h"
 #include "batch_request.h"
 #include "net_connect.h"
-#include "libutil.h"
 
 
 /* External Global Data */

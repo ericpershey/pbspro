@@ -44,7 +44,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "portability.h"
-#include "libutil.h"
 #include "log.h"
 
 

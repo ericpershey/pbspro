@@ -99,7 +99,6 @@
 #include "hook_func.h"
 #include "pbs_share.h"
 #include "pbs_undolr.h"
-#include "libutil.h"
 #include "liblicense.h"
 
 #ifndef SIGKILL

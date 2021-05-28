@@ -56,7 +56,6 @@
 #include "rm.h"
 #include "cmds.h"
 #include	 "attribute.h"
-#include "libutil.h"
 
 
 char	badparm[] = "%s: bad parameter";

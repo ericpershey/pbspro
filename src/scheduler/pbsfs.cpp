@@ -63,7 +63,6 @@
 #include "pbs_version.h"
 #include "sched_cmds.h"
 #include "log.h"
-#include "libutil.h"
 #include "fifo.h"
 
 /* prototypes */

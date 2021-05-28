@@ -81,7 +81,6 @@
 #include "tpp.h"
 #include "pbs_internal.h"
 #include "work_task.h"
-#include "libutil.h"
 #include "hook_func.h"
 
 static char merr[] = "malloc failed";

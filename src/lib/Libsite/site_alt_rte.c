@@ -48,7 +48,6 @@
 #include "job.h"
 #include "reservation.h"
 #include "queue.h"
-#include "libutil.h"
 
 /**
  * @file	site_alt_rte.c

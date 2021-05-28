@@ -79,7 +79,6 @@
 #include "pbs_ecl.h"
 #include "placementsets.h"
 #include "pbs_reliable.h"
-#include "libutil.h"
 
 
 /* -----                        GLOBALS                        -----    */

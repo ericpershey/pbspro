@@ -53,7 +53,6 @@
 #include <unistd.h>
 #include <pbs_ifl.h>
 #include "attribute.h"
-#include "libutil.h"
 
 /* prototypes */
 static struct attrl *read_attrs(FILE *fp);

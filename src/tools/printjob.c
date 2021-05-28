@@ -62,7 +62,6 @@
 #include <strings.h>
 #include <unistd.h>
 #include <dirent.h>
-#include "libutil.h"
 
 #define	PBS_MOM 1	/* this is so we can use the task struct */
 

@@ -50,7 +50,6 @@
 #include <sys/types.h>
 #include "pbs_nodes.h"
 #include "pbs_license.h"
-#include "libutil.h"
 
 
 

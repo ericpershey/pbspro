@@ -57,7 +57,6 @@
 #include "batch_request.h"
 #include "pbs_share.h"
 #include "log.h"
-#include "libutil.h"
 
 /**
  * @brief

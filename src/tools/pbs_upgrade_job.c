@@ -79,7 +79,6 @@
 #include "tm.h"
 #include "server_limits.h"
 #include "pbs_version.h"
-#include "libutil.h"
 
 #define O_BINARY 0
 

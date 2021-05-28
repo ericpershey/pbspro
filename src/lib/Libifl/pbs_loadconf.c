@@ -423,6 +423,7 @@ __pbs_loadconf(int reload)
 		(void)pbs_client_thread_unlock_conf();
 		return 0;
 	}
+
 	/*
 	 * If there are service port definitions available, use them
 	 * as the defaults. They may be overridden later by the config
@@ -719,6 +720,7 @@ __pbs_loadconf(int reload)
 		pbs_loadconf_buf = NULL;
 		pbs_loadconf_len = 0;
 	}
+
 	/*
 	 * Next, check the environment variables and set values accordingly
 	 * overriding those that were set in the configuration file.
@@ -1007,6 +1009,7 @@ __pbs_loadconf(int reload)
 			goto err;
 		}
 	}
+
 	free(pbs_conf.iff_path);
 	/* strlen("/sbin/pbs_iff") + '\0' == 13 + 1 == 14 */
 	if ((pbs_conf.iff_path =

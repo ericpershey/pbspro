@@ -75,7 +75,6 @@
 #include "globals.h"
 #include "prime.h"
 #include "misc.h"
-#include "libutil.h"
 
 
 /**

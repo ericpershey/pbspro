@@ -67,7 +67,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#include "libutil.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>

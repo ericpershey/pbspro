@@ -53,7 +53,6 @@
 #include "server_limits.h"
 #include "job.h"
 #include "pbs_error.h"
-#include "libutil.h"
 
 #define HOLD_ENCODE_SIZE 4
 

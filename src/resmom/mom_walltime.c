@@ -40,7 +40,6 @@
 #include "attribute.h"
 #include "job.h"
 #include "pbs_assert.h"
-#include "libutil.h"
 #include "resource.h"
 #include <stdlib.h>
 #include <sys/types.h>
